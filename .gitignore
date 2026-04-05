@@ -1,0 +1,15 @@
+node_modules
+dist
+build
+.vite
+.env
+.env.local
+.DS_Store
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+*.pyc
+coverage/
+

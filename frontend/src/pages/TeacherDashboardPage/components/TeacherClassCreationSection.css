@@ -1,0 +1,91 @@
+.teacher-form-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.teacher-class-actions,
+.teacher-share-grid,
+.teacher-setup-header {
+  display: flex;
+  gap: 14px;
+}
+
+.teacher-class-actions {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.teacher-status-copy {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.teacher-status-copy.success {
+  color: #86efac;
+}
+
+.teacher-status-copy.warning {
+  color: #fbbf24;
+}
+
+.teacher-setup-header,
+.teacher-share-grid {
+  justify-content: space-between;
+}
+
+.teacher-setup-header {
+  align-items: start;
+}
+
+.teacher-share-grid div {
+  flex: 1;
+  min-width: 0;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.teacher-share-grid span {
+  display: block;
+  margin-bottom: 8px;
+  color: #8ea0bd;
+}
+
+.teacher-setup-list {
+  display: grid;
+  gap: 14px;
+}
+
+.teacher-setup-card {
+  padding: 20px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.teacher-setup-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(103, 232, 249, 0.1);
+  border: 1px solid rgba(103, 232, 249, 0.16);
+  color: #d9fbff;
+  font-size: 0.84rem;
+}
+
+@media (max-width: 980px) {
+  .teacher-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .teacher-class-actions,
+  .teacher-share-grid,
+  .teacher-setup-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

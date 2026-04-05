@@ -1,0 +1,196 @@
+.student-classroom-panel,
+.student-face-panel {
+  min-height: 100%;
+}
+
+.classroom-form,
+.face-enrollment-form {
+  display: grid;
+  gap: 16px;
+}
+
+.face-capture-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.student-classroom-actions,
+.face-enrollment-actions,
+.teacher-class-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.student-status-copy,
+.face-status-copy,
+.teacher-status-copy {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.student-status-copy.success,
+.face-status-copy.success,
+.teacher-status-copy.success {
+  color: #86efac;
+}
+
+.student-status-copy.warning,
+.face-status-copy.warning,
+.teacher-status-copy.warning {
+  color: #fbbf24;
+}
+
+.joined-classroom-list,
+.selected-file-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.joined-classroom-card {
+  padding: 20px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.joined-classroom-header,
+.joined-classroom-meta,
+.face-profile-header,
+.face-profile-stats,
+.teacher-setup-header,
+.teacher-share-grid {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.joined-classroom-header {
+  align-items: start;
+}
+
+.joined-classroom-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(103, 232, 249, 0.1);
+  border: 1px solid rgba(103, 232, 249, 0.16);
+  color: #d9fbff;
+  font-size: 0.84rem;
+}
+
+.joined-classroom-meta div,
+.face-profile-stats div,
+.teacher-share-grid div {
+  flex: 1;
+  min-width: 0;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.joined-classroom-meta span,
+.face-profile-stats span,
+.teacher-share-grid span {
+  display: block;
+  margin-bottom: 8px;
+  color: #8ea0bd;
+}
+
+.face-profile-card {
+  margin-top: 22px;
+  padding: 22px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.face-profile-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.face-profile-status.ready {
+  background: rgba(34, 197, 94, 0.12);
+  color: #86efac;
+}
+
+.face-profile-status.pending {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fcd34d;
+}
+
+.face-profile-copy {
+  margin: 14px 0 0;
+  color: #9caecc;
+}
+
+.camera-capture-card {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.camera-preview-frame {
+  overflow: hidden;
+  border-radius: 22px;
+  border: 1px solid rgba(103, 232, 249, 0.12);
+  background:
+    radial-gradient(circle at top, rgba(56, 189, 248, 0.12), transparent 58%),
+    #020617;
+  aspect-ratio: 4 / 3;
+}
+
+.camera-preview {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.selected-file-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(52, 211, 153, 0.08);
+  border: 1px solid rgba(52, 211, 153, 0.14);
+}
+
+.selected-file-source {
+  color: #8de7f5;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 720px) {
+  .face-capture-toolbar,
+  .student-classroom-actions,
+  .face-enrollment-actions,
+  .teacher-class-actions,
+  .joined-classroom-header,
+  .joined-classroom-meta,
+  .face-profile-header,
+  .face-profile-stats,
+  .teacher-setup-header,
+  .teacher-share-grid {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

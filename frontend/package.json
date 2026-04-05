@@ -1,0 +1,17 @@
+{
+  "name": "frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "parcel serve index.html --host localhost --port 5173",
+    "build": "parcel build index.html --dist-dir dist"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "parcel": "^2.13.3"
+  }
+}

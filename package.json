@@ -1,0 +1,17 @@
+{
+  "name": "smart-attendance-management-system",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "npm run dev:backend & npm run dev:frontend & npm run dev:ai",
+    "dev:ai": "cd ai-service && ./.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000",
+    "dev:frontend": "npm --workspace frontend run dev",
+    "dev:backend": "npm --workspace backend run dev",
+    "build:frontend": "npm --workspace frontend run build",
+    "start:backend": "npm --workspace backend run start"
+  }
+}

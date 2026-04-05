@@ -1,0 +1,38 @@
+.student-enrollment-layout {
+  display: grid;
+  grid-template-columns: 0.92fr 1.08fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.student-enrollment-intro {
+  padding: 28px;
+}
+
+.student-enrollment-intro h1 {
+  margin: 0;
+  font-size: clamp(2.7rem, 5vw, 4.6rem);
+  line-height: 0.96;
+  letter-spacing: -0.05em;
+}
+
+.student-enrollment-intro > p {
+  margin: 16px 0 0;
+  max-width: 58ch;
+  color: #9caecc;
+  font-size: 1.04rem;
+}
+
+.student-enrollment-strip {
+  margin-top: 28px;
+}
+
+.active-student-nav {
+  color: #ffffff;
+}
+
+@media (max-width: 1100px) {
+  .student-enrollment-layout {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/ai-service/.venv/bin/python",
+  "python.envFile": "${workspaceFolder}/ai-service/.env",
+  "python.terminal.useEnvFile": true
+}

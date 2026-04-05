@@ -1,0 +1,202 @@
+.teacher-classroom-hero,
+.teacher-classroom-main {
+  display: grid;
+  align-items: start;
+}
+
+.teacher-classroom-hero {
+  grid-template-columns: 1.12fr 0.88fr;
+  gap: 20px;
+}
+
+.teacher-classroom-intro {
+  padding: 28px;
+}
+
+.teacher-classroom-intro h1 {
+  margin: 0;
+  font-size: clamp(2.8rem, 5vw, 4.8rem);
+  line-height: 0.96;
+  letter-spacing: -0.05em;
+}
+
+.teacher-classroom-intro > p {
+  margin: 16px 0 0;
+  color: #9caecc;
+}
+
+.teacher-classroom-description {
+  max-width: 64ch;
+  font-size: 1rem;
+}
+
+.teacher-classroom-strip {
+  margin-top: 28px;
+}
+
+.teacher-class-history {
+  margin-top: 24px;
+}
+
+.teacher-class-history h3,
+.teacher-review-group h3,
+.teacher-roster-card h3 {
+  margin: 0 0 14px;
+}
+
+.teacher-roster-grid,
+.teacher-review-group {
+  display: grid;
+  gap: 14px;
+}
+
+.teacher-roster-card,
+.teacher-review-card {
+  padding: 20px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.teacher-roster-header,
+.teacher-review-card {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.teacher-roster-header span,
+.teacher-review-card span {
+  color: #8ea0bd;
+}
+
+.teacher-review-card input {
+  margin-top: 4px;
+}
+
+.teacher-attendance-review {
+  display: grid;
+  gap: 18px;
+  margin-top: 22px;
+}
+
+.teacher-session-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 14px;
+}
+
+.teacher-session-summary-card {
+  padding: 16px 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(141, 231, 245, 0.12);
+  background: rgba(141, 231, 245, 0.06);
+}
+
+.teacher-session-summary-card span {
+  display: block;
+  color: #8ea0bd;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.teacher-session-summary-card strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 1.7rem;
+}
+
+.teacher-session-notes {
+  margin-top: 4px;
+}
+
+.teacher-camera-card {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 18px;
+  border-radius: 24px;
+  border: 1px solid rgba(141, 231, 245, 0.14);
+  background: rgba(141, 231, 245, 0.05);
+}
+
+.teacher-camera-preview {
+  width: 100%;
+  min-height: 260px;
+  border-radius: 20px;
+  background: rgba(6, 12, 24, 0.82);
+  object-fit: cover;
+}
+
+.face-enrollment-form,
+.selected-file-list {
+  display: grid;
+  gap: 14px;
+}
+
+.selected-file-list {
+  margin-top: 18px;
+}
+
+.selected-file-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(52, 211, 153, 0.08);
+  border: 1px solid rgba(52, 211, 153, 0.14);
+}
+
+.selected-file-source {
+  color: #8de7f5;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.unknown-review-card {
+  display: block;
+}
+
+.teacher-finalized-card {
+  margin-top: 20px;
+}
+
+.active-teacher-nav {
+  color: #ffffff;
+}
+
+.field textarea {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #f4f7fb;
+  outline: none;
+  resize: vertical;
+}
+
+.field textarea:focus {
+  border-color: rgba(103, 232, 249, 0.45);
+  box-shadow: 0 0 0 4px rgba(103, 232, 249, 0.08);
+}
+
+@media (max-width: 980px) {
+  .teacher-classroom-hero {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .teacher-roster-header,
+  .teacher-review-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
