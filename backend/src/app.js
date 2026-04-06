@@ -9,7 +9,12 @@ export function createApp() {
   app.use(
     cors({
       origin(origin, callback) {
-        if (!origin || env.frontendOrigins.includes(origin)) {
+        const isAllowedOrigin =
+          !origin ||
+          env.frontendOrigins.includes(origin) ||
+          env.frontendOriginMatchers.some((matcher) => matcher.test(origin));
+
+        if (isAllowedOrigin) {
           callback(null, true);
           return;
         }

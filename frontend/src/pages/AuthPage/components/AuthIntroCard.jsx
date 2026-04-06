@@ -22,10 +22,6 @@ export function AuthIntroCard({ mode, activeRole, authenticatedUser }) {
           <strong>Security</strong>
           <span>Passwords are hashed before they are stored in the database.</span>
         </div>
-        <div>
-          <strong>Navigation</strong>
-          <span>Each major product area has its own page and its own styles.</span>
-        </div>
       </div>
 
       {authenticatedUser ? (
@@ -43,4 +39,3 @@ export function AuthIntroCard({ mode, activeRole, authenticatedUser }) {
     </article>
   );
 }
-

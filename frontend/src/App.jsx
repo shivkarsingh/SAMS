@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 import { AuthPage } from "./pages/AuthPage/AuthPage";
+import { ClassNotesPage } from "./pages/ClassNotesPage/ClassNotesPage";
 import { HomePage } from "./pages/HomePage/HomePage";
 import { JoinClassPage } from "./pages/JoinClassPage/JoinClassPage";
 import { TeacherClassroomPage } from "./pages/TeacherClassroomPage/TeacherClassroomPage";
+import { TeacherClassroomSessionsPage } from "./pages/TeacherClassroomSessionsPage/TeacherClassroomSessionsPage";
+import { TeacherClassroomStudentsPage } from "./pages/TeacherClassroomStudentsPage/TeacherClassroomStudentsPage";
 import { StudentDashboardPage } from "./pages/StudentDashboardPage/StudentDashboardPage";
 import { StudentFaceEnrollmentPage } from "./pages/StudentFaceEnrollmentPage/StudentFaceEnrollmentPage";
 import { TeacherDashboardPage } from "./pages/TeacherDashboardPage/TeacherDashboardPage";
+import { TeacherProfilePage } from "./pages/TeacherProfilePage/TeacherProfilePage";
 import { getRouteFromHash } from "./utils/router";
 
 export default function App() {
@@ -49,8 +53,24 @@ export default function App() {
     return <TeacherDashboardPage />;
   }
 
+  if (route === "/teacher-profile") {
+    return <TeacherProfilePage />;
+  }
+
   if (route === "/teacher-classroom") {
     return <TeacherClassroomPage />;
+  }
+
+  if (route === "/teacher-classroom-sessions") {
+    return <TeacherClassroomSessionsPage />;
+  }
+
+  if (route === "/teacher-classroom-students") {
+    return <TeacherClassroomStudentsPage />;
+  }
+
+  if (route === "/class-notes") {
+    return <ClassNotesPage />;
   }
 
   return <HomePage />;

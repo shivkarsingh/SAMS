@@ -4,6 +4,19 @@
   align-items: start;
 }
 
+.teacher-classroom-main {
+  margin-top: 20px;
+}
+
+.teacher-sessions-page-panel {
+  margin-top: 20px;
+}
+
+.teacher-sessions-list {
+  display: grid;
+  gap: 14px;
+}
+
 .teacher-classroom-hero {
   grid-template-columns: 1.12fr 0.88fr;
   gap: 20px;
@@ -34,11 +47,70 @@
   margin-top: 28px;
 }
 
-.teacher-class-history {
-  margin-top: 24px;
+.teacher-classroom-side-card {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  min-height: 100%;
 }
 
-.teacher-class-history h3,
+.teacher-classroom-tools {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.classroom-tool-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e8eef8;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.classroom-tool-button:hover {
+  transform: translateY(-2px);
+  color: #ffffff;
+}
+
+.classroom-tool-button:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.classroom-tool-button-notes:hover {
+  border-color: rgba(56, 189, 248, 0.28);
+  background: rgba(56, 189, 248, 0.12);
+  box-shadow: 0 14px 30px rgba(56, 189, 248, 0.16);
+}
+
+.classroom-tool-button-students:hover {
+  border-color: rgba(52, 211, 153, 0.28);
+  background: rgba(52, 211, 153, 0.12);
+  box-shadow: 0 14px 30px rgba(52, 211, 153, 0.14);
+}
+
+.classroom-tool-button-sessions:hover {
+  border-color: rgba(249, 115, 22, 0.28);
+  background: rgba(249, 115, 22, 0.12);
+  box-shadow: 0 14px 30px rgba(249, 115, 22, 0.14);
+}
+
+.classroom-tool-button-download:hover {
+  border-color: rgba(168, 85, 247, 0.28);
+  background: rgba(168, 85, 247, 0.12);
+  box-shadow: 0 14px 30px rgba(168, 85, 247, 0.14);
+}
+
+.teacher-classroom-side-card h3,
 .teacher-review-group h3,
 .teacher-roster-card h3 {
   margin: 0 0 14px;
@@ -196,6 +268,11 @@
 @media (max-width: 720px) {
   .teacher-roster-header,
   .teacher-review-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .teacher-classroom-tools {
     flex-direction: column;
     align-items: flex-start;
   }

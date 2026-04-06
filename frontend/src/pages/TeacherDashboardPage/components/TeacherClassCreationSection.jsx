@@ -77,8 +77,77 @@ export function TeacherClassCreationSection({
   }
 
   return (
-    <section className="dashboard-lower-grid" id="class-management">
-      <article className="glass-card dashboard-panel">
+    <>
+      <section className="glass-card dashboard-panel teacher-manage-classes-panel" id="classes">
+        <DashboardPanelHeader
+          label="Manage Classes"
+          title="All your classes, links, and quick access in one place."
+        />
+
+        <div className="teacher-manage-class-list">
+          {classesManaged.length ? (
+            classesManaged.map((classroom) => (
+              <article key={classroom.id} className="teacher-manage-class-card">
+                <div className="teacher-setup-header">
+                  <div>
+                    <span className="course-code">{classroom.code}</span>
+                    <h3>{classroom.title}</h3>
+                  </div>
+                  <span className="teacher-setup-pill">{classroom.section}</span>
+                </div>
+
+                <p className="course-meta">
+                  {classroom.room} • {classroom.nextClass}
+                </p>
+
+                <div className="teacher-share-grid">
+                  <div>
+                    <span>Join Code</span>
+                    <strong>{classroom.joinCode}</strong>
+                  </div>
+                  <div>
+                    <span>Students Joined</span>
+                    <strong>{classroom.studentsCount}</strong>
+                  </div>
+                  <div>
+                    <span>Semester</span>
+                    <strong>{classroom.semesterLabel || "TBD"}</strong>
+                  </div>
+                </div>
+
+                <div className="teacher-class-actions teacher-manage-actions">
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() =>
+                      copyInvite(
+                        classroom.joinLink,
+                        `Join link for ${classroom.code} copied to clipboard.`
+                      )
+                    }
+                  >
+                    Copy Link
+                  </button>
+                  <button
+                    className="primary-button"
+                    type="button"
+                    onClick={() => onOpenClassroom(classroom.id)}
+                  >
+                    Open Class
+                  </button>
+                </div>
+              </article>
+            ))
+          ) : (
+            <p className="panel-fallback">
+              No classes created yet. Create your first class below and it will appear here.
+            </p>
+          )}
+        </div>
+      </section>
+
+      <section className="teacher-create-class-section" id="class-management">
+        <article className="glass-card dashboard-panel">
         <DashboardPanelHeader
           label="Create Class"
           title="Set subject details once and generate a secure join flow."
@@ -183,87 +252,8 @@ export function TeacherClassCreationSection({
             <p className={`teacher-status-copy ${status.tone}`}>{status.message}</p>
           ) : null}
         </form>
-      </article>
-
-      <article className="glass-card dashboard-panel">
-        <DashboardPanelHeader
-          label="Share Invites"
-          title="Every class gets a join code and link for students."
-        />
-
-        <div className="teacher-setup-list">
-          {classesManaged.length ? (
-            classesManaged.map((classroom) => (
-              <article key={classroom.id} className="teacher-setup-card">
-                <div className="teacher-setup-header">
-                  <div>
-                    <span className="course-code">{classroom.code}</span>
-                    <h3>{classroom.title}</h3>
-                  </div>
-                  <span className="teacher-setup-pill">{classroom.section}</span>
-                </div>
-
-                <p className="course-meta">
-                  {classroom.room} • {classroom.nextClass}
-                </p>
-
-                <div className="teacher-share-grid">
-                  <div>
-                    <span>Join Code</span>
-                    <strong>{classroom.joinCode}</strong>
-                  </div>
-                  <div>
-                    <span>Students Joined</span>
-                    <strong>{classroom.studentsCount}</strong>
-                  </div>
-                  <div>
-                    <span>Semester</span>
-                    <strong>{classroom.semesterLabel || "TBD"}</strong>
-                  </div>
-                </div>
-
-                <div className="teacher-class-actions" style={{ marginTop: "16px" }}>
-                  <button
-                    className="primary-button"
-                    type="button"
-                    onClick={() => onOpenClassroom(classroom.id)}
-                  >
-                    Open Class
-                  </button>
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    onClick={() =>
-                      copyInvite(
-                        classroom.joinCode,
-                        `Join code ${classroom.joinCode} copied to clipboard.`
-                      )
-                    }
-                  >
-                    Copy Code
-                  </button>
-                  <button
-                    className="ghost-button"
-                    type="button"
-                    onClick={() =>
-                      copyInvite(
-                        classroom.joinLink,
-                        `Join link for ${classroom.code} copied to clipboard.`
-                      )
-                    }
-                  >
-                    Copy Link
-                  </button>
-                </div>
-              </article>
-            ))
-          ) : (
-            <p className="panel-fallback">
-              No classes created yet. Build the first class here and the shareable invite details will appear.
-            </p>
-          )}
-        </div>
-      </article>
-    </section>
+        </article>
+      </section>
+    </>
   );
 }

@@ -1,0 +1,70 @@
+.teacher-student-summary-strip {
+  margin-top: 20px;
+}
+
+.teacher-student-filter-panel {
+  margin-top: 20px;
+}
+
+.teacher-student-filter-row,
+.teacher-student-card-head,
+.teacher-student-metrics {
+  display: flex;
+  gap: 14px;
+}
+
+.teacher-student-filter-row {
+  flex-wrap: wrap;
+}
+
+.teacher-student-list {
+  display: grid;
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.teacher-student-card {
+  padding: 22px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.teacher-student-card-head {
+  align-items: start;
+  justify-content: space-between;
+}
+
+.teacher-student-card-head h3 {
+  margin: 0 0 8px;
+}
+
+.teacher-student-card-head span {
+  color: #8ea0bd;
+}
+
+.teacher-student-metrics {
+  margin-top: 18px;
+}
+
+.teacher-student-metrics div {
+  flex: 1;
+  min-width: 0;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.teacher-student-metrics span {
+  display: block;
+  margin-bottom: 8px;
+  color: #8ea0bd;
+}
+
+@media (max-width: 720px) {
+  .teacher-student-card-head,
+  .teacher-student-metrics {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

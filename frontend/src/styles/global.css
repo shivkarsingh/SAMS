@@ -17,13 +17,27 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: clip;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 body {
   margin: 0;
   min-width: 320px;
+  overflow-x: clip;
+  padding: 0 clamp(12px, 1.8vw, 18px) clamp(18px, 2.4vw, 24px);
   background: transparent;
   color: #f4f7fb;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 a {
@@ -81,7 +95,7 @@ button {
 .footer,
 .dashboard-topbar,
 .dashboard-shell {
-  width: min(1280px, calc(100% - 32px));
+  width: min(1280px, 100%);
   margin: 0 auto;
 }
 

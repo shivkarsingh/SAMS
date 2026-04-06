@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { DashboardPanelHeader } from "../../../components/common/DashboardPanelHeader";
+import { goToRoute } from "../../../utils/router";
 import "./StudentClassroomSection.css";
 
 export function StudentClassroomSection({ joinedClasses, onJoinClass }) {
@@ -110,6 +111,18 @@ export function StudentClassroomSection({ joinedClasses, onJoinClass }) {
                   <span>Schedule</span>
                   <strong>{joinedClass.scheduleSummary || "TBD"}</strong>
                 </div>
+              </div>
+
+              <div className="student-classroom-actions student-joined-class-actions">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() =>
+                    goToRoute(`/class-notes?classId=${encodeURIComponent(joinedClass.id)}`)
+                  }
+                >
+                  Open Notes
+                </button>
               </div>
             </article>
           ))

@@ -2,6 +2,7 @@ node_modules
 dist
 build
 .vite
+.parcel-cache/
 .env
 .env.local
 .DS_Store
@@ -12,4 +13,3 @@ __pycache__/
 venv/
 *.pyc
 coverage/
-

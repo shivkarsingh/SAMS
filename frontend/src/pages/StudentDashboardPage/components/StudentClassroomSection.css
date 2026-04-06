@@ -179,6 +179,10 @@
   text-transform: uppercase;
 }
 
+.student-joined-class-actions {
+  margin-top: 16px;
+}
+
 @media (max-width: 720px) {
   .face-capture-toolbar,
   .student-classroom-actions,

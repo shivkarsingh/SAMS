@@ -1,0 +1,94 @@
+.class-notes-shell {
+  padding-top: 34px;
+}
+
+.class-notes-heading h1 {
+  margin: 0;
+  font-size: clamp(2.4rem, 5vw, 4.2rem);
+  line-height: 0.96;
+  letter-spacing: -0.06em;
+}
+
+.class-notes-heading .course-meta {
+  margin-top: 14px;
+}
+
+.class-notes-upload-panel,
+.class-notes-list-panel {
+  margin-top: 20px;
+}
+
+.class-notes-form,
+.class-notes-list {
+  display: grid;
+  gap: 16px;
+}
+
+.class-notes-form .field textarea {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #f4f7fb;
+  outline: none;
+  resize: vertical;
+}
+
+.class-notes-form .field textarea:focus {
+  border-color: rgba(103, 232, 249, 0.45);
+  box-shadow: 0 0 0 4px rgba(103, 232, 249, 0.08);
+}
+
+.class-notes-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.class-note-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.class-note-copy strong {
+  display: block;
+  font-size: 1.05rem;
+}
+
+.class-note-copy p {
+  margin: 10px 0 0;
+  color: #9caecc;
+  line-height: 1.6;
+}
+
+.class-note-copy span {
+  display: block;
+  margin-top: 10px;
+  color: #8ea0bd;
+  font-size: 0.92rem;
+}
+
+.class-note-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 840px) {
+  .class-notes-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .class-note-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

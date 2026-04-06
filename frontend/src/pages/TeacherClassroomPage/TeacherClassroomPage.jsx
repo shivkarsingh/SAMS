@@ -27,6 +27,23 @@ function formatDateTime(value) {
   }).format(new Date(value));
 }
 
+function escapeCsvValue(value) {
+  const stringValue = String(value ?? "");
+  const escapedValue = stringValue.replace(/"/g, '""');
+
+  return /[",\n]/.test(escapedValue) ? `"${escapedValue}"` : escapedValue;
+}
+
+function downloadFile(content, fileName, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 const initialAttendanceDraft = {
   acceptedSuggestedTrackIds: [],
   confirmedReviewPersonIds: [],
@@ -438,7 +455,7 @@ export function TeacherClassroomPage() {
     );
   }
 
-  const { classroom, overview, roster, attendanceHistory, attentionNotes } = classroomData;
+  const { classroom, overview, roster } = classroomData;
   const totalCaptureImages = captureFiles.length + capturedImages.length;
   const selectedCaptureItems = [
     ...captureFiles.map((file) => ({
@@ -494,6 +511,44 @@ export function TeacherClassroomPage() {
         }
       ]
     : [];
+
+  function handleExportAttendanceCsv() {
+    const csvRows = [
+      ["Class Name", classroom.subjectName],
+      ["Class Code", classroom.subjectCode],
+      ["Section", classroom.section],
+      ["Room", classroom.room || "Room pending"],
+      ["Average Attendance", `${overview.averageAttendance}%`],
+      [],
+      ["Roll No", "Name", "Attended Classes", "Attendance Percentage"]
+    ];
+
+    roster
+      .slice()
+      .sort((left, right) => right.attendancePercentage - left.attendancePercentage)
+      .forEach((student) => {
+        csvRows.push([
+          student.studentUserId,
+          student.studentName,
+          `${student.sessionsAttended}/${student.sessionsHeld || 0}`,
+          `${student.attendancePercentage}%`
+        ]);
+      });
+
+    const csvContent = csvRows
+      .map((row) => row.map(escapeCsvValue).join(","))
+      .join("\n");
+
+    const fileName = `${classroom.subjectCode}-${classroom.section}`
+      .replace(/\s+/g, "-")
+      .toLowerCase();
+
+    downloadFile(
+      csvContent,
+      `${fileName}-attendance.csv`,
+      "text/csv;charset=utf-8"
+    );
+  }
 
   return (
     <div className="page-shell">
@@ -573,7 +628,7 @@ export function TeacherClassroomPage() {
 
             <div className="teacher-class-actions" style={{ marginTop: "20px" }}>
               <button
-                className="secondary-button"
+                className="ghost-button"
                 type="button"
                 onClick={() =>
                   copyValue(
@@ -600,108 +655,54 @@ export function TeacherClassroomPage() {
           </article>
 
           <article className="glass-card dashboard-panel">
-            <div className="simple-list">
-              {attentionNotes.map((note) => (
-                <div key={note} className="simple-list-item">
-                  <strong>Class Note</strong>
-                  <span>{note}</span>
-                </div>
-              ))}
-            </div>
+            <div className="teacher-classroom-side-card">
+              <span className="pill">Class Tools</span>
 
-            <div className="teacher-class-history">
-              <h3>Recent Attendance Sessions</h3>
-              {attendanceHistory.length ? (
-                attendanceHistory.map((session) => (
-                  <article key={session.sessionId} className="timeline-card">
-                    <div className="timeline-time">
-                      <span>Recorded</span>
-                      <strong>{formatDateTime(session.recordedAt)}</strong>
-                    </div>
-                    <div className="timeline-content">
-                      <strong>
-                        {session.presentCount} present • {session.absentCount} absent
-                      </strong>
-                    </div>
-                  </article>
-                ))
-              ) : (
-                <p className="panel-fallback">
-                  Finalized attendance sessions will appear here after the first submission.
-                </p>
-              )}
+              <div className="teacher-classroom-tools">
+                <button
+                  className="classroom-tool-button classroom-tool-button-notes"
+                  type="button"
+                  onClick={() =>
+                    goToRoute(`/class-notes?classId=${encodeURIComponent(classId)}`)
+                  }
+                >
+                  Notes
+                </button>
+                <button
+                  className="classroom-tool-button classroom-tool-button-students"
+                  type="button"
+                  onClick={() =>
+                    goToRoute(
+                      `/teacher-classroom-students?classId=${encodeURIComponent(classId)}`
+                    )
+                  }
+                >
+                  Student Details
+                </button>
+                <button
+                  className="classroom-tool-button classroom-tool-button-download"
+                  type="button"
+                  onClick={handleExportAttendanceCsv}
+                >
+                  Download Attendance
+                </button>
+                <button
+                  className="classroom-tool-button classroom-tool-button-sessions"
+                  type="button"
+                  onClick={() =>
+                    goToRoute(
+                      `/teacher-classroom-sessions?classId=${encodeURIComponent(classId)}`
+                    )
+                  }
+                >
+                  Recent Sessions
+                </button>
+              </div>
             </div>
           </article>
         </section>
 
-        <section className="dashboard-main-grid teacher-classroom-main">
-          <article className="glass-card dashboard-panel">
-            <div className="dashboard-panel-header">
-              <div>
-                <span className="pill">Roster</span>
-                <h2>Students synced from the join flow.</h2>
-                <p className="dashboard-panel-copy">
-                  The class roster, face-profile readiness, and attendance percentages are all pulled from the same data used by student dashboards.
-                </p>
-              </div>
-            </div>
-
-            <div className="teacher-roster-grid">
-              {roster.length ? (
-                roster.map((student) => (
-                  <article
-                    key={student.studentUserId}
-                    className="teacher-roster-card"
-                  >
-                    <div className="teacher-roster-header">
-                      <div>
-                        <h3>{student.studentName}</h3>
-                        <span>{student.studentUserId}</span>
-                      </div>
-                      <span
-                        className={`teacher-status-pill ${
-                          student.faceProfileStatus === "enrolled"
-                            ? "submitted"
-                            : "pending"
-                        }`}
-                      >
-                        {student.faceProfileStatus === "enrolled"
-                          ? "Face Ready"
-                          : "Needs Face Setup"}
-                      </span>
-                    </div>
-
-                    <div className="teacher-share-grid">
-                      <div>
-                        <span>Attendance</span>
-                        <strong>{student.attendancePercentage}%</strong>
-                      </div>
-                      <div>
-                        <span>Sessions</span>
-                        <strong>
-                          {student.sessionsAttended}/{student.sessionsHeld}
-                        </strong>
-                      </div>
-                      <div>
-                        <span>Latest Status</span>
-                        <strong>{student.latestStatus}</strong>
-                      </div>
-                    </div>
-
-                    <p className="course-meta">
-                      {student.department || classroom.batch || "Batch pending"} • Joined{" "}
-                      {formatDateTime(student.joinedAt)}
-                    </p>
-                  </article>
-                ))
-              ) : (
-                <p className="panel-fallback">
-                  No students have joined this class yet. Share the invite link or code first.
-                </p>
-              )}
-            </div>
-          </article>
-
+        <section className="teacher-classroom-main">
           <article className="glass-card dashboard-panel">
             <div className="dashboard-panel-header">
               <div>

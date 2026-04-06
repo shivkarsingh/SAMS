@@ -7,14 +7,8 @@ import {
 } from "../../services/api";
 import { clearSession, getSession } from "../../services/session";
 import { goToRoute } from "../../utils/router";
-import { TeacherActionSection } from "./components/TeacherActionSection";
 import { TeacherClassCreationSection } from "./components/TeacherClassCreationSection";
-import { TeacherClassesPanel } from "./components/TeacherClassesPanel";
 import { TeacherDashboardHeader } from "./components/TeacherDashboardHeader";
-import { TeacherHeroSection } from "./components/TeacherHeroSection";
-import { TeacherInsightsSidebar } from "./components/TeacherInsightsSidebar";
-import { TeacherScheduleSection } from "./components/TeacherScheduleSection";
-import { TeacherSummaryGrid } from "./components/TeacherSummaryGrid";
 import "./TeacherDashboardPage.css";
 
 export function TeacherDashboardPage() {
@@ -129,48 +123,27 @@ export function TeacherDashboardPage() {
       <TeacherDashboardHeader
         onLogout={handleLogout}
         onNavigate={scrollToSection}
+        navItems={[
+          { id: "overview", label: "Overview" },
+          { id: "classes", label: "Manage Classes" },
+          { id: "class-management", label: "Create Class" }
+        ]}
+        utilityAction={{
+          label: "Profile",
+          className: "secondary-button",
+          onClick: () => goToRoute("/teacher-profile")
+        }}
       />
 
       <main className="dashboard-shell">
-        <TeacherHeroSection
-          profile={dashboard.profile}
-          overview={dashboard.overview}
-          onOpenClasses={() => scrollToSection("classes")}
-          onOpenSchedule={() => scrollToSection("schedule")}
-        />
-
-        <TeacherSummaryGrid
-          overview={dashboard.overview}
-          priorities={dashboard.priorities}
-        />
+        <section className="teacher-dashboard-greeting" id="overview">
+          <h1>Good to see you</h1>
+        </section>
 
         <TeacherClassCreationSection
           classesManaged={dashboard.classesManaged}
           onCreateClass={handleCreateClass}
           onOpenClassroom={openClassroom}
-        />
-
-        <section className="dashboard-main-grid">
-          <TeacherClassesPanel
-            classesManaged={dashboard.classesManaged}
-            onOpenClassroom={openClassroom}
-          />
-          <TeacherInsightsSidebar
-            attendanceTrend={dashboard.attendanceTrend}
-            sectionComparison={dashboard.sectionComparison}
-          />
-        </section>
-
-        <TeacherScheduleSection
-          todaysSchedule={dashboard.todaysSchedule}
-          weeklySchedule={dashboard.weeklySchedule}
-        />
-
-        <TeacherActionSection
-          studentWatchlist={dashboard.studentWatchlist}
-          quickInsights={dashboard.quickInsights}
-          recentActivity={dashboard.recentActivity}
-          priorities={dashboard.priorities}
         />
       </main>
     </div>
