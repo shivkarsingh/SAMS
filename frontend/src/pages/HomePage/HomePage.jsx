@@ -197,8 +197,20 @@ const testimonials = [
   }
 ];
 
+function getServiceStatusValue(status) {
+  if (status && typeof status === "object") {
+    if (status.ready === false) {
+      return status.status ?? "degraded";
+    }
+
+    return status.status ?? "unknown";
+  }
+
+  return status;
+}
+
 function isHealthyStatus(status) {
-  const normalized = String(status ?? "")
+  const normalized = String(getServiceStatusValue(status) ?? "")
     .trim()
     .toLowerCase();
 
@@ -206,7 +218,7 @@ function isHealthyStatus(status) {
 }
 
 function getStatusTone(status) {
-  const normalized = String(status ?? "")
+  const normalized = String(getServiceStatusValue(status) ?? "")
     .trim()
     .toLowerCase();
 
@@ -218,7 +230,7 @@ function getStatusTone(status) {
 }
 
 function formatStatusLabel(status) {
-  const normalized = String(status ?? "")
+  const normalized = String(getServiceStatusValue(status) ?? "")
     .trim()
     .toLowerCase();
 
