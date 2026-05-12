@@ -1,6 +1,6 @@
 # Smart Attendance Management System
 
-Starter monorepo for a Smart Attendance Management System with three services:
+Production-oriented monorepo for a Smart Attendance Management System with three services:
 
 - `frontend`: React + Parcel + JavaScript
 - `backend`: Node.js + Express + JavaScript REST API
@@ -78,9 +78,27 @@ uvicorn app.main:app --reload --port 8000
 
 Use the `docker-compose.yml` file to run MongoDB locally with the rest of the stack.
 
+## Runtime readiness
+
+The AI service now exposes two different infrastructure states:
+
+- `GET /health`
+  process health plus model-readiness diagnostics
+- `GET /ready`
+  returns `200` only when the configured AI models are ready to serve inference
+
+The backend mirrors this behavior on `GET /api/v1/health` and marks the stack as `degraded` if MongoDB or the AI runtime is not actually ready.
+
+For production inference, make sure the following assets are available:
+
+- MediaPipe face landmarker task file at `ai-service/data/model_assets/face_landmarker_v2_with_blendshapes.task`
+- InsightFace model pack `buffalo_l` under `ai-service/data/model_assets/insightface/models/`
+
+If the InsightFace pack is missing, the AI service will start but report `degraded` until the pack is downloaded once or mounted into that directory.
+
 ## Recommended next steps
 
 1. Add real Mongoose models, validation, and MongoDB-backed persistence in the backend.
 2. Implement authentication with role-based access control.
-3. Replace placeholder AI responses with real face recognition and anomaly models.
+3. Move AI enrollment/session persistence from local JSON files to a shared durable store.
 4. Add event logging, attendance audit history, and reporting workflows.

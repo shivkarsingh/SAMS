@@ -1,19 +1,48 @@
 import { env } from "../config/env.js";
 
+function normalizeAiFailureMessage(error, fallbackMessage) {
+  if (error instanceof Error && error.name === "AbortError") {
+    return "AI service request timed out before the models responded.";
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallbackMessage;
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = env.aiRequestTimeoutMs) {
+  const controller = new AbortController();
+  const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
+}
+
 async function postAiJson(path, payload, fallbackMessage) {
   let response;
 
   try {
-    response = await fetch(`${env.aiServiceUrl}${path}`, {
+    response = await fetchWithTimeout(`${env.aiServiceUrl}${path}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify(payload)
-    });
+    }, env.aiRequestTimeoutMs);
   } catch (error) {
     throw new Error(
-      `AI service is unreachable at ${env.aiServiceUrl}. Start the AI service and try again.`
+      `${normalizeAiFailureMessage(
+        error,
+        fallbackMessage
+      )} AI service endpoint: ${env.aiServiceUrl}${path}`
     );
   }
 
@@ -28,17 +57,37 @@ async function postAiJson(path, payload, fallbackMessage) {
 
 export async function fetchAiHealth() {
   try {
-    const response = await fetch(`${env.aiServiceUrl}/health`);
+    const response = await fetchWithTimeout(
+      `${env.aiServiceUrl}/health`,
+      {},
+      env.aiHealthTimeoutMs
+    );
+    const payload = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      return "unreachable";
+      return {
+        status: "offline",
+        ready: false,
+        message: payload.detail ?? "AI service health probe failed."
+      };
     }
 
-    const payload = await response.json();
-
-    return payload.status;
-  } catch {
-    return "offline";
+    return {
+      status: payload.status ?? "unknown",
+      ready: Boolean(payload.ready),
+      executionMode: payload.executionMode ?? "unknown",
+      checks: payload.checks ?? {},
+      warnings: payload.warnings ?? []
+    };
+  } catch (error) {
+    return {
+      status: "offline",
+      ready: false,
+      message: normalizeAiFailureMessage(
+        error,
+        "AI service is unreachable."
+      )
+    };
   }
 }
 

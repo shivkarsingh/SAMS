@@ -13,14 +13,12 @@ class EnrollmentPipeline:
         self.face_recognition_service = face_recognition_service
 
     def enroll(self, payload: EnrollmentRequest) -> EnrollmentResponse:
-        reference_embeddings, average_quality_score = (
-            self.face_recognition_service.build_reference_embeddings(
-                payload.personId,
-                payload.referenceImages,
-            )
+        reference_batch = self.face_recognition_service.build_reference_embeddings(
+            payload.personId,
+            payload.referenceImages,
         )
         average_embedding = self.face_recognition_service.build_average_embedding(
-            reference_embeddings
+            reference_batch.embeddings
         )
         timestamp = datetime.now(timezone.utc).isoformat()
 
@@ -29,10 +27,13 @@ class EnrollmentPipeline:
             full_name=payload.fullName,
             role=payload.role,
             embedding=average_embedding,
-            reference_embeddings=reference_embeddings,
+            reference_embeddings=reference_batch.embeddings,
             class_ids=payload.classIds,
-            average_quality_score=average_quality_score,
+            average_quality_score=reference_batch.average_quality_score,
             metadata=payload.metadata,
+            embedding_dimension=len(average_embedding),
+            embedding_model=settings.face_recognition_model,
+            execution_mode=settings.execution_mode,
             enrolled_at=timestamp,
             updated_at=timestamp,
         )
@@ -46,13 +47,18 @@ class EnrollmentPipeline:
             notes.append(
                 "The service is running in simulated mode, so embeddings are deterministic placeholders until model weights are attached."
             )
+        else:
+            notes.append(
+                "Enrollment used InsightFace detection and ArcFace embeddings."
+            )
+        notes.extend(reference_batch.warnings)
 
         return EnrollmentResponse(
             personId=payload.personId,
             fullName=payload.fullName,
             role=payload.role,
-            embeddingCount=len(reference_embeddings),
-            averageQualityScore=average_quality_score,
+            embeddingCount=len(reference_batch.embeddings),
+            averageQualityScore=reference_batch.average_quality_score,
             faceModel=settings.face_recognition_model,
             executionMode=settings.execution_mode,
             storedAt=timestamp,

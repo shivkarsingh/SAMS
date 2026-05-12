@@ -19,24 +19,35 @@ It is organized around the real attendance flow instead of one generic inference
 
 ## Current execution mode
 
-The service currently runs in `simulated` mode by default.
+The service now defaults to `production` mode.
 
 That means:
 
-- the API flow is real
-- the module structure is real
-- enrollment and attendance session storage are real
-- scores and embeddings are deterministic placeholders
+- face enrollment uses real InsightFace detection plus ArcFace embeddings
+- classroom recognition uses real multi-face detection and embedding matching
+- live verification uses real face embeddings plus MediaPipe landmark liveness
+- passive anti-spoofing uses image-signal scoring rather than deterministic placeholders
 
-This keeps the service testable before we attach the production CV model weights.
+The old `simulated` mode still exists as a fallback for demos or dependency-free testing.
+
+## Health and readiness
+
+Use the service health endpoints during deployment and integration:
+
+- `GET /health`
+  returns process health, execution mode, and per-model readiness diagnostics
+- `GET /ready`
+  returns `200` only when the recognition and liveness runtimes are ready
+
+This is important because the process can be alive while model assets are still missing or a delegate/runtime cannot initialize on the host machine.
 
 ## Selected model stack
 
-- Face detection: `SCRFD`
-- Face tracking: `ByteTrack`
-- Face recognition: `ArcFace`
-- Active liveness: `MediaPipe Face Landmarker`
-- Passive anti-spoof: `MiniFASNetV2`
+- Face detection: `SCRFD-10GF (InsightFace buffalo_l)`
+- Face tracking: `Embedding centroid tracker`
+- Face recognition: `ArcFace ResNet50@WebFace600K (InsightFace buffalo_l)`
+- Active liveness: `MediaPipe Face Landmarker v2`
+- Passive anti-spoof: `Passive Spoof Risk Scorer`
 
 ## Main endpoints
 
@@ -67,11 +78,41 @@ Create the environment file:
 cp .env.example .env
 ```
 
+Install the dependencies:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
 Run the service:
 
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
+
+On the first production run, InsightFace may download the `buffalo_l` model pack once, and the service may also fetch the official MediaPipe `face_landmarker_v2_with_blendshapes.task` asset if it is not already present.
+
+If your environment cannot download assets at runtime, pre-populate:
+
+- `data/model_assets/face_landmarker_v2_with_blendshapes.task`
+- `data/model_assets/insightface/models/buffalo_l/`
+
+The service will now report a degraded readiness state instead of silently pretending the models are available.
+
+## Input expectations
+
+- Enrollment works best with 3-6 clear single-face photos per person.
+- Classroom recognition accepts either one clear group photo or multiple classroom frames; repeated views still improve confidence, but a single group image can now auto-mark attendance.
+- Live verification should send a short ordered sequence of frames, not one still image, if blink and head movement are required.
+
+## Re-enrollment after the upgrade
+
+Profiles created in the older simulated mode or the older FaceNet production mode are not compatible with the current ArcFace embedding space.
+
+- Existing students enrolled with the placeholder backend or the older FaceNet backend should be re-enrolled.
+- The service now detects incompatible stored embeddings and reports that in response notes instead of silently matching against the wrong vector space.
 
 ## Data files
 

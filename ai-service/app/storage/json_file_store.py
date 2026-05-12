@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from threading import Lock
 from typing import Any
 
@@ -27,8 +29,18 @@ class JsonFileStore:
             self._write_unlocked(payload)
 
     def _write_unlocked(self, payload: Any) -> None:
-        with self.path.open("w", encoding="utf-8") as file:
+        with NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=self.path.parent,
+            delete=False,
+        ) as file:
             json.dump(payload, file, indent=2)
+            file.flush()
+            os.fsync(file.fileno())
+            temp_path = Path(file.name)
+
+        temp_path.replace(self.path)
 
     def _clone_default(self) -> Any:
         return json.loads(json.dumps(self.default_value))

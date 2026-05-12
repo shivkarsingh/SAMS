@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from app.core.config import settings
 from app.pipelines.classroom_attendance_pipeline import ClassroomAttendancePipeline
 from app.pipelines.enrollment_pipeline import EnrollmentPipeline
@@ -32,11 +34,12 @@ class ServiceRegistry:
         self.session_repository = SessionRepository(session_store)
 
         self.face_recognition_service = FaceRecognitionService()
-        self.face_detection_service = FaceDetectionService(
-            self.face_recognition_service
-        )
         self.liveness_service = LivenessService()
-        self.anti_spoof_service = AntiSpoofService()
+        self.anti_spoof_service = AntiSpoofService(self.face_recognition_service)
+        self.face_detection_service = FaceDetectionService(
+            self.face_recognition_service,
+            self.anti_spoof_service,
+        )
 
         self.enrollment_pipeline = EnrollmentPipeline(
             self.enrollment_repository,
@@ -62,7 +65,7 @@ class ServiceRegistry:
             LivenessVerificationRequest(
                 personId=payload.studentId,
                 captureImages=[payload.imageUrl],
-                expectedMovements=["blink"],
+                expectedMovements=[],
             )
         )
 
@@ -75,6 +78,35 @@ class ServiceRegistry:
                 "Use /api/v1/attendance/classroom-recognition for classroom attendance."
             ),
         )
+
+    def runtime_status(self) -> dict:
+        face_recognition = self.face_recognition_service.describe_runtime()
+        liveness = self.liveness_service.describe_runtime()
+
+        return {
+            "ready": bool(face_recognition.get("ready") and liveness.get("ready")),
+            "executionMode": settings.execution_mode,
+            "faceRecognition": face_recognition,
+            "liveness": liveness,
+        }
+
+    def health_report(self) -> dict:
+        runtime_status = self.runtime_status()
+        warnings = [
+            status["detail"]
+            for key, status in runtime_status.items()
+            if isinstance(status, dict) and key not in {"ready"}
+            and status.get("detail")
+        ]
+
+        return {
+            "status": "ok" if runtime_status["ready"] else "degraded",
+            "ready": runtime_status["ready"],
+            "executionMode": settings.execution_mode,
+            "checkedAt": datetime.now(timezone.utc).isoformat(),
+            "checks": runtime_status,
+            "warnings": warnings,
+        }
 
 
 service_registry = ServiceRegistry()

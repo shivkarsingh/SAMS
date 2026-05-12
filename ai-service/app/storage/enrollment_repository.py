@@ -54,6 +54,11 @@ class EnrollmentRepository:
             class_ids=payload.get("class_ids", []),
             average_quality_score=payload.get("average_quality_score", 0.0),
             metadata=payload.get("metadata", {}),
+            embedding_dimension=payload.get(
+                "embedding_dimension", len(payload.get("embedding", []))
+            ),
+            embedding_model=payload.get("embedding_model", ""),
+            execution_mode=payload.get("execution_mode", ""),
             enrolled_at=payload.get("enrolled_at", ""),
             updated_at=payload.get("updated_at", ""),
         )

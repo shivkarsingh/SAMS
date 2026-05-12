@@ -26,6 +26,7 @@ router = APIRouter(prefix="/api/v1")
 
 @router.get("/models")
 def list_models() -> dict:
+    runtime_status = service_registry.runtime_status()
     return {
         "executionMode": settings.execution_mode,
         "faceDetection": settings.face_detection_model,
@@ -34,6 +35,14 @@ def list_models() -> dict:
         "liveness": settings.liveness_model,
         "antiSpoof": settings.anti_spoof_model,
         "attendanceRisk": settings.attendance_risk_model,
+        "modelDevice": runtime_status["faceRecognition"].get("device", "unknown"),
+        "faceRecognitionReady": runtime_status["faceRecognition"].get("ready", False),
+        "livenessReady": runtime_status["liveness"].get("ready", False),
+        "runtimeWarnings": [
+            status["detail"]
+            for status in runtime_status.values()
+            if status.get("detail")
+        ],
     }
 
 

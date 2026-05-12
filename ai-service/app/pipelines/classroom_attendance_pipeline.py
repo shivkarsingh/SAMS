@@ -41,6 +41,11 @@ class ClassroomAttendancePipeline:
         roster_profiles_by_id = {
             profile.person_id: profile for profile in roster_profiles
         }
+        compatible_roster_profiles = [
+            profile
+            for profile in roster_profiles
+            if self.face_recognition_service.is_profile_compatible(profile)
+        ]
 
         tracks = self.face_detection_service.detect_and_track_faces(
             payload,
@@ -55,7 +60,7 @@ class ClassroomAttendancePipeline:
         for track in tracks:
             outcome = self.face_recognition_service.match_track_to_profiles(
                 track,
-                roster_profiles,
+                compatible_roster_profiles or roster_profiles,
             )
 
             if outcome.status == "present-suggested" and outcome.person_id and outcome.full_name:
@@ -125,20 +130,41 @@ class ClassroomAttendancePipeline:
             "Classroom capture processed successfully.",
             "Recognition is restricted to the roster sent with this class session.",
         ]
+        if len(payload.captureImages) == 1 and payload.minimumTrackFrames > 1:
+            notes.append(
+                "A single classroom image was provided, so the track-frame requirement was relaxed to allow still-image multi-face attendance."
+            )
 
         missing_enrollments = [
             student.fullName
             for student in payload.classRoster
             if student.personId not in roster_profiles_by_id
         ]
+        incompatible_enrollments = [
+            student.fullName
+            for student in payload.classRoster
+            if student.personId in roster_profiles_by_id
+            and not self.face_recognition_service.is_profile_compatible(
+                roster_profiles_by_id[student.personId]
+            )
+        ]
         if missing_enrollments:
             notes.append(
                 "Some roster members do not have enrolled face profiles yet: "
                 + ", ".join(missing_enrollments)
             )
+        if incompatible_enrollments:
+            notes.append(
+                "Some roster members were enrolled with an older or incompatible embedding model and must be re-enrolled: "
+                + ", ".join(incompatible_enrollments)
+            )
         if settings.execution_mode == "simulated":
             notes.append(
                 "The AI service is currently running with deterministic simulated embeddings until the production CV models are attached."
+            )
+        else:
+            notes.append(
+                "Classroom recognition used InsightFace multi-face detection, ArcFace matching, and passive review signals."
             )
 
         response = ClassroomRecognitionResponse(

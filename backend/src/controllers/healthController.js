@@ -3,15 +3,17 @@ import { fetchAiHealth } from "../services/aiService.js";
 
 export async function getHealth(_request, response) {
   const aiService = await fetchAiHealth();
+  const database = getDatabaseStatus();
+  const isHealthy = database === "connected" && aiService.ready !== false;
 
   response.json({
-    status: "ok",
+    status: isHealthy ? "ok" : "degraded",
     timestamp: new Date().toISOString(),
     services: {
       backend: "ok",
       aiService,
-      database: getDatabaseStatus()
-    }
+      database
+    },
+    ready: isHealthy
   });
 }
-

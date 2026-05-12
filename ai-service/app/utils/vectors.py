@@ -41,6 +41,9 @@ def average_vectors(vectors: list[list[float]]) -> list[float]:
     if not vectors:
         return [0.0 for _ in range(VECTOR_SIZE)]
 
+    if isinstance(vectors[0], float):
+        return normalize_vector(vectors)
+
     averaged = [
         sum(vector[index] for vector in vectors) / len(vectors)
         for index in range(len(vectors[0]))
