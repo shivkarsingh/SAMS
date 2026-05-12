@@ -33,5 +33,16 @@ export function createApp() {
 
   app.use("/api/v1", apiRouter);
 
+  app.use((error, _request, response, _next) => {
+    const statusCode = error.statusCode ?? error.status ?? 500;
+
+    response.status(statusCode).json({
+      message:
+        error instanceof Error
+          ? error.message
+          : "The backend could not complete this request."
+    });
+  });
+
   return app;
 }

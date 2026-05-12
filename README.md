@@ -101,6 +101,7 @@ Hosted AI inference can take longer than local requests, especially when Render 
 ```bash
 AI_REQUEST_TIMEOUT_MS=120000
 AI_HEALTH_TIMEOUT_MS=10000
+FRONTEND_ORIGIN=https://markin-sams-frontend.vercel.app
 ```
 
 ## Recommended next steps

@@ -50,6 +50,7 @@ const initialAttendanceDraft = {
   manuallyAddedPresentIds: [],
   notes: ""
 };
+const CAPTURE_IMAGE_MAX_DIMENSION = 1280;
 
 export function TeacherClassroomPage() {
   const session = useMemo(() => getSession(), []);
@@ -269,9 +270,14 @@ export function TeacherClassroomPage() {
       return;
     }
 
+    const scale = Math.min(
+      1,
+      CAPTURE_IMAGE_MAX_DIMENSION /
+        Math.max(videoRef.current.videoWidth, videoRef.current.videoHeight)
+    );
     const canvas = document.createElement("canvas");
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
+    canvas.width = Math.max(1, Math.round(videoRef.current.videoWidth * scale));
+    canvas.height = Math.max(1, Math.round(videoRef.current.videoHeight * scale));
 
     const context = canvas.getContext("2d");
 
@@ -290,7 +296,7 @@ export function TeacherClassroomPage() {
       ...currentImages,
       {
         fileName: `classroom-capture-${currentImages.length + 1}.jpg`,
-        dataUrl: canvas.toDataURL("image/jpeg", 0.92)
+        dataUrl: canvas.toDataURL("image/jpeg", 0.82)
       }
     ]);
     setCaptureStatus({

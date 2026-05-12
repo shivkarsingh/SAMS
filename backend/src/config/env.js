@@ -16,7 +16,7 @@ function createOriginMatcher(originPattern) {
 }
 
 const configuredFrontendOrigins = (process.env.FRONTEND_ORIGIN ??
-  "http://localhost:5173,http://0.0.0.0:5173")
+  "http://localhost:5173,http://0.0.0.0:5173,https://markin-sams-frontend.vercel.app")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);

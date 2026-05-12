@@ -54,7 +54,10 @@ export async function processTeacherAttendance(request, response) {
       ...result
     });
   } catch (error) {
-    response.status(400).json({
+    const isAiServiceFailure =
+      error instanceof Error && error.message.includes("AI service");
+
+    response.status(isAiServiceFailure ? 502 : 400).json({
       message:
         error instanceof Error
           ? error.message
