@@ -96,6 +96,13 @@ For production inference, make sure the following assets are available:
 
 If the InsightFace pack is missing, the AI service will start but report `degraded` until the pack is downloaded once or mounted into that directory.
 
+Hosted AI inference can take longer than local requests, especially when Render cold-starts the AI service or loads model assets for the first request. Set these backend environment variables in production:
+
+```bash
+AI_REQUEST_TIMEOUT_MS=120000
+AI_HEALTH_TIMEOUT_MS=10000
+```
+
 ## Recommended next steps
 
 1. Add real Mongoose models, validation, and MongoDB-backed persistence in the backend.

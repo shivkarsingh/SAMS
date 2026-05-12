@@ -19,6 +19,8 @@ services:
     environment:
       PORT: 4000
       AI_SERVICE_URL: http://ai-service:8000
+      AI_REQUEST_TIMEOUT_MS: 120000
+      AI_HEALTH_TIMEOUT_MS: 10000
       MONGO_URI: mongodb://mongo:27017/sams
     depends_on:
       - ai-service
