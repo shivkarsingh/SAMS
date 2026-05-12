@@ -12,6 +12,53 @@ function normalizeAiFailureMessage(error, fallbackMessage) {
   return fallbackMessage;
 }
 
+function formatAiErrorDetail(detail) {
+  if (!detail) {
+    return "";
+  }
+
+  if (typeof detail === "string") {
+    return detail;
+  }
+
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (typeof item === "string") {
+          return item;
+        }
+
+        if (item && typeof item === "object") {
+          const path = Array.isArray(item.loc) ? item.loc.join(".") : "";
+          const message = item.msg ?? item.message ?? JSON.stringify(item);
+
+          return path ? `${path}: ${message}` : message;
+        }
+
+        return String(item);
+      })
+      .join("; ");
+  }
+
+  if (typeof detail === "object") {
+    return detail.message ?? detail.detail ?? JSON.stringify(detail);
+  }
+
+  return String(detail);
+}
+
+function parseJsonResponse(responseText) {
+  if (!responseText) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(responseText);
+  } catch {
+    return {};
+  }
+}
+
 async function fetchWithTimeout(url, options = {}, timeoutMs = env.aiRequestTimeoutMs) {
   const controller = new AbortController();
   const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
@@ -46,10 +93,17 @@ async function postAiJson(path, payload, fallbackMessage) {
     );
   }
 
-  const data = await response.json().catch(() => ({}));
+  const responseText = await response.text();
+  const data = parseJsonResponse(responseText);
 
   if (!response.ok) {
-    throw new Error(data.detail ?? data.message ?? fallbackMessage);
+    const aiMessage = formatAiErrorDetail(data.detail ?? data.message);
+    const statusText = response.statusText ? ` ${response.statusText}` : "";
+    const message = aiMessage || responseText || fallbackMessage;
+
+    throw new Error(
+      `${message} AI service responded with ${response.status}${statusText}.`
+    );
   }
 
   return data;
