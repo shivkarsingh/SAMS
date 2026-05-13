@@ -69,8 +69,10 @@ class ServiceRegistry:
             ),
         )
 
-    def runtime_status(self) -> dict:
-        face_recognition = self.face_recognition_service.describe_runtime()
+    def runtime_status(self, load_models: bool = True) -> dict:
+        face_recognition = self.face_recognition_service.describe_runtime(
+            load_models=load_models
+        )
 
         return {
             "ready": bool(face_recognition.get("ready")),
@@ -78,8 +80,8 @@ class ServiceRegistry:
             "faceRecognition": face_recognition,
         }
 
-    def health_report(self) -> dict:
-        runtime_status = self.runtime_status()
+    def health_report(self, load_models: bool = True) -> dict:
+        runtime_status = self.runtime_status(load_models=load_models)
         warnings = [
             status["detail"]
             for key, status in runtime_status.items()
@@ -95,6 +97,9 @@ class ServiceRegistry:
             "checks": runtime_status,
             "warnings": warnings,
         }
+
+    def warm_up_runtime(self) -> None:
+        self.runtime_status(load_models=True)
 
 
 service_registry = ServiceRegistry()

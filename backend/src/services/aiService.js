@@ -12,6 +12,33 @@ function normalizeAiFailureMessage(error, fallbackMessage) {
   return fallbackMessage;
 }
 
+function getAiHealthMetadata() {
+  let origin = env.aiServiceUrl;
+
+  try {
+    origin = new URL(env.aiServiceUrl).origin;
+  } catch {
+    origin = env.aiServiceUrl;
+  }
+
+  const configuredForLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?/i.test(
+    env.aiServiceUrl
+  );
+
+  return {
+    endpoint: origin,
+    configuredForLocalhost
+  };
+}
+
+function appendAiHealthHint(message, metadata) {
+  if (!metadata.configuredForLocalhost) {
+    return message;
+  }
+
+  return `${message} Backend AI_SERVICE_URL is pointing at localhost; set it to the hosted AI service URL in production.`;
+}
+
 function formatAiErrorDetail(detail) {
   if (!detail) {
     return "";
@@ -149,6 +176,8 @@ async function postAiJson(path, payload, fallbackMessage) {
 }
 
 export async function fetchAiHealth() {
+  const metadata = getAiHealthMetadata();
+
   try {
     const response = await fetchWithTimeout(
       `${env.aiServiceUrl}/health`,
@@ -161,7 +190,11 @@ export async function fetchAiHealth() {
       return {
         status: "offline",
         ready: false,
-        message: payload.detail ?? "AI service health probe failed."
+        message: appendAiHealthHint(
+          payload.detail ?? "AI service health probe failed.",
+          metadata
+        ),
+        ...metadata
       };
     }
 
@@ -170,16 +203,20 @@ export async function fetchAiHealth() {
       ready: Boolean(payload.ready),
       executionMode: payload.executionMode ?? "unknown",
       checks: payload.checks ?? {},
-      warnings: payload.warnings ?? []
+      warnings: payload.warnings ?? [],
+      ...metadata
     };
   } catch (error) {
+    const message = normalizeAiFailureMessage(
+      error,
+      "AI service is unreachable."
+    );
+
     return {
       status: "offline",
       ready: false,
-      message: normalizeAiFailureMessage(
-        error,
-        "AI service is unreachable."
-      )
+      message: appendAiHealthHint(message, metadata),
+      ...metadata
     };
   }
 }

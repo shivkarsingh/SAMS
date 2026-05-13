@@ -1,3 +1,5 @@
+from threading import Thread
+
 from fastapi import FastAPI, Request
 from fastapi import Response, status
 from fastapi.responses import JSONResponse
@@ -16,6 +18,11 @@ app = FastAPI(
 )
 
 
+@app.on_event("startup")
+def warm_up_runtime() -> None:
+    Thread(target=service_registry.warm_up_runtime, daemon=True).start()
+
+
 @app.exception_handler(AIServiceError)
 async def handle_ai_service_error(
     request: Request,
@@ -31,12 +38,12 @@ def root() -> dict:
 
 @app.get("/health")
 def health() -> dict:
-    return service_registry.health_report()
+    return service_registry.health_report(load_models=False)
 
 
 @app.get("/ready")
 def ready(response: Response) -> dict:
-    report = service_registry.health_report()
+    report = service_registry.health_report(load_models=True)
     if not report["ready"]:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return report

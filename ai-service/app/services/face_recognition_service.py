@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from threading import Lock
 
 from app.core.config import settings
 from app.core.errors import ImageInputError, ModelUnavailableError
@@ -40,6 +41,8 @@ class FaceRecognitionService:
         self._active_model_pack = ""
         self._active_face_detection_model = settings.face_detection_model
         self._active_face_recognition_model = settings.face_recognition_model
+        self._model_lock = Lock()
+        self._last_model_error = ""
 
     def active_model_pack(self) -> str:
         self._ensure_models()
@@ -317,11 +320,25 @@ class FaceRecognitionService:
             reasons=reasons,
         )
 
-    def describe_runtime(self) -> dict:
-        try:
-            self._ensure_models()
-        except ModelUnavailableError as exc:
-            return {"ready": False, "device": "unavailable", "detail": exc.detail}
+    def describe_runtime(self, load_models: bool = True) -> dict:
+        if load_models:
+            try:
+                self._ensure_models()
+            except ModelUnavailableError as exc:
+                return {"ready": False, "device": "unavailable", "detail": exc.detail}
+        elif self._face_app is None:
+            return {
+                "ready": False,
+                "device": self._runtime_provider,
+                "providers": self._providers,
+                "modelPack": self._active_model_pack or "not-loaded",
+                "faceDetectionModel": self._active_face_detection_model,
+                "faceRecognitionModel": self._active_face_recognition_model,
+                "preferredModelPacks": list(settings.face_analysis_model_packs),
+                "fallbackUsed": False,
+                "detail": self._last_model_error
+                or "Face recognition models are still loading or have not been initialized yet.",
+            }
 
         return {
             "ready": True,
@@ -437,12 +454,22 @@ class FaceRecognitionService:
         if self._face_app is not None:
             return
 
+        with self._model_lock:
+            if self._face_app is not None:
+                return
+
+            self._load_models()
+
+    def _load_models(self) -> None:
         try:
             import onnxruntime as ort
             from insightface.app import FaceAnalysis
         except ImportError as exc:
-            raise ModelUnavailableError(
+            self._last_model_error = (
                 "Install insightface and onnxruntime to enable real face recognition."
+            )
+            raise ModelUnavailableError(
+                self._last_model_error
             ) from exc
 
         try:
@@ -455,6 +482,7 @@ class FaceRecognitionService:
                 for model_pack in settings.face_analysis_model_packs:
                     try:
                         self._load_model_pack(FaceAnalysis, model_pack)
+                        self._last_model_error = ""
                         return
                     except ModelUnavailableError as exc:
                         load_errors.append(exc.detail)
@@ -467,19 +495,24 @@ class FaceRecognitionService:
                             f"Detail: {exc}"
                         )
 
-            raise ModelUnavailableError(
+            self._last_model_error = (
                 "No configured InsightFace model pack could be loaded. "
                 + " ".join(load_errors)
             )
-        except ModelUnavailableError:
+            raise ModelUnavailableError(self._last_model_error)
+        except ModelUnavailableError as exc:
+            self._last_model_error = exc.detail
             raise
         except Exception as exc:
-            raise ModelUnavailableError(
+            self._last_model_error = (
                 "The InsightFace detection and recognition models could not be loaded. "
                 f"Model packs: {', '.join(settings.face_analysis_model_packs)}. "
                 f"Model root: {settings.face_analysis_root}. "
                 f"Providers: {', '.join(self._providers) or 'unresolved'}. "
                 "Allow the model pack to download once or pre-populate the InsightFace model directory."
+            )
+            raise ModelUnavailableError(
+                self._last_model_error
             ) from exc
 
     def _provider_attempts(self, resolved_providers: list[str]) -> list[list[str]]:
