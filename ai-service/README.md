@@ -90,7 +90,19 @@ Run the service:
 uvicorn app.main:app --reload --port 8000
 ```
 
-On the first production run, InsightFace may download a model pack once. For smooth classroom use, pre-populate model files instead of relying on runtime download.
+On the first production run, InsightFace may download a model pack once when `FACE_ANALYSIS_AUTO_DOWNLOAD=true`. The Docker image pre-warms the same preferred `antelopev2` pack used locally, with `buffalo_l` available only as a real fallback, so hosted deployments can become ready without waiting for the first health check to fetch model files.
+
+For hosted CPU deployments, use:
+
+```bash
+MODEL_DEVICE=cpu
+FACE_ANALYSIS_PROVIDERS=CPUExecutionProvider
+FACE_ANALYSIS_MODEL_PACK=antelopev2
+FACE_ANALYSIS_MODEL_PACKS=antelopev2,buffalo_l
+FACE_ANALYSIS_AUTO_DOWNLOAD=true
+```
+
+For smooth classroom use with the preferred model, pre-populate model files instead of relying on runtime download.
 
 If your environment cannot download assets at runtime, pre-populate the preferred pack:
 

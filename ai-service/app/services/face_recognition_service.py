@@ -492,7 +492,8 @@ class FaceRecognitionService:
         return attempts
 
     def _load_model_pack(self, face_analysis_class, model_pack: str) -> None:
-        self._validate_model_pack_files(model_pack)
+        if not settings.face_analysis_auto_download:
+            self._validate_model_pack_files(model_pack)
 
         face_app = face_analysis_class(
             name=model_pack,
@@ -517,6 +518,7 @@ class FaceRecognitionService:
                 f"Missing module(s): {', '.join(missing_modules)}. "
                 f"Expected model directory: {model_dir}."
             )
+        self._validate_model_pack_files(model_pack)
 
         metadata = MODEL_PACK_METADATA.get(model_pack, {})
         self._face_app = face_app

@@ -93,7 +93,7 @@ For production inference, make sure the following assets are available:
 
 - Preferred InsightFace `antelopev2` files under `ai-service/data/model_assets/insightface/models/antelopev2/`, especially `scrfd_10g_bnkps.onnx` and `glintr100.onnx`. If those are not installed, the AI service falls back to the installed `buffalo_l` pack under `ai-service/data/model_assets/insightface/models/buffalo_l/`.
 
-If the InsightFace pack is missing, the AI service will start but report `degraded` until the pack is downloaded once or mounted into that directory.
+If the InsightFace pack is missing and `FACE_ANALYSIS_AUTO_DOWNLOAD=true`, the AI service will let InsightFace download the pack once. The AI Docker image pre-warms the same preferred `antelopev2` pack used locally, with `buffalo_l` available only as a real fallback. If model download is disabled or blocked by the host, the service will report `degraded` until the files are mounted into that directory.
 
 Hosted AI inference can take longer than local requests, especially when Render cold-starts the AI service or loads model assets for the first request. Set these backend environment variables in production:
 
@@ -102,6 +102,16 @@ AI_REQUEST_TIMEOUT_MS=120000
 AI_HEALTH_TIMEOUT_MS=10000
 AI_GATEWAY_RETRY_COUNT=1
 FRONTEND_ORIGIN=https://markin-sams-frontend.vercel.app
+```
+
+Set these AI service environment variables for hosted CPU deployments:
+
+```bash
+MODEL_DEVICE=cpu
+FACE_ANALYSIS_PROVIDERS=CPUExecutionProvider
+FACE_ANALYSIS_MODEL_PACK=antelopev2
+FACE_ANALYSIS_MODEL_PACKS=antelopev2,buffalo_l
+FACE_ANALYSIS_AUTO_DOWNLOAD=true
 ```
 
 ## Recommended next steps

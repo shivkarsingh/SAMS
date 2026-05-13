@@ -19,13 +19,13 @@ class Settings:
     service_port: int = int(os.getenv("AI_SERVICE_PORT", "8000"))
     execution_mode: str = "production"
     face_detection_model: str = os.getenv(
-        "FACE_DETECTION_MODEL", "SCRFD-10GF (InsightFace buffalo_l)"
+        "FACE_DETECTION_MODEL", "RetinaFace-10GF (InsightFace antelopev2)"
     )
     face_tracking_model: str = os.getenv(
         "FACE_TRACKING_MODEL", "Embedding centroid tracker"
     )
     face_recognition_model: str = os.getenv(
-        "FACE_RECOGNITION_MODEL", "ArcFace ResNet50@WebFace600K (InsightFace buffalo_l)"
+        "FACE_RECOGNITION_MODEL", "ArcFace ResNet100@Glint360K (InsightFace antelopev2)"
     )
     attendance_risk_model: str = os.getenv(
         "ATTENDANCE_RISK_MODEL", "XGBoost placeholder"
@@ -39,7 +39,7 @@ class Settings:
         os.getenv("FACE_CROP_MARGIN_RATIO", "0.18")
     )
     face_analysis_model_pack: str = os.getenv(
-        "FACE_ANALYSIS_MODEL_PACK", "buffalo_l"
+        "FACE_ANALYSIS_MODEL_PACK", "antelopev2"
     )
     face_analysis_model_packs: tuple[str, ...] = tuple(
         pack.strip()
@@ -55,6 +55,9 @@ class Settings:
             str(DATA_DIR / "model_assets" / "insightface"),
         )
     )
+    face_analysis_auto_download: bool = os.getenv(
+        "FACE_ANALYSIS_AUTO_DOWNLOAD", "true"
+    ).lower() in {"1", "true", "yes", "on"}
     face_analysis_providers: tuple[str, ...] = tuple(
         provider.strip()
         for provider in os.getenv("FACE_ANALYSIS_PROVIDERS", "auto").split(",")
