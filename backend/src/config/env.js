@@ -24,6 +24,7 @@ const configuredFrontendOrigins = (process.env.FRONTEND_ORIGIN ??
 export const env = {
   port: Number(process.env.PORT ?? 4000),
   aiServiceUrl: process.env.AI_SERVICE_URL ?? "http://localhost:8000",
+  aiServiceApiKey: process.env.AI_SERVICE_API_KEY ?? "",
   aiRequestTimeoutMs: Number(process.env.AI_REQUEST_TIMEOUT_MS ?? 120000),
   aiHealthTimeoutMs: Number(process.env.AI_HEALTH_TIMEOUT_MS ?? 5000),
   aiGatewayRetryCount: Number(process.env.AI_GATEWAY_RETRY_COUNT ?? 1),

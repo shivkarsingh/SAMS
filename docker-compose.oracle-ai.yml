@@ -1,0 +1,22 @@
+services:
+  ai-service:
+    build:
+      context: ./ai-service
+    container_name: sams-ai-service
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      PORT: 8000
+      MODEL_DEVICE: cpu
+      FACE_ANALYSIS_PROVIDERS: CPUExecutionProvider
+      FACE_ANALYSIS_MODEL_PACK: antelopev2
+      FACE_ANALYSIS_MODEL_PACKS: antelopev2
+      FACE_ANALYSIS_AUTO_DOWNLOAD: "true"
+      FACE_ANALYSIS_ROOT: /app/data/model_assets/insightface
+      AI_SERVICE_API_KEY: ${AI_SERVICE_API_KEY}
+    volumes:
+      - sams_ai_data:/app/data
+
+volumes:
+  sams_ai_data:

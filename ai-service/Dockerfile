@@ -3,7 +3,12 @@ FROM python:3.12-slim
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates libgomp1 libglib2.0-0 \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        libgomp1 \
+        libglib2.0-0 \
+        python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -16,8 +21,6 @@ ENV MODEL_DEVICE=cpu \
     FACE_ANALYSIS_MODEL_PACK=antelopev2 \
     FACE_ANALYSIS_MODEL_PACKS=antelopev2,buffalo_l \
     FACE_ANALYSIS_AUTO_DOWNLOAD=true
-
-RUN python -c "from app.services.service_registry import service_registry; report = service_registry.health_report(); print(report)"
 
 EXPOSE 8000
 

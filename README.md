@@ -101,6 +101,7 @@ Hosted AI inference can take longer than local requests, especially when Render 
 AI_REQUEST_TIMEOUT_MS=120000
 AI_HEALTH_TIMEOUT_MS=10000
 AI_GATEWAY_RETRY_COUNT=1
+AI_SERVICE_API_KEY=<same-secret-as-ai-service>
 FRONTEND_ORIGIN=https://markin-sams-frontend.vercel.app
 ```
 
@@ -112,7 +113,10 @@ FACE_ANALYSIS_PROVIDERS=CPUExecutionProvider
 FACE_ANALYSIS_MODEL_PACK=antelopev2
 FACE_ANALYSIS_MODEL_PACKS=antelopev2,buffalo_l
 FACE_ANALYSIS_AUTO_DOWNLOAD=true
+AI_SERVICE_API_KEY=<same-secret-as-backend>
 ```
+
+For an Always Free Oracle Cloud deployment that can run `antelopev2` without lowering model quality, see [Oracle AI service deployment](docs/oracle-ai-service-deployment.md).
 
 ## Recommended next steps
 

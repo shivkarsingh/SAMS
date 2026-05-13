@@ -103,6 +103,13 @@ function buildGatewayFailureMessage(status, statusText, fallbackMessage) {
   );
 }
 
+function buildAiHeaders(headers = {}) {
+  return {
+    ...headers,
+    ...(env.aiServiceApiKey ? { "X-AI-Service-Key": env.aiServiceApiKey } : {})
+  };
+}
+
 async function fetchWithTimeout(url, options = {}, timeoutMs = env.aiRequestTimeoutMs) {
   const controller = new AbortController();
   const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
@@ -110,6 +117,7 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = env.aiRequestTime
   try {
     return await fetch(url, {
       ...options,
+      headers: buildAiHeaders(options.headers),
       signal: controller.signal
     });
   } finally {
