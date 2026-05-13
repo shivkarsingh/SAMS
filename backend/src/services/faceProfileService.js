@@ -1,5 +1,6 @@
 import { FaceProfile } from "../models/FaceProfile.js";
 import { User } from "../models/User.js";
+import { env } from "../config/env.js";
 import { enrollFaceProfileWithAi } from "./aiService.js";
 import { getStudentJoinedClasses } from "./classroomService.js";
 
@@ -18,8 +19,8 @@ function sanitizeFaceProfile(faceProfile) {
       uploadedImageCount: 0,
       embeddingCount: 0,
       averageQualityScore: 0,
-      faceModel: "ArcFace",
-      executionMode: "simulated",
+      faceModel: env.aiFaceRecognitionModel,
+      executionMode: env.aiExecutionMode,
       referenceImageNames: [],
       notes: [
         "Upload 6 to 10 clear face images so your face profile can be enrolled once and reused across classes."

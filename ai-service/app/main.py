@@ -11,7 +11,7 @@ app = FastAPI(
     version="0.1.0",
     description=(
         "Attendance intelligence service for face enrollment, classroom recognition, "
-        "liveness verification, anti-spoofing, and future ML workflows."
+        "identity verification, and future ML workflows."
     ),
 )
 

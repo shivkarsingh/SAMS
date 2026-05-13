@@ -6,12 +6,10 @@ from app.core.config import settings
 from app.pipelines.classroom_attendance_pipeline import ClassroomAttendancePipeline
 from app.pipelines.enrollment_pipeline import EnrollmentPipeline
 from app.pipelines.live_verification_pipeline import LiveVerificationPipeline
-from app.schemas.attendance import LivenessVerificationRequest
+from app.schemas.attendance import FaceVerificationRequest
 from app.schemas.legacy import LegacyFaceMatchRequest, LegacyFaceMatchResponse
-from app.services.antispoof_service import AntiSpoofService
 from app.services.face_detection_service import FaceDetectionService
 from app.services.face_recognition_service import FaceRecognitionService
-from app.services.liveness_service import LivenessService
 from app.storage.enrollment_repository import EnrollmentRepository
 from app.storage.json_file_store import JsonFileStore
 from app.storage.session_repository import SessionRepository
@@ -34,12 +32,7 @@ class ServiceRegistry:
         self.session_repository = SessionRepository(session_store)
 
         self.face_recognition_service = FaceRecognitionService()
-        self.liveness_service = LivenessService()
-        self.anti_spoof_service = AntiSpoofService(self.face_recognition_service)
-        self.face_detection_service = FaceDetectionService(
-            self.face_recognition_service,
-            self.anti_spoof_service,
-        )
+        self.face_detection_service = FaceDetectionService(self.face_recognition_service)
 
         self.enrollment_pipeline = EnrollmentPipeline(
             self.enrollment_repository,
@@ -54,40 +47,35 @@ class ServiceRegistry:
         self.live_verification_pipeline = LiveVerificationPipeline(
             self.enrollment_repository,
             self.face_recognition_service,
-            self.liveness_service,
-            self.anti_spoof_service,
         )
 
     def legacy_face_match(
         self, payload: LegacyFaceMatchRequest
     ) -> LegacyFaceMatchResponse:
         verification = self.live_verification_pipeline.verify(
-            LivenessVerificationRequest(
+            FaceVerificationRequest(
                 personId=payload.studentId,
                 captureImages=[payload.imageUrl],
-                expectedMovements=[],
             )
         )
 
         return LegacyFaceMatchResponse(
             accepted=verification.accepted,
             confidence=verification.identityConfidence,
-            model=settings.face_recognition_model,
+            model=self.face_recognition_service.active_face_recognition_model(),
             notes=(
-                "Legacy face-match endpoint is mapped to the live verification pipeline. "
+                "Legacy face-match endpoint is mapped to identity-only face verification. "
                 "Use /api/v1/attendance/classroom-recognition for classroom attendance."
             ),
         )
 
     def runtime_status(self) -> dict:
         face_recognition = self.face_recognition_service.describe_runtime()
-        liveness = self.liveness_service.describe_runtime()
 
         return {
-            "ready": bool(face_recognition.get("ready") and liveness.get("ready")),
+            "ready": bool(face_recognition.get("ready")),
             "executionMode": settings.execution_mode,
             "faceRecognition": face_recognition,
-            "liveness": liveness,
         }
 
     def health_report(self) -> dict:

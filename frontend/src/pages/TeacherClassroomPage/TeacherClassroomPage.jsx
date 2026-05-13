@@ -50,7 +50,9 @@ const initialAttendanceDraft = {
   manuallyAddedPresentIds: [],
   notes: ""
 };
-const CAPTURE_IMAGE_MAX_DIMENSION = 1280;
+const MAX_CLASSROOM_CAPTURE_IMAGES = 4;
+const CAPTURE_IMAGE_MAX_DIMENSION = 1600;
+const CAPTURE_IMAGE_JPEG_QUALITY = 0.8;
 
 export function TeacherClassroomPage() {
   const session = useMemo(() => getSession(), []);
@@ -158,6 +160,7 @@ export function TeacherClassroomPage() {
   function resetCaptureSelection() {
     setCaptureFiles([]);
     setCapturedImages([]);
+    setAttendanceSession(null);
 
     if (inputRef.current) {
       inputRef.current.value = "";
@@ -257,10 +260,55 @@ export function TeacherClassroomPage() {
   }
 
   function handleFileChange(event) {
-    setCaptureFiles(Array.from(event.target.files ?? []));
+    const selectedFiles = Array.from(event.target.files ?? []);
+    const validImageFiles = selectedFiles.filter((file) =>
+      file.type.startsWith("image/")
+    );
+    const remainingSlots = Math.max(
+      0,
+      MAX_CLASSROOM_CAPTURE_IMAGES - capturedImages.length
+    );
+    const nextFiles = validImageFiles.slice(0, remainingSlots);
+
+    setCaptureFiles(nextFiles);
+    setAttendanceSession(null);
+    setFinalizedAttendance(null);
+
+    if (selectedFiles.length !== validImageFiles.length) {
+      setCaptureStatus({
+        pending: false,
+        tone: "warning",
+        message: "Only image files can be used for classroom attendance."
+      });
+      return;
+    }
+
+    if (validImageFiles.length > remainingSlots) {
+      setCaptureStatus({
+        pending: false,
+        tone: "warning",
+        message: `Use up to ${MAX_CLASSROOM_CAPTURE_IMAGES} classroom images for one attendance run.`
+      });
+      return;
+    }
+
+    setCaptureStatus({
+      pending: false,
+      tone: "",
+      message: ""
+    });
   }
 
   function handleCapturePhoto() {
+    if (captureFiles.length + capturedImages.length >= MAX_CLASSROOM_CAPTURE_IMAGES) {
+      setCaptureStatus({
+        pending: false,
+        tone: "warning",
+        message: `Use up to ${MAX_CLASSROOM_CAPTURE_IMAGES} classroom images for one attendance run. Clear captures before adding more.`
+      });
+      return;
+    }
+
     if (!videoRef.current?.videoWidth || !videoRef.current?.videoHeight) {
       setCaptureStatus({
         pending: false,
@@ -296,9 +344,11 @@ export function TeacherClassroomPage() {
       ...currentImages,
       {
         fileName: `classroom-capture-${currentImages.length + 1}.jpg`,
-        dataUrl: canvas.toDataURL("image/jpeg", 0.82)
+        dataUrl: canvas.toDataURL("image/jpeg", CAPTURE_IMAGE_JPEG_QUALITY)
       }
     ]);
+    setAttendanceSession(null);
+    setFinalizedAttendance(null);
     setCaptureStatus({
       pending: false,
       tone: "success",
@@ -309,11 +359,30 @@ export function TeacherClassroomPage() {
   async function handleRunAttendance(event) {
     event.preventDefault();
 
+    if (overview.readyFaceProfiles === 0) {
+      setCaptureStatus({
+        pending: false,
+        tone: "warning",
+        message:
+          "At least one student needs a current face enrollment before AI attendance can run for this class."
+      });
+      return;
+    }
+
     if (!captureFiles.length && !capturedImages.length) {
       setCaptureStatus({
         pending: false,
         tone: "warning",
         message: "Upload at least one classroom capture image or take a camera capture to begin."
+      });
+      return;
+    }
+
+    if (captureFiles.length + capturedImages.length > MAX_CLASSROOM_CAPTURE_IMAGES) {
+      setCaptureStatus({
+        pending: false,
+        tone: "warning",
+        message: `Use up to ${MAX_CLASSROOM_CAPTURE_IMAGES} classroom images for one attendance run.`
       });
       return;
     }
@@ -463,6 +532,13 @@ export function TeacherClassroomPage() {
 
   const { classroom, overview, roster } = classroomData;
   const totalCaptureImages = captureFiles.length + capturedImages.length;
+  const hasReadyFaceProfiles = overview.readyFaceProfiles > 0;
+  const pendingFaceProfiles = Math.max(
+    0,
+    overview.studentsCount - overview.readyFaceProfiles
+  );
+  const canRunAttendance =
+    !captureStatus.pending && totalCaptureImages > 0 && hasReadyFaceProfiles;
   const selectedCaptureItems = [
     ...captureFiles.map((file) => ({
       key: `${file.name}-${file.size}`,
@@ -720,6 +796,23 @@ export function TeacherClassroomPage() {
               </div>
             </div>
 
+            <div
+              className={`teacher-readiness-banner ${
+                hasReadyFaceProfiles ? "ready" : "blocked"
+              }`}
+            >
+              <strong>
+                {overview.readyFaceProfiles}/{overview.studentsCount} current face profiles ready
+              </strong>
+              <span>
+                {hasReadyFaceProfiles
+                  ? pendingFaceProfiles
+                    ? `${pendingFaceProfiles} student(s) still need fresh enrollment and may require manual correction.`
+                    : "Every joined student has a current face profile for AI attendance."
+                  : "Students must complete current face enrollment before AI attendance can run."}
+              </span>
+            </div>
+
             <form className="face-enrollment-form" onSubmit={handleRunAttendance}>
               <label className="field">
                 <span>Classroom capture images</span>
@@ -737,7 +830,7 @@ export function TeacherClassroomPage() {
                 <button
                   className="primary-button"
                   type="submit"
-                  disabled={captureStatus.pending}
+                  disabled={!canRunAttendance}
                 >
                   {captureStatus.pending ? "Analyzing..." : "Run Attendance Verification"}
                 </button>
@@ -753,8 +846,16 @@ export function TeacherClassroomPage() {
                       ? "Close Camera"
                       : "Use Camera"}
                 </button>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={captureStatus.pending || totalCaptureImages === 0}
+                  onClick={resetCaptureSelection}
+                >
+                  Clear Captures
+                </button>
                 <span className="panel-meta">
-                  Capture the room clearly so the AI can propose present students, review items, and absentees from the active roster.
+                  Capture up to {MAX_CLASSROOM_CAPTURE_IMAGES} clear room image(s). Use a wide front angle and a second side angle when faces are far from the camera.
                 </span>
               </div>
 

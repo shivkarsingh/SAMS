@@ -15,17 +15,17 @@ const navLinks = [
 const modelFeatureCards = [
   {
     label: "Detection",
-    title: "SCRFD Face Detection",
+    title: "InsightFace SCRFD Detection",
     description:
-      "Efficient face detection for classroom capture pipelines, with strong accuracy-speed tradeoffs and lightweight deployment options.",
-    points: ["high-accuracy detection", "fast CPU-friendly variants", "bbox and keypoint support"]
+      "Real ONNX face detection from the active InsightFace pack, tuned for classroom photos and multi-face captures.",
+    points: ["multi-face detection", "fast CPU runtime", "bbox and keypoint support"]
   },
   {
     label: "Tracking",
-    title: "ByteTrack Face Tracking",
+    title: "Embedding Centroid Tracking",
     description:
-      "Associates almost every detection box across frames, helping preserve identities even when confidence drops or faces are briefly occluded.",
-    points: ["stable multi-face tracking", "low-score recovery", "realtime pipeline fit"]
+      "Associates faces across uploaded frames using embedding similarity so the same person is treated as one attendance track.",
+    points: ["stable face tracks", "multi-frame support", "duplicate prevention"]
   },
   {
     label: "Recognition",
@@ -35,18 +35,11 @@ const modelFeatureCards = [
     points: ["discriminative embeddings", "cosine similarity matching", "identity verification ready"]
   },
   {
-    label: "Liveness",
-    title: "MediaPipe Face Landmarker",
+    label: "Runtime",
+    title: "Antelopev2 First",
     description:
-      "Useful for active liveness signals like blink and head movement, with live-stream support and detailed landmark outputs.",
-    points: ["live-stream processing", "facial landmarks", "blendshape and motion signals"]
-  },
-  {
-    label: "Security",
-    title: "MiniFASNetV2 Anti-Spoof",
-    description:
-      "A compact silent face anti-spoofing choice for separating real captures from suspicious presentation attacks.",
-    points: ["passive spoof checks", "lightweight runtime", "camera-first verification"]
+      "The AI service prefers ArcFace ResNet100 on antelopev2 and falls back to buffalo_l only if the preferred pack is unavailable.",
+    points: ["real model assets", "512-D embeddings", "no simulation mode"]
   }
 ];
 
@@ -72,8 +65,8 @@ const projectFeatureCards = [
   {
     title: "AI Attendance Verification",
     description:
-      "The AI service supports detection, tracking, recognition, liveness, and anti-spoof checks for attendance sessions.",
-    tags: ["recognition", "liveness", "anti-spoof"]
+      "The AI service supports real face detection, embedding-based tracking, and ArcFace recognition for attendance sessions.",
+    tags: ["detection", "recognition", "review"]
   },
   {
     title: "Teacher Review Flow",
@@ -497,7 +490,7 @@ export function HomePage() {
                     </article>
                     <article className="preview-card premium-card">
                       <span>AI layer</span>
-                      <strong>Detection, recognition, liveness</strong>
+                      <strong>Detection, tracking, recognition</strong>
                     </article>
                     <article className="preview-card premium-card">
                       <span>Analytics</span>

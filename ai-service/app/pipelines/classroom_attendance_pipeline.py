@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException
 
 from app.core.config import settings
+from app.models.domain import RecognitionOutcome
 from app.schemas.attendance import (
     AbsentStudent,
     AttendanceRecord,
@@ -35,6 +36,18 @@ class ClassroomAttendancePipeline:
     def process(
         self, payload: ClassroomRecognitionRequest
     ) -> ClassroomRecognitionResponse:
+        duplicate_roster_ids = self._duplicate_ids(
+            [student.personId for student in payload.classRoster]
+        )
+        if duplicate_roster_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Class roster contains duplicate person ID(s): "
+                    + ", ".join(duplicate_roster_ids)
+                ),
+            )
+
         roster_profiles = self.enrollment_repository.list_profiles(
             [student.personId for student in payload.classRoster]
         )
@@ -56,14 +69,44 @@ class ClassroomAttendancePipeline:
         unknown_detections: list[UnknownDetection] = []
         review_queue: list[ReviewCandidate] = []
         auto_present_ids: list[str] = []
-
-        for track in tracks:
-            outcome = self.face_recognition_service.match_track_to_profiles(
+        recognition_outcomes = [
+            self.face_recognition_service.match_track_to_profiles(
                 track,
                 compatible_roster_profiles or roster_profiles,
             )
+            for track in tracks
+        ]
+        winning_track_by_person_id = self._select_identity_winners(
+            recognition_outcomes
+        )
 
-            if outcome.status == "present-suggested" and outcome.person_id and outcome.full_name:
+        for outcome in recognition_outcomes:
+            if (
+                outcome.person_id
+                and outcome.status in {"present-suggested", "manual-review"}
+                and winning_track_by_person_id.get(outcome.person_id)
+                != outcome.track_id
+            ):
+                review_queue.append(
+                    ReviewCandidate(
+                        trackId=outcome.track_id,
+                        personId=outcome.person_id,
+                        fullName=outcome.full_name,
+                        confidence=outcome.confidence,
+                        reasons=[
+                            *outcome.reasons,
+                            "This face also matched a student who already has a stronger track in this session, so it was not auto-marked.",
+                        ],
+                        evidenceCaptureIds=outcome.evidence_capture_ids,
+                    )
+                )
+                continue
+
+            if (
+                outcome.status == "present-suggested"
+                and outcome.person_id
+                and outcome.full_name
+            ):
                 recognized_students.append(
                     RecognizedStudent(
                         trackId=outcome.track_id,
@@ -158,21 +201,22 @@ class ClassroomAttendancePipeline:
                 "Some roster members were enrolled with an older or incompatible embedding model and must be re-enrolled: "
                 + ", ".join(incompatible_enrollments)
             )
-        if settings.execution_mode == "simulated":
-            notes.append(
-                "The AI service is currently running with deterministic simulated embeddings until the production CV models are attached."
-            )
-        else:
-            notes.append(
-                "Classroom recognition used InsightFace multi-face detection, ArcFace matching, and passive review signals."
-            )
+        notes.append(
+            "Classroom recognition used real InsightFace multi-face detection and ArcFace matching."
+        )
 
         response = ClassroomRecognitionResponse(
             sessionId=payload.sessionId,
             classId=payload.classId,
             teacherId=payload.teacherId,
             detectedFaceCount=len(tracks),
-            recognizedCount=len([student for student in recognized_students if student.status == "present-suggested"]),
+            recognizedCount=len(
+                [
+                    student
+                    for student in recognized_students
+                    if student.status == "present-suggested"
+                ]
+            ),
             unknownCount=len(unknown_detections),
             lowConfidenceCount=len(review_queue),
             modelSummary=self._build_model_summary(),
@@ -184,9 +228,16 @@ class ClassroomAttendancePipeline:
         )
 
         session_record = response.model_dump()
-        session_record["roster"] = [student.model_dump() for student in payload.classRoster]
+        session_record["roster"] = [
+            student.model_dump()
+            for student in payload.classRoster
+        ]
         session_record["autoPresentIds"] = auto_present_ids
-        session_record["captureImages"] = payload.captureImages
+        session_record["captureImageCount"] = len(payload.captureImages)
+        session_record["captureImageIds"] = [
+            f"capture-{index + 1:03d}"
+            for index in range(len(payload.captureImages))
+        ]
         session_record["finalizedAttendance"] = None
         self.session_repository.save_session(session_record)
 
@@ -199,7 +250,10 @@ class ClassroomAttendancePipeline:
         if session_record is None:
             raise HTTPException(status_code=404, detail="Attendance session not found.")
 
-        if session_record["classId"] != payload.classId or session_record["teacherId"] != payload.teacherId:
+        if (
+            session_record["classId"] != payload.classId
+            or session_record["teacherId"] != payload.teacherId
+        ):
             raise HTTPException(
                 status_code=400,
                 detail="Session details do not match the class or teacher provided.",
@@ -207,32 +261,74 @@ class ClassroomAttendancePipeline:
 
         rejected_track_ids = set(payload.rejectedTrackIds)
         recognized_students = session_record.get("recognizedStudents", [])
+        known_track_ids = self._known_track_ids(session_record)
+        unknown_rejected_track_ids = sorted(rejected_track_ids - known_track_ids)
+        if unknown_rejected_track_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Rejected track IDs were not found in this attendance session: "
+                    + ", ".join(unknown_rejected_track_ids)
+                ),
+            )
+
+        roster = session_record.get("roster", [])
+        roster_ids = {student["personId"] for student in roster}
+        confirmed_present_ids = self._dedupe_ids(payload.confirmedPresentIds)
+        manually_added_present_ids = self._dedupe_ids(payload.manuallyAddedPresentIds)
+        out_of_roster_ids = sorted(
+            (set(confirmed_present_ids) | set(manually_added_present_ids))
+            - roster_ids
+        )
+        if out_of_roster_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Attendance can only be finalized for students in this class roster. "
+                    "Unknown person ID(s): "
+                    + ", ".join(out_of_roster_ids)
+                ),
+            )
+
         auto_present_ids = {
             student["personId"]
             for student in recognized_students
             if student["status"] == "present-suggested"
             and student["trackId"] not in rejected_track_ids
         }
-        confirmed_present_ids = set(payload.confirmedPresentIds)
-        manually_added_present_ids = set(payload.manuallyAddedPresentIds)
+        confirmed_present_id_set = set(confirmed_present_ids)
+        manually_added_present_id_set = set(manually_added_present_ids)
         present_ids = sorted(
-            auto_present_ids | confirmed_present_ids | manually_added_present_ids
+            auto_present_ids | confirmed_present_id_set | manually_added_present_id_set
         )
 
-        roster = session_record.get("roster", [])
-        roster_ids = {student["personId"] for student in roster}
         absent_ids = sorted(roster_ids - set(present_ids))
         timestamp = datetime.now(timezone.utc).isoformat()
 
         source_by_person_id: dict[str, str] = {}
+        confidence_by_person_id: dict[str, float] = {}
         for student in recognized_students:
-            if student["status"] == "present-suggested" and student["trackId"] not in rejected_track_ids:
+            if (
+                student["status"] == "present-suggested"
+                and student["trackId"] not in rejected_track_ids
+            ):
                 source_by_person_id[student["personId"]] = "ai-auto"
+                if student.get("confidence") is not None:
+                    confidence_by_person_id[student["personId"]] = student[
+                        "confidence"
+                    ]
 
-        for person_id in payload.confirmedPresentIds:
+        for person_id in confirmed_present_ids:
             source_by_person_id[person_id] = "teacher-confirmed"
+            confidence = self._confidence_for_person(
+                person_id,
+                recognized_students,
+                rejected_track_ids,
+            )
+            if confidence is not None:
+                confidence_by_person_id[person_id] = confidence
 
-        for person_id in payload.manuallyAddedPresentIds:
+        for person_id in manually_added_present_ids:
             source_by_person_id[person_id] = "manual-add"
 
         records = [
@@ -240,6 +336,7 @@ class ClassroomAttendancePipeline:
                 personId=person_id,
                 status="present",
                 source=source_by_person_id.get(person_id, "teacher-confirmed"),
+                confidence=confidence_by_person_id.get(person_id),
             )
             for person_id in present_ids
         ]
@@ -255,8 +352,8 @@ class ClassroomAttendancePipeline:
         notes = [
             "Attendance session finalized successfully.",
             f"Auto-present records accepted: {len(auto_present_ids)}",
-            f"Teacher-confirmed additions: {len(confirmed_present_ids)}",
-            f"Manual additions: {len(manually_added_present_ids)}",
+            f"Teacher-confirmed additions: {len(confirmed_present_id_set)}",
+            f"Manual additions: {len(manually_added_present_id_set)}",
         ]
         if payload.notes:
             notes.append(payload.notes)
@@ -281,9 +378,90 @@ class ClassroomAttendancePipeline:
     def _build_model_summary(self) -> ModelSummary:
         return ModelSummary(
             executionMode=settings.execution_mode,
-            faceDetection=settings.face_detection_model,
+            faceDetection=self.face_recognition_service.active_face_detection_model(),
             faceTracking=settings.face_tracking_model,
-            faceRecognition=settings.face_recognition_model,
-            liveness=settings.liveness_model,
-            antiSpoof=settings.anti_spoof_model,
+            faceRecognition=self.face_recognition_service.active_face_recognition_model(),
         )
+
+    def _select_identity_winners(
+        self,
+        outcomes: list[RecognitionOutcome],
+    ) -> dict[str, str]:
+        winners: dict[str, RecognitionOutcome] = {}
+        for outcome in outcomes:
+            if (
+                not outcome.person_id
+                or outcome.status not in {"present-suggested", "manual-review"}
+            ):
+                continue
+
+            current = winners.get(outcome.person_id)
+            if current is None or self._outcome_priority(
+                outcome
+            ) > self._outcome_priority(current):
+                winners[outcome.person_id] = outcome
+
+        return {
+            person_id: outcome.track_id
+            for person_id, outcome in winners.items()
+        }
+
+    def _outcome_priority(self, outcome: RecognitionOutcome) -> tuple[float, int, int]:
+        status_priority = 1 if outcome.status == "present-suggested" else 0
+        return (outcome.confidence, outcome.frame_hits, status_priority)
+
+    def _known_track_ids(self, session_record: dict) -> set[str]:
+        track_ids = set()
+        for collection_name in [
+            "recognizedStudents",
+            "unknownDetections",
+            "reviewQueue",
+        ]:
+            for item in session_record.get(collection_name, []):
+                track_id = item.get("trackId")
+                if track_id:
+                    track_ids.add(track_id)
+
+        return track_ids
+
+    def _dedupe_ids(self, person_ids: list[str]) -> list[str]:
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for person_id in person_ids:
+            if person_id in seen:
+                continue
+
+            seen.add(person_id)
+            deduped.append(person_id)
+
+        return deduped
+
+    def _duplicate_ids(self, person_ids: list[str]) -> list[str]:
+        seen: set[str] = set()
+        duplicates: set[str] = set()
+        for person_id in person_ids:
+            if person_id in seen:
+                duplicates.add(person_id)
+                continue
+
+            seen.add(person_id)
+
+        return sorted(duplicates)
+
+    def _confidence_for_person(
+        self,
+        person_id: str,
+        recognized_students: list[dict],
+        rejected_track_ids: set[str],
+    ) -> float | None:
+        confidences = [
+            student["confidence"]
+            for student in recognized_students
+            if student["personId"] == person_id
+            and student["trackId"] not in rejected_track_ids
+            and student.get("confidence") is not None
+        ]
+        if not confidences:
+            return None
+
+        return max(confidences)

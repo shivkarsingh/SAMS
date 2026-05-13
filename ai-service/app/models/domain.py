@@ -38,8 +38,6 @@ class DetectedFaceTrack:
     quality_score: float
     frame_hits: int
     bbox: dict[str, int]
-    passive_spoof_score: float = 1.0
-    simulated_identity_key: str | None = None
     flags: list[str] = field(default_factory=list)
 
 

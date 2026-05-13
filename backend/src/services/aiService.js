@@ -59,6 +59,23 @@ function parseJsonResponse(responseText) {
   }
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTransientGatewayStatus(status) {
+  return [502, 503, 504].includes(status);
+}
+
+function buildGatewayFailureMessage(status, statusText, fallbackMessage) {
+  const statusLabel = statusText ? `${status} ${statusText}` : String(status);
+
+  return (
+    `${fallbackMessage} The AI service returned ${statusLabel}. ` +
+    "This usually means the AI service is still starting, restarting, or overloaded. Please try again in a moment."
+  );
+}
+
 async function fetchWithTimeout(url, options = {}, timeoutMs = env.aiRequestTimeoutMs) {
   const controller = new AbortController();
   const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
@@ -74,39 +91,61 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = env.aiRequestTime
 }
 
 async function postAiJson(path, payload, fallbackMessage) {
-  let response;
+  const endpoint = `${env.aiServiceUrl}${path}`;
+  const retryCount = Math.max(0, env.aiGatewayRetryCount);
 
-  try {
-    response = await fetchWithTimeout(`${env.aiServiceUrl}${path}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    }, env.aiRequestTimeoutMs);
-  } catch (error) {
-    throw new Error(
-      `${normalizeAiFailureMessage(
-        error,
-        fallbackMessage
-      )} AI service endpoint: ${env.aiServiceUrl}${path}`
-    );
+  for (let attempt = 0; attempt <= retryCount; attempt += 1) {
+    let response;
+
+    try {
+      response = await fetchWithTimeout(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      }, env.aiRequestTimeoutMs);
+    } catch (error) {
+      if (attempt < retryCount) {
+        await sleep(750 * (attempt + 1));
+        continue;
+      }
+
+      throw new Error(
+        `${normalizeAiFailureMessage(
+          error,
+          fallbackMessage
+        )} AI service endpoint: ${endpoint}`
+      );
+    }
+
+    const responseText = await response.text();
+    const data = parseJsonResponse(responseText);
+
+    if (!response.ok) {
+      if (isTransientGatewayStatus(response.status) && attempt < retryCount) {
+        await sleep(750 * (attempt + 1));
+        continue;
+      }
+
+      const aiMessage = formatAiErrorDetail(data.detail ?? data.message);
+      const statusText = response.statusText ? ` ${response.statusText}` : "";
+      const isGatewayFailure = isTransientGatewayStatus(response.status);
+      const message = isGatewayFailure
+        ? buildGatewayFailureMessage(response.status, response.statusText, fallbackMessage)
+        : aiMessage || responseText || fallbackMessage;
+
+      throw new Error(
+        isGatewayFailure
+          ? `${message} AI service endpoint: ${endpoint}`
+          : `${message} AI service responded with ${response.status}${statusText}.`
+      );
+    }
+
+    return data;
   }
 
-  const responseText = await response.text();
-  const data = parseJsonResponse(responseText);
-
-  if (!response.ok) {
-    const aiMessage = formatAiErrorDetail(data.detail ?? data.message);
-    const statusText = response.statusText ? ` ${response.statusText}` : "";
-    const message = aiMessage || responseText || fallbackMessage;
-
-    throw new Error(
-      `${message} AI service responded with ${response.status}${statusText}.`
-    );
-  }
-
-  return data;
+  throw new Error(`${fallbackMessage} AI service endpoint: ${endpoint}`);
 }
 
 export async function fetchAiHealth() {

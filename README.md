@@ -91,8 +91,7 @@ The backend mirrors this behavior on `GET /api/v1/health` and marks the stack as
 
 For production inference, make sure the following assets are available:
 
-- MediaPipe face landmarker task file at `ai-service/data/model_assets/face_landmarker_v2_with_blendshapes.task`
-- InsightFace model pack `buffalo_l` under `ai-service/data/model_assets/insightface/models/`
+- Preferred InsightFace `antelopev2` files under `ai-service/data/model_assets/insightface/models/antelopev2/`, especially `scrfd_10g_bnkps.onnx` and `glintr100.onnx`. If those are not installed, the AI service falls back to the installed `buffalo_l` pack under `ai-service/data/model_assets/insightface/models/buffalo_l/`.
 
 If the InsightFace pack is missing, the AI service will start but report `degraded` until the pack is downloaded once or mounted into that directory.
 
@@ -101,6 +100,7 @@ Hosted AI inference can take longer than local requests, especially when Render 
 ```bash
 AI_REQUEST_TIMEOUT_MS=120000
 AI_HEALTH_TIMEOUT_MS=10000
+AI_GATEWAY_RETRY_COUNT=1
 FRONTEND_ORIGIN=https://markin-sams-frontend.vercel.app
 ```
 

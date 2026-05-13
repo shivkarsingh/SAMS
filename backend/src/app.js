@@ -23,7 +23,7 @@ export function createApp() {
       }
     })
   );
-  app.use(express.json({ limit: "25mb" }));
+  app.use(express.json({ limit: env.jsonBodyLimit }));
 
   app.get("/", (_request, response) => {
     response.json({

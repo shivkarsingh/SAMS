@@ -14,7 +14,6 @@ class EnrollmentPipeline:
 
     def enroll(self, payload: EnrollmentRequest) -> EnrollmentResponse:
         reference_batch = self.face_recognition_service.build_reference_embeddings(
-            payload.personId,
             payload.referenceImages,
         )
         average_embedding = self.face_recognition_service.build_average_embedding(
@@ -32,7 +31,7 @@ class EnrollmentPipeline:
             average_quality_score=reference_batch.average_quality_score,
             metadata=payload.metadata,
             embedding_dimension=len(average_embedding),
-            embedding_model=settings.face_recognition_model,
+            embedding_model=self.face_recognition_service.active_face_recognition_model(),
             execution_mode=settings.execution_mode,
             enrolled_at=timestamp,
             updated_at=timestamp,
@@ -42,15 +41,8 @@ class EnrollmentPipeline:
         notes = [
             "Enrollment profile stored successfully.",
             "Average embedding was created from all submitted reference images.",
+            "Enrollment used real InsightFace detection and ArcFace embeddings.",
         ]
-        if settings.execution_mode == "simulated":
-            notes.append(
-                "The service is running in simulated mode, so embeddings are deterministic placeholders until model weights are attached."
-            )
-        else:
-            notes.append(
-                "Enrollment used InsightFace detection and ArcFace embeddings."
-            )
         notes.extend(reference_batch.warnings)
 
         return EnrollmentResponse(
@@ -59,7 +51,7 @@ class EnrollmentPipeline:
             role=payload.role,
             embeddingCount=len(reference_batch.embeddings),
             averageQualityScore=reference_batch.average_quality_score,
-            faceModel=settings.face_recognition_model,
+            faceModel=self.face_recognition_service.active_face_recognition_model(),
             executionMode=settings.execution_mode,
             storedAt=timestamp,
             notes=notes,

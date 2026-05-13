@@ -26,6 +26,18 @@ export const env = {
   aiServiceUrl: process.env.AI_SERVICE_URL ?? "http://localhost:8000",
   aiRequestTimeoutMs: Number(process.env.AI_REQUEST_TIMEOUT_MS ?? 120000),
   aiHealthTimeoutMs: Number(process.env.AI_HEALTH_TIMEOUT_MS ?? 5000),
+  aiGatewayRetryCount: Number(process.env.AI_GATEWAY_RETRY_COUNT ?? 1),
+  jsonBodyLimit: process.env.JSON_BODY_LIMIT ?? "35mb",
+  maxClassroomCaptureImages: Number(
+    process.env.MAX_CLASSROOM_CAPTURE_IMAGES ?? 4
+  ),
+  maxClassroomImageBytes: Number(
+    process.env.MAX_CLASSROOM_IMAGE_BYTES ?? 8 * 1024 * 1024
+  ),
+  aiFaceRecognitionModel:
+    process.env.AI_FACE_RECOGNITION_MODEL ??
+    "ArcFace ResNet100@Glint360K (InsightFace antelopev2)",
+  aiExecutionMode: process.env.AI_EXECUTION_MODE ?? "production",
   frontendOrigins: configuredFrontendOrigins,
   frontendOriginMatchers: configuredFrontendOrigins
     .map(createOriginMatcher)

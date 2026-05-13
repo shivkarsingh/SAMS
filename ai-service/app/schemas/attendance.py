@@ -8,8 +8,6 @@ class ModelSummary(BaseModel):
     faceDetection: str
     faceTracking: str
     faceRecognition: str
-    liveness: str
-    antiSpoof: str
 
 
 class PersonReference(BaseModel):
@@ -72,14 +70,6 @@ class AbsentStudent(BaseModel):
     reason: str
 
 
-class ClassroomSimulationHints(BaseModel):
-    visibleRosterIds: list[str] = Field(default_factory=list)
-    unknownFaceCount: int = Field(0, ge=0, le=100)
-    lowConfidenceRosterIds: list[str] = Field(default_factory=list)
-    spoofedRosterIds: list[str] = Field(default_factory=list)
-    blurredRosterIds: list[str] = Field(default_factory=list)
-
-
 class ClassroomRecognitionRequest(BaseModel):
     sessionId: str = Field(..., min_length=1)
     classId: str = Field(..., min_length=1)
@@ -88,7 +78,6 @@ class ClassroomRecognitionRequest(BaseModel):
     classRoster: list[PersonReference] = Field(..., min_length=1)
     maxFaces: int = Field(100, ge=1, le=100)
     minimumTrackFrames: int = Field(2, ge=1, le=10)
-    simulationHints: ClassroomSimulationHints | None = None
 
 
 class ClassroomRecognitionResponse(BaseModel):
@@ -111,6 +100,7 @@ class AttendanceRecord(BaseModel):
     personId: str
     status: Literal["present", "absent"]
     source: Literal["ai-auto", "teacher-confirmed", "manual-add", "system-derived"]
+    confidence: float | None = Field(default=None, ge=0, le=1)
 
 
 class FinalizeAttendanceRequest(BaseModel):
@@ -136,31 +126,15 @@ class FinalizeAttendanceResponse(BaseModel):
     records: list[AttendanceRecord]
 
 
-class LivenessSimulationHints(BaseModel):
-    blinkDetected: bool | None = None
-    headTurnDetected: bool | None = None
-    passiveSpoofScore: float | None = Field(default=None, ge=0, le=1)
-    activeLivenessScore: float | None = Field(default=None, ge=0, le=1)
-    identityConfidence: float | None = Field(default=None, ge=0, le=1)
-
-
-class LivenessVerificationRequest(BaseModel):
+class FaceVerificationRequest(BaseModel):
     personId: str = Field(..., min_length=1)
     captureImages: list[str] = Field(..., min_length=1)
-    expectedMovements: list[
-        Literal["blink", "turn_left", "turn_right", "look_up", "look_down"]
-    ] = Field(default_factory=lambda: ["blink", "turn_left", "turn_right"])
-    simulationHints: LivenessSimulationHints | None = None
 
 
-class LivenessVerificationResponse(BaseModel):
+class FaceVerificationResponse(BaseModel):
     personId: str
     accepted: bool
     identityConfidence: float
-    activeLivenessScore: float
-    passiveSpoofScore: float
-    blinkDetected: bool
-    headMovementDetected: bool
     recommendedAction: Literal["allow", "retry-capture", "manual-review"]
     modelSummary: ModelSummary
     notes: list[str]

@@ -9,9 +9,11 @@ import {
   summarizeAttendanceRecords
 } from "./attendanceAnalyticsService.js";
 import {
+  fetchAiHealth,
   finalizeClassroomAttendanceWithAi,
   processClassroomAttendanceWithAi
 } from "./aiService.js";
+import { env } from "../config/env.js";
 
 function clampPercentage(value) {
   return Math.max(0, Math.min(100, Math.round(value)));
@@ -33,6 +35,29 @@ function formatAttendanceStatusLabel(status) {
   }
 
   return `${normalizedStatus.charAt(0).toUpperCase()}${normalizedStatus.slice(1)}`;
+}
+
+function estimateDataUrlBytes(dataUrl) {
+  const commaIndex = dataUrl.indexOf(",");
+  const base64Payload = commaIndex >= 0 ? dataUrl.slice(commaIndex + 1) : dataUrl;
+
+  return Math.ceil((base64Payload.length * 3) / 4);
+}
+
+function isCurrentFaceProfile(faceProfile) {
+  return (
+    faceProfile?.status === "enrolled" &&
+    faceProfile.faceModel === env.aiFaceRecognitionModel &&
+    faceProfile.executionMode === env.aiExecutionMode
+  );
+}
+
+function resolveFaceProfileStatus(faceProfile) {
+  if (!faceProfile) {
+    return "not-started";
+  }
+
+  return isCurrentFaceProfile(faceProfile) ? "enrolled" : "needs-refresh";
 }
 
 function sanitizeClassroom(classroom, attendanceSummary, studentsCount) {
@@ -170,7 +195,7 @@ function buildRoster(
       department: user?.department ?? "",
       email: user?.email ?? "",
       joinedAt: membership.createdAt,
-      faceProfileStatus: faceProfile?.status ?? "not-started",
+      faceProfileStatus: resolveFaceProfileStatus(faceProfile),
       faceQualityScore: clampPercentage(
         (faceProfile?.averageQualityScore ?? 0) * 100
       ),
@@ -198,6 +223,52 @@ function mapAttendanceSourceToVerificationMethod(source) {
   }
 
   return "system-derived";
+}
+
+function buildAiReadinessMessage(aiHealth) {
+  const details = [
+    aiHealth.message,
+    ...(Array.isArray(aiHealth.warnings) ? aiHealth.warnings : [])
+  ].filter(Boolean);
+  const suffix = details.length ? ` ${details.join(" ")}` : "";
+
+  return `AI service is not ready to analyze attendance right now.${suffix}`;
+}
+
+function validateClassroomCaptureImages(images) {
+  if (!Array.isArray(images) || !images.length) {
+    throw new Error("Upload at least one classroom capture image to continue.");
+  }
+
+  if (images.length > env.maxClassroomCaptureImages) {
+    throw new Error(
+      `Use ${env.maxClassroomCaptureImages} or fewer classroom capture images for one attendance run.`
+    );
+  }
+
+  return images.map((image, index) => {
+    const label = `Image ${index + 1}`;
+    if (
+      !image ||
+      typeof image.fileName !== "string" ||
+      !image.fileName.trim() ||
+      typeof image.dataUrl !== "string" ||
+      !image.dataUrl.startsWith("data:image/")
+    ) {
+      throw new Error(`${label} is not a valid image capture.`);
+    }
+
+    if (estimateDataUrlBytes(image.dataUrl) > env.maxClassroomImageBytes) {
+      throw new Error(
+        `${image.fileName} is too large after compression. Retake or upload a smaller classroom image.`
+      );
+    }
+
+    return {
+      fileName: image.fileName.trim(),
+      dataUrl: image.dataUrl
+    };
+  });
 }
 
 export async function getTeacherClassroomDetails({ teacherUserId, classId }) {
@@ -256,16 +327,23 @@ export async function processTeacherClassAttendance({
     );
   }
 
-  const validImages = (Array.isArray(images) ? images : []).filter(
-    (image) =>
-      image &&
-      typeof image.fileName === "string" &&
-      typeof image.dataUrl === "string" &&
-      image.dataUrl.startsWith("data:image/")
-  );
+  const readyFaceProfileCount = rosterBundle.memberships.filter((membership) => {
+    const normalizedStudentUserId = normalizeUserId(membership.studentUserId);
+    return isCurrentFaceProfile(
+      rosterBundle.faceProfilesById.get(normalizedStudentUserId)
+    );
+  }).length;
 
-  if (!validImages.length) {
-    throw new Error("Upload at least one classroom capture image to continue.");
+  if (!readyFaceProfileCount) {
+    throw new Error(
+      "At least one student needs a current face enrollment before AI attendance can run for this class."
+    );
+  }
+
+  const validImages = validateClassroomCaptureImages(images);
+  const aiHealth = await fetchAiHealth();
+  if (aiHealth.ready === false) {
+    throw new Error(buildAiReadinessMessage(aiHealth));
   }
 
   const sessionId = crypto.randomUUID();
@@ -277,7 +355,8 @@ export async function processTeacherClassAttendance({
     classRoster: rosterBundle.memberships.map((membership) => ({
       personId: normalizeUserId(membership.studentUserId),
       fullName: membership.studentName
-    }))
+    })),
+    maxFaces: Math.min(100, Math.max(readyFaceProfileCount + 10, rosterBundle.studentIds.length))
   });
 
   return {
@@ -332,7 +411,7 @@ export async function finalizeTeacherClassAttendance({
         status: record.status,
         verificationMethod: mapAttendanceSourceToVerificationMethod(record.source),
         source: record.source,
-        confidence: null,
+        confidence: record.confidence ?? null,
         recordedAt: finalizedAttendance.finalizedAt
       };
     })

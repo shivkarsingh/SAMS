@@ -17,7 +17,7 @@ load_dotenv(BASE_DIR / ".env")
 @dataclass(frozen=True)
 class Settings:
     service_port: int = int(os.getenv("AI_SERVICE_PORT", "8000"))
-    execution_mode: str = os.getenv("AI_EXECUTION_MODE", "production").lower()
+    execution_mode: str = "production"
     face_detection_model: str = os.getenv(
         "FACE_DETECTION_MODEL", "SCRFD-10GF (InsightFace buffalo_l)"
     )
@@ -26,10 +26,6 @@ class Settings:
     )
     face_recognition_model: str = os.getenv(
         "FACE_RECOGNITION_MODEL", "ArcFace ResNet50@WebFace600K (InsightFace buffalo_l)"
-    )
-    liveness_model: str = os.getenv("LIVENESS_MODEL", "MediaPipe Face Landmarker v2")
-    anti_spoof_model: str = os.getenv(
-        "ANTI_SPOOF_MODEL", "Passive Spoof Risk Scorer"
     )
     attendance_risk_model: str = os.getenv(
         "ATTENDANCE_RISK_MODEL", "XGBoost placeholder"
@@ -42,21 +38,16 @@ class Settings:
     face_crop_margin_ratio: float = float(
         os.getenv("FACE_CROP_MARGIN_RATIO", "0.18")
     )
-    face_landmarker_asset_url: str = os.getenv(
-        "FACE_LANDMARKER_ASSET_URL",
-        "https://storage.googleapis.com/mediapipe-assets/face_landmarker_v2_with_blendshapes.task",
-    )
-    face_landmarker_asset_path: Path = Path(
-        os.getenv(
-            "FACE_LANDMARKER_ASSET_PATH",
-            str(DATA_DIR / "model_assets" / "face_landmarker_v2_with_blendshapes.task"),
-        )
-    )
-    face_landmarker_delegate: str = os.getenv(
-        "FACE_LANDMARKER_DELEGATE", "cpu"
-    ).lower()
     face_analysis_model_pack: str = os.getenv(
         "FACE_ANALYSIS_MODEL_PACK", "buffalo_l"
+    )
+    face_analysis_model_packs: tuple[str, ...] = tuple(
+        pack.strip()
+        for pack in os.getenv(
+            "FACE_ANALYSIS_MODEL_PACKS",
+            os.getenv("FACE_ANALYSIS_MODEL_PACK", "antelopev2,buffalo_l"),
+        ).split(",")
+        if pack.strip()
     )
     face_analysis_root: Path = Path(
         os.getenv(
@@ -81,16 +72,20 @@ class Settings:
     face_embedding_dimensions: int = int(
         os.getenv("FACE_EMBEDDING_DIMENSIONS", "512")
     )
+    min_reference_images: int = int(os.getenv("MIN_REFERENCE_IMAGES", "3"))
+    enrollment_min_quality_score: float = float(
+        os.getenv("ENROLLMENT_MIN_QUALITY_SCORE", "0.62")
+    )
+    allow_multi_face_enrollment_images: bool = os.getenv(
+        "ALLOW_MULTI_FACE_ENROLLMENT_IMAGES", "false"
+    ).lower() in {"1", "true", "yes", "on"}
     recognition_threshold: float = float(
         os.getenv("RECOGNITION_THRESHOLD", "0.72")
     )
+    recognition_min_margin: float = float(
+        os.getenv("RECOGNITION_MIN_MARGIN", "0.06")
+    )
     review_threshold: float = float(os.getenv("REVIEW_THRESHOLD", "0.62"))
-    passive_spoof_threshold: float = float(
-        os.getenv("PASSIVE_SPOOF_THRESHOLD", "0.62")
-    )
-    active_liveness_threshold: float = float(
-        os.getenv("ACTIVE_LIVENESS_THRESHOLD", "0.55")
-    )
     data_dir: Path = Path(os.getenv("AI_DATA_DIR", str(DATA_DIR)))
     enrollment_store_path: Path = Path(
         os.getenv(

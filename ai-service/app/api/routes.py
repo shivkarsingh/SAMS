@@ -6,10 +6,10 @@ from app.schemas.attendance import (
     ClassroomRecognitionResponse,
     EnrollmentRequest,
     EnrollmentResponse,
+    FaceVerificationRequest,
+    FaceVerificationResponse,
     FinalizeAttendanceRequest,
     FinalizeAttendanceResponse,
-    LivenessVerificationRequest,
-    LivenessVerificationResponse,
     SessionDetailsResponse,
 )
 from app.schemas.legacy import (
@@ -27,20 +27,32 @@ router = APIRouter(prefix="/api/v1")
 @router.get("/models")
 def list_models() -> dict:
     runtime_status = service_registry.runtime_status()
+    face_recognition_status = runtime_status.get("faceRecognition", {})
     return {
         "executionMode": settings.execution_mode,
-        "faceDetection": settings.face_detection_model,
+        "modelPack": face_recognition_status.get("modelPack", "unknown"),
+        "preferredModelPacks": face_recognition_status.get(
+            "preferredModelPacks",
+            list(settings.face_analysis_model_packs),
+        ),
+        "fallbackUsed": face_recognition_status.get("fallbackUsed", False),
+        "faceDetection": face_recognition_status.get(
+            "faceDetectionModel",
+            settings.face_detection_model,
+        ),
         "faceTracking": settings.face_tracking_model,
-        "faceRecognition": settings.face_recognition_model,
-        "liveness": settings.liveness_model,
-        "antiSpoof": settings.anti_spoof_model,
+        "faceRecognition": face_recognition_status.get(
+            "faceRecognitionModel",
+            settings.face_recognition_model,
+        ),
         "attendanceRisk": settings.attendance_risk_model,
-        "modelDevice": runtime_status["faceRecognition"].get("device", "unknown"),
-        "faceRecognitionReady": runtime_status["faceRecognition"].get("ready", False),
-        "livenessReady": runtime_status["liveness"].get("ready", False),
+        "modelDevice": face_recognition_status.get("device", "unknown"),
+        "ready": runtime_status.get("ready", False),
+        "faceRecognitionReady": face_recognition_status.get("ready", False),
         "runtimeWarnings": [
             status["detail"]
             for status in runtime_status.values()
+            if isinstance(status, dict)
             if status.get("detail")
         ],
     }
@@ -85,12 +97,12 @@ def finalize_attendance(
 
 
 @router.post(
-    "/verification/liveness",
-    response_model=LivenessVerificationResponse,
+    "/verification/face",
+    response_model=FaceVerificationResponse,
 )
-def verify_liveness(
-    payload: LivenessVerificationRequest,
-) -> LivenessVerificationResponse:
+def verify_face(
+    payload: FaceVerificationRequest,
+) -> FaceVerificationResponse:
     return service_registry.live_verification_pipeline.verify(payload)
 
 

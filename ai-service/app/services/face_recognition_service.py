@@ -14,13 +14,22 @@ from app.models.domain import (
 )
 from app.utils.image_io import crop_image, describe_image_source, load_image
 from app.utils.vectors import (
-    VECTOR_SIZE,
     average_vectors,
-    bounded_score,
-    build_embedding_from_key,
     cosine_similarity,
-    jitter_vector,
 )
+
+MODEL_PACK_METADATA = {
+    "antelopev2": {
+        "detection_model": "RetinaFace-10GF (InsightFace antelopev2)",
+        "recognition_model": "ArcFace ResNet100@Glint360K (InsightFace antelopev2)",
+        "required_files": ["scrfd_10g_bnkps.onnx", "glintr100.onnx"],
+    },
+    "buffalo_l": {
+        "detection_model": "SCRFD-10GF (InsightFace buffalo_l)",
+        "recognition_model": "ArcFace ResNet50@WebFace600K (InsightFace buffalo_l)",
+        "required_files": ["det_10g.onnx", "w600k_r50.onnx"],
+    },
+}
 
 
 class FaceRecognitionService:
@@ -28,12 +37,30 @@ class FaceRecognitionService:
         self._face_app = None
         self._runtime_provider = "uninitialized"
         self._providers: list[str] = []
+        self._active_model_pack = ""
+        self._active_face_detection_model = settings.face_detection_model
+        self._active_face_recognition_model = settings.face_recognition_model
+
+    def active_model_pack(self) -> str:
+        self._ensure_models()
+        return self._active_model_pack
+
+    def active_face_detection_model(self) -> str:
+        self._ensure_models()
+        return self._active_face_detection_model
+
+    def active_face_recognition_model(self) -> str:
+        self._ensure_models()
+        return self._active_face_recognition_model
 
     def build_reference_embeddings(
-        self, person_id: str, reference_images: list[str]
+        self, reference_images: list[str]
     ) -> EmbeddingBatchResult:
-        if settings.execution_mode == "simulated":
-            return self._build_reference_embeddings_simulated(person_id, reference_images)
+        if len(reference_images) < settings.min_reference_images:
+            raise ImageInputError(
+                "Enrollment requires at least "
+                f"{settings.min_reference_images} reference images."
+            )
 
         embeddings: list[list[float]] = []
         quality_scores: list[float] = []
@@ -51,18 +78,40 @@ class FaceRecognitionService:
                 warnings.append(f"{label}: no face detected, skipped.")
                 continue
 
+            if (
+                len(detections) > 1
+                and not settings.allow_multi_face_enrollment_images
+            ):
+                warnings.append(
+                    f"{label}: multiple faces detected, skipped because enrollment images must contain one person."
+                )
+                continue
+
             if len(detections) > 1:
                 warnings.append(
-                    f"{label}: multiple faces detected, using the clearest face."
+                    f"{label}: multiple faces detected, using the clearest face because multi-face enrollment images are allowed."
                 )
 
             best_detection = max(detections, key=self._primary_face_score)
+            if best_detection.quality_score < settings.enrollment_min_quality_score:
+                warnings.append(
+                    f"{label}: face quality score {best_detection.quality_score:.2f} is below the enrollment threshold, skipped."
+                )
+                continue
+
             embeddings.append(best_detection.embedding)
             quality_scores.append(best_detection.quality_score)
 
         if not embeddings:
             raise ImageInputError(
                 "Enrollment failed because no usable face was detected in the reference images."
+            )
+
+        if len(embeddings) < settings.min_reference_images:
+            raise ImageInputError(
+                "Enrollment requires at least "
+                f"{settings.min_reference_images} usable single-face images. "
+                f"Only {len(embeddings)} passed detection and quality checks."
             )
 
         return EmbeddingBatchResult(
@@ -93,23 +142,12 @@ class FaceRecognitionService:
         combined_similarity = (baseline_similarity * 0.65) + (
             reference_similarity * 0.35
         )
-        return round(min(1.0, combined_similarity), 2)
+        return round(min(1.0, combined_similarity), 4)
 
     def build_capture_embedding(
         self,
-        track_key: str,
         source_capture_ids: list[str],
-        enrolled_profile: EnrolledProfile | None = None,
-        low_confidence: bool = False,
     ) -> CaptureEmbeddingResult:
-        if settings.execution_mode == "simulated":
-            return self._build_capture_embedding_simulated(
-                track_key=track_key,
-                source_capture_ids=source_capture_ids,
-                enrolled_profile=enrolled_profile,
-                low_confidence=low_confidence,
-            )
-
         detections: list[DetectedFace] = []
         warnings: list[str] = []
 
@@ -152,9 +190,6 @@ class FaceRecognitionService:
         capture_images: list[str],
         max_faces: int,
     ) -> list[DetectedFace]:
-        if settings.execution_mode == "simulated":
-            return []
-
         detections: list[DetectedFace] = []
         for index, image_ref in enumerate(capture_images):
             if len(detections) >= max_faces:
@@ -175,21 +210,14 @@ class FaceRecognitionService:
         if profile is None or not profile.embedding:
             return False
 
-        if settings.execution_mode == "simulated":
-            stored_dimension = profile.embedding_dimension or len(profile.embedding)
-            return stored_dimension == VECTOR_SIZE and profile.execution_mode in {
-                "",
-                "simulated",
-            }
-
         stored_dimension = profile.embedding_dimension or len(profile.embedding)
         if stored_dimension != settings.face_embedding_dimensions:
             return False
 
-        if profile.execution_mode == "simulated":
+        if profile.execution_mode and profile.execution_mode != settings.execution_mode:
             return False
 
-        return profile.embedding_model == settings.face_recognition_model
+        return profile.embedding_model == self.active_face_recognition_model()
 
     def match_track_to_profiles(
         self,
@@ -215,16 +243,13 @@ class FaceRecognitionService:
                 ],
             )
 
-        best_profile: EnrolledProfile | None = None
-        best_similarity = -1.0
+        matches: list[tuple[float, EnrolledProfile]] = []
 
         for profile in compatible_profiles:
             similarity = self.compare_embedding_to_profile(track.embedding, profile)
-            if similarity > best_similarity:
-                best_similarity = similarity
-                best_profile = profile
+            matches.append((similarity, profile))
 
-        if best_profile is None:
+        if not matches:
             return RecognitionOutcome(
                 track_id=track.track_id,
                 person_id=None,
@@ -236,8 +261,18 @@ class FaceRecognitionService:
                 reasons=["No enrolled profile was available for matching."],
             )
 
-        if "spoof-risk" in track.flags:
-            reasons.append("Passive anti-spoof flagged this track for review.")
+        matches.sort(key=lambda match: match[0], reverse=True)
+        best_similarity, best_profile = matches[0]
+        second_best_similarity = matches[1][0] if len(matches) > 1 else None
+
+        if second_best_similarity is not None:
+            match_margin = best_similarity - second_best_similarity
+            if match_margin < settings.recognition_min_margin:
+                reasons.append(
+                    "This face is close to more than one enrolled student, so teacher confirmation is required."
+                )
+        else:
+            match_margin = None
 
         if "blurred-face" in track.flags:
             reasons.append("Face quality is below the preferred capture standard.")
@@ -248,10 +283,13 @@ class FaceRecognitionService:
             )
 
         requires_review = (
-            "spoof-risk" in track.flags
-            or "blurred-face" in track.flags
+            "blurred-face" in track.flags
             or "low-frame-hits" in track.flags
             or track.quality_score < settings.low_quality_face_threshold
+            or (
+                match_margin is not None
+                and match_margin < settings.recognition_min_margin
+            )
         )
 
         if best_similarity >= settings.recognition_threshold and not requires_review:
@@ -280,9 +318,6 @@ class FaceRecognitionService:
         )
 
     def describe_runtime(self) -> dict:
-        if settings.execution_mode == "simulated":
-            return {"ready": True, "device": "simulated"}
-
         try:
             self._ensure_models()
         except ModelUnavailableError as exc:
@@ -292,6 +327,14 @@ class FaceRecognitionService:
             "ready": True,
             "device": self._runtime_provider,
             "providers": self._providers,
+            "modelPack": self._active_model_pack,
+            "faceDetectionModel": self._active_face_detection_model,
+            "faceRecognitionModel": self._active_face_recognition_model,
+            "preferredModelPacks": list(settings.face_analysis_model_packs),
+            "fallbackUsed": (
+                bool(settings.face_analysis_model_packs)
+                and self._active_model_pack != settings.face_analysis_model_packs[0]
+            ),
         }
 
     def _extract_faces_from_source(
@@ -315,7 +358,7 @@ class FaceRecognitionService:
             detection_score = float(getattr(face, "det_score", 0.0))
             detections.append(
                 DetectedFace(
-                    source_capture_id=image_ref,
+                    source_capture_id=self._source_capture_id(capture_index),
                     capture_index=capture_index,
                     embedding=self._normalize_embedding(face.embedding),
                     bbox=bbox,
@@ -374,6 +417,9 @@ class FaceRecognitionService:
     def _primary_face_score(self, detection: DetectedFace) -> float:
         return (detection.quality_score * 0.85) + (detection.detection_score * 0.15)
 
+    def _source_capture_id(self, capture_index: int) -> str:
+        return f"capture-{capture_index + 1:03d}"
+
     def _clamp_bbox(self, raw_bbox, image_shape: tuple[int, ...]) -> dict[str, int]:
         height, width = image_shape[:2]
         x1 = max(0, int(raw_bbox[0]))
@@ -400,30 +446,113 @@ class FaceRecognitionService:
             ) from exc
 
         try:
-            self._providers = self._resolve_providers(ort)
+            resolved_providers = self._resolve_providers(ort)
             settings.face_analysis_root.mkdir(parents=True, exist_ok=True)
-            self._face_app = FaceAnalysis(
-                name=settings.face_analysis_model_pack,
-                root=str(settings.face_analysis_root),
-                allowed_modules=["detection", "recognition"],
-                providers=self._providers,
+            load_errors: list[str] = []
+
+            for providers in self._provider_attempts(resolved_providers):
+                self._providers = providers
+                for model_pack in settings.face_analysis_model_packs:
+                    try:
+                        self._load_model_pack(FaceAnalysis, model_pack)
+                        return
+                    except ModelUnavailableError as exc:
+                        load_errors.append(exc.detail)
+                    except Exception as exc:
+                        self._face_app = None
+                        load_errors.append(
+                            "InsightFace model load failed. "
+                            f"Pack: {model_pack}. "
+                            f"Providers: {', '.join(providers)}. "
+                            f"Detail: {exc}"
+                        )
+
+            raise ModelUnavailableError(
+                "No configured InsightFace model pack could be loaded. "
+                + " ".join(load_errors)
             )
-            self._face_app.prepare(
-                ctx_id=self._resolve_ctx_id(),
-                det_size=(
-                    settings.face_detection_input_size,
-                    settings.face_detection_input_size,
-                ),
-            )
-            self._runtime_provider = self._providers[0]
+        except ModelUnavailableError:
+            raise
         except Exception as exc:
             raise ModelUnavailableError(
                 "The InsightFace detection and recognition models could not be loaded. "
-                f"Model pack: {settings.face_analysis_model_pack}. "
+                f"Model packs: {', '.join(settings.face_analysis_model_packs)}. "
                 f"Model root: {settings.face_analysis_root}. "
                 f"Providers: {', '.join(self._providers) or 'unresolved'}. "
                 "Allow the model pack to download once or pre-populate the InsightFace model directory."
             ) from exc
+
+    def _provider_attempts(self, resolved_providers: list[str]) -> list[list[str]]:
+        attempts = [resolved_providers]
+        if (
+            "CPUExecutionProvider" in resolved_providers
+            and resolved_providers != ["CPUExecutionProvider"]
+        ):
+            attempts.append(["CPUExecutionProvider"])
+        return attempts
+
+    def _load_model_pack(self, face_analysis_class, model_pack: str) -> None:
+        self._validate_model_pack_files(model_pack)
+
+        face_app = face_analysis_class(
+            name=model_pack,
+            root=str(settings.face_analysis_root),
+            allowed_modules=["detection", "recognition"],
+            providers=self._providers,
+        )
+        face_app.prepare(
+            ctx_id=self._resolve_ctx_id(),
+            det_size=(
+                settings.face_detection_input_size,
+                settings.face_detection_input_size,
+            ),
+        )
+        loaded_modules = set(face_app.models.keys())
+        missing_modules = sorted({"detection", "recognition"} - loaded_modules)
+        if missing_modules:
+            model_dir = settings.face_analysis_root / "models" / model_pack
+            raise ModelUnavailableError(
+                "The InsightFace model pack is incomplete. "
+                f"Pack: {model_pack}. "
+                f"Missing module(s): {', '.join(missing_modules)}. "
+                f"Expected model directory: {model_dir}."
+            )
+
+        metadata = MODEL_PACK_METADATA.get(model_pack, {})
+        self._face_app = face_app
+        self._active_model_pack = model_pack
+        self._active_face_detection_model = metadata.get(
+            "detection_model",
+            f"InsightFace detection ({model_pack})",
+        )
+        self._active_face_recognition_model = metadata.get(
+            "recognition_model",
+            f"InsightFace recognition ({model_pack})",
+        )
+        self._runtime_provider = self._providers[0]
+
+    def _validate_model_pack_files(self, model_pack: str) -> None:
+        model_dir = settings.face_analysis_root / "models" / model_pack
+        if not model_dir.exists():
+            raise ModelUnavailableError(
+                f"InsightFace model pack {model_pack} is not installed at {model_dir}."
+            )
+
+        required_files = MODEL_PACK_METADATA.get(model_pack, {}).get(
+            "required_files",
+            [],
+        )
+        missing_files = [
+            file_name
+            for file_name in required_files
+            if not (model_dir / file_name).exists()
+        ]
+        if missing_files:
+            raise ModelUnavailableError(
+                f"InsightFace model pack {model_pack} is missing required file(s): "
+                + ", ".join(missing_files)
+                + f". Expected model directory: {model_dir}."
+            )
 
     def _resolve_ctx_id(self) -> int:
         if self._providers and self._providers[0] == "CPUExecutionProvider":
@@ -494,53 +623,3 @@ class FaceRecognitionService:
             return vector.tolist()
 
         return (vector / norm).tolist()
-
-    def _build_reference_embeddings_simulated(
-        self, person_id: str, reference_images: list[str]
-    ) -> EmbeddingBatchResult:
-        embeddings = [
-            build_embedding_from_key(f"enrollment::{person_id}::{image_ref}")
-            for image_ref in reference_images
-        ]
-
-        quality_scores = [
-            bounded_score(f"quality::{person_id}::{image_ref}", 0.84, 0.98)
-            for image_ref in reference_images
-        ]
-
-        return EmbeddingBatchResult(
-            embeddings=embeddings,
-            average_quality_score=round(sum(quality_scores) / len(quality_scores), 2),
-            warnings=[],
-        )
-
-    def _build_capture_embedding_simulated(
-        self,
-        track_key: str,
-        source_capture_ids: list[str],
-        enrolled_profile: EnrolledProfile | None = None,
-        low_confidence: bool = False,
-    ) -> CaptureEmbeddingResult:
-        if enrolled_profile is None:
-            joined_captures = "::".join(source_capture_ids)
-            return CaptureEmbeddingResult(
-                embedding=build_embedding_from_key(
-                    f"unknown::{track_key}::{joined_captures}"
-                ),
-                average_quality_score=0.76,
-                used_capture_ids=source_capture_ids,
-                warnings=[],
-            )
-
-        jitter_scale = 0.62 if low_confidence else 0.08
-        joined_captures = "::".join(source_capture_ids)
-        return CaptureEmbeddingResult(
-            embedding=jitter_vector(
-                enrolled_profile.embedding,
-                f"track::{track_key}::{joined_captures}",
-                scale=jitter_scale,
-            ),
-            average_quality_score=0.84 if not low_confidence else 0.66,
-            used_capture_ids=source_capture_ids,
-            warnings=[],
-        )

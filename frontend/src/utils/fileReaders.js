@@ -1,5 +1,5 @@
-const MAX_IMAGE_DIMENSION = 1280;
-const JPEG_QUALITY = 0.82;
+const MAX_IMAGE_DIMENSION = 1600;
+const JPEG_QUALITY = 0.8;
 
 function loadImage(dataUrl) {
   return new Promise((resolve, reject) => {

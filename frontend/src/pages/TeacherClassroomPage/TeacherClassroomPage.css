@@ -184,6 +184,29 @@
   margin-top: 4px;
 }
 
+.teacher-readiness-banner {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(141, 231, 245, 0.14);
+  background: rgba(141, 231, 245, 0.06);
+}
+
+.teacher-readiness-banner strong {
+  color: #f4f7fb;
+}
+
+.teacher-readiness-banner span {
+  color: #9caecc;
+}
+
+.teacher-readiness-banner.blocked {
+  border-color: rgba(251, 191, 36, 0.22);
+  background: rgba(251, 191, 36, 0.08);
+}
+
 .teacher-camera-card {
   display: grid;
   gap: 14px;
