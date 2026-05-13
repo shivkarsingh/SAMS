@@ -17,7 +17,6 @@ load_dotenv(BASE_DIR / ".env")
 @dataclass(frozen=True)
 class Settings:
     service_port: int = int(os.getenv("AI_SERVICE_PORT", "8000"))
-    service_api_key: str = os.getenv("AI_SERVICE_API_KEY", "").strip()
     execution_mode: str = "production"
     face_detection_model: str = os.getenv(
         "FACE_DETECTION_MODEL", "RetinaFace-10GF (InsightFace antelopev2)"

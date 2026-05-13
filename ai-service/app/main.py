@@ -5,7 +5,6 @@ from fastapi import Response, status
 from fastapi.responses import JSONResponse
 
 from app.api.routes import router
-from app.core.config import settings
 from app.core.errors import AIServiceError
 from app.services.service_registry import service_registry
 
@@ -17,19 +16,6 @@ app = FastAPI(
         "identity verification, and future ML workflows."
     ),
 )
-
-
-@app.middleware("http")
-async def verify_service_api_key(request: Request, call_next):
-    if settings.service_api_key and request.url.path.startswith("/api/v1"):
-        provided_key = request.headers.get("x-ai-service-key", "")
-        if provided_key != settings.service_api_key:
-            return JSONResponse(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"detail": "Invalid AI service API key."},
-            )
-
-    return await call_next(request)
 
 
 @app.on_event("startup")
