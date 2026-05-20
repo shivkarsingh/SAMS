@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { LoadingCard } from "../../components/common/LoadingCard";
 import { PageBackground } from "../../components/common/PageBackground";
-import { fetchTeacherDashboard } from "../../services/api";
-import { clearSession, getSession } from "../../services/session";
+import {
+  fetchTeacherDashboard,
+  requestProfileEmailOtp,
+  updateUserProfile
+} from "../../services/api";
+import { clearSession, getSession, saveSession } from "../../services/session";
 import { goToRoute } from "../../utils/router";
 import { TeacherDashboardHeader } from "../TeacherDashboardPage/components/TeacherDashboardHeader";
 import { TeacherProfileSection } from "../TeacherDashboardPage/components/TeacherProfileSection";
@@ -55,13 +59,32 @@ export function TeacherProfilePage() {
     goToRoute("/login");
   }
 
-  function handleSaveProfile(nextProfile) {
+  async function handleSaveProfile(nextProfile, emailOtp = "") {
     if (!user) {
-      return;
+      return null;
     }
 
-    setProfile(nextProfile);
-    saveTeacherProfile(user, nextProfile);
+    const response = await updateUserProfile(user.role, user.userId, {
+      ...nextProfile,
+      emailOtp
+    });
+    const mergedProfile = {
+      ...nextProfile,
+      ...response.user
+    };
+
+    setProfile(mergedProfile);
+    saveTeacherProfile(response.user, mergedProfile);
+    saveSession(response.user);
+    return response;
+  }
+
+  async function handleRequestEmailOtp(email) {
+    if (!user) {
+      return null;
+    }
+
+    return requestProfileEmailOtp(user.role, user.userId, { email });
   }
 
   if (!user || user.role !== "teacher") {
@@ -124,6 +147,7 @@ export function TeacherProfilePage() {
         <TeacherProfileSection
           profile={profile}
           onSaveProfile={handleSaveProfile}
+          onRequestEmailOtp={handleRequestEmailOtp}
         />
       </main>
     </div>

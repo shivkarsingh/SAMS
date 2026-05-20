@@ -1,0 +1,318 @@
+.student-class-detail-shell {
+  display: grid;
+  gap: 20px;
+}
+
+.student-class-detail-hero,
+.student-class-stat-grid,
+.student-class-projection-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.student-class-detail-hero {
+  grid-template-columns: minmax(0, 1.24fr) minmax(320px, 0.76fr);
+  align-items: stretch;
+}
+
+.student-class-detail-intro,
+.student-class-score-card {
+  padding: 28px;
+}
+
+.student-class-detail-intro h1 {
+  margin: 0;
+  font-size: clamp(2.6rem, 6vw, 4.9rem);
+  line-height: 0.95;
+  letter-spacing: 0;
+}
+
+.student-class-detail-intro p {
+  margin: 16px 0 0;
+  color: #9caecc;
+}
+
+.student-class-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.student-class-score-card {
+  display: grid;
+  gap: 20px;
+  align-content: center;
+}
+
+.student-class-action-card {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.student-class-action-card.warning {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.18);
+}
+
+.student-class-action-card.positive {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.16);
+}
+
+.student-class-action-card strong,
+.student-class-action-card span {
+  margin: 0;
+}
+
+.student-class-action-card span {
+  color: #9caecc;
+}
+
+.student-class-stat-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.student-class-projection-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 20px;
+}
+
+.student-class-projection-grid div,
+.student-class-info-list div,
+.student-class-schedule-row {
+  min-width: 0;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.student-class-projection-grid span,
+.student-class-info-list span,
+.student-class-schedule-row span,
+.student-class-schedule-row small,
+.student-class-history-row span,
+.student-class-history-row small {
+  display: block;
+  color: #8ea0bd;
+}
+
+.student-class-projection-grid strong,
+.student-class-info-list strong,
+.student-class-schedule-row strong {
+  display: block;
+  margin-top: 6px;
+  color: #f8fafc;
+}
+
+.student-class-info-list,
+.student-class-history-list,
+.student-class-schedule-list,
+.student-leave-form,
+.student-leave-request-list,
+.leave-proof-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.student-leave-form {
+  gap: 16px;
+}
+
+.student-leave-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.student-leave-form textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #f4f7fb;
+  outline: none;
+}
+
+.student-leave-selected-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.student-leave-selected-files span,
+.student-leave-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #a8b8d4;
+  font-size: 0.86rem;
+}
+
+.student-leave-status.success {
+  color: #86efac;
+}
+
+.student-leave-status.warning {
+  color: #fcd34d;
+}
+
+.student-leave-request-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.student-leave-request-card.approved {
+  border-color: rgba(34, 197, 94, 0.2);
+}
+
+.student-leave-request-card.rejected {
+  border-color: rgba(251, 113, 133, 0.22);
+}
+
+.leave-status-pill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: capitalize;
+}
+
+.leave-status-pill.pending {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fcd34d;
+}
+
+.leave-status-pill.approved {
+  background: rgba(34, 197, 94, 0.12);
+  color: #86efac;
+}
+
+.leave-status-pill.rejected {
+  background: rgba(251, 113, 133, 0.13);
+  color: #fecdd3;
+}
+
+.student-leave-request-head,
+.leave-proof-preview-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.student-leave-request-head span,
+.leave-proof-preview-head span,
+.student-leave-request-card p,
+.student-leave-teacher-note span {
+  color: #9caecc;
+}
+
+.student-leave-request-card p {
+  margin: 0;
+}
+
+.student-leave-teacher-note {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(103, 232, 249, 0.06);
+}
+
+.leave-proof-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.leave-proof-preview {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.leave-proof-preview img,
+.leave-proof-preview iframe {
+  width: 100%;
+  height: 240px;
+  border: 0;
+  border-radius: 12px;
+  background: #020617;
+  object-fit: contain;
+}
+
+.student-class-history-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(140px, 0.8fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.student-class-history-row.positive {
+  border-color: rgba(34, 197, 94, 0.16);
+}
+
+.student-class-history-row.danger {
+  border-color: rgba(248, 113, 113, 0.18);
+}
+
+.student-class-history-row.neutral {
+  border-color: rgba(148, 163, 184, 0.16);
+}
+
+.student-class-history-row strong {
+  display: block;
+  color: #f8fafc;
+}
+
+.student-class-history-row p {
+  margin: 0;
+  color: #9caecc;
+}
+
+.student-class-schedule-row {
+  display: grid;
+  grid-template-columns: 74px 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+
+@media (max-width: 980px) {
+  .student-class-detail-hero,
+  .student-class-stat-grid,
+  .student-class-projection-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .student-class-detail-hero,
+  .student-class-stat-grid,
+  .student-class-projection-grid,
+  .student-leave-form-grid,
+  .leave-proof-grid,
+  .student-class-history-row,
+  .student-class-schedule-row {
+    grid-template-columns: 1fr;
+  }
+}

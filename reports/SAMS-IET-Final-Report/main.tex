@@ -1,0 +1,137 @@
+\documentclass[12pt,a4paper,oneside]{report}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[a4paper,left=2.5cm,right=1.5cm,top=2.5cm,bottom=2.5cm,headheight=20pt]{geometry}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usepackage{pdflscape}
+\usepackage{caption}
+\usepackage{hyperref}
+\usepackage{setspace}
+\usepackage{fancyhdr}
+
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,fit,calc}
+\graphicspath{{Images/}}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{1.1ex plus0.3ex minus0.2ex}
+\setlist{itemsep=0.25ex, topsep=0.5ex}
+\sloppy
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    urlcolor=blue,
+    citecolor=black,
+    pdftitle={Smart Attendance Management System},
+    pdfauthor={Project Team},
+    pdfsubject={B.Tech Final Project Report},
+    pdfkeywords={Smart Attendance, Face Recognition, MERN, FastAPI, MongoDB, Email Notification}
+}
+
+\newcommand{\projecttitle}{Smart Attendance Management System}
+\newcommand{\productname}{MarkIn / SAMS}
+\newcommand{\techstack}{React, Express, MongoDB, FastAPI and InsightFace}
+\newcommand{\safepercent}{75\%}
+\newcommand{\placeholder}[1]{\textbf{\textit{#1}}}
+
+\pagestyle{fancy}
+\fancyhead{}
+\rhead{\thepage}
+\lhead{\nouppercase{\leftmark}}
+
+\begin{document}
+\setstretch{1.2}
+\include{title}
+
+\pagenumbering{roman}
+\chapter*{Certificate}
+\addcontentsline{toc}{chapter}{Certificate}
+This is to certify that the project report entitled \textbf{\projecttitle} submitted by \placeholder{Student Name 1 (Roll No.)}, \placeholder{Student Name 2 (Roll No.)} and \placeholder{Student Name 3 (Roll No.)} in partial fulfilment for the award of the degree of Bachelor of Technology in Computer Science \& Engineering is a record of the bonafide work carried out under the guidance of \placeholder{Guide Name}, Department of Computer Science and Engineering, Institute of Engineering \& Technology, Lucknow.
+
+\vspace{1cm}
+The project report has reached the standard required for submission. The work described in this report has not been submitted elsewhere for the award of any other degree or diploma to the best of our knowledge.
+
+\vspace{2cm}
+\begin{tabularx}{\textwidth}{X X}
+\textbf{Date:} \placeholder{DD Month YYYY} & \textbf{Guide Signature:} \placeholder{Guide Name}\\
+& Department of Computer Science and Engineering\\
+& Institute of Engineering \& Technology, Lucknow
+\end{tabularx}
+
+\chapter*{Declaration}
+\addcontentsline{toc}{chapter}{Declaration}
+We hereby declare that this project report entitled \textbf{\projecttitle} is our own work carried out as part of the Bachelor of Technology final year project. The report explains the design, implementation, testing and evaluation of a smart attendance platform developed for students and teachers. Any external concepts, technologies and documentation referred to in the report have been acknowledged in the References section.
+
+\vspace{2cm}
+\begin{tabularx}{\textwidth}{X X X}
+\placeholder{Student 1} & \placeholder{Student 2} & \placeholder{Student 3}\\
+\placeholder{Roll No.} & \placeholder{Roll No.} & \placeholder{Roll No.}
+\end{tabularx}
+
+\chapter*{Acknowledgement}
+\addcontentsline{toc}{chapter}{Acknowledgement}
+We express our sincere gratitude to our project guide \placeholder{Guide Name} for valuable guidance, review and encouragement throughout this work. We also thank the Department of Computer Science and Engineering, Institute of Engineering \& Technology, Lucknow, for providing the academic environment and resources needed to complete the project. We are thankful to our teachers, classmates and family members for their support during requirement analysis, development, testing and documentation.
+
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+The \projecttitle{} is a full-stack attendance management platform designed to reduce manual work, improve transparency and support academic decision-making. The system provides role-based dashboards for students and teachers, class creation and joining, face enrollment, AI-assisted classroom photo attendance, QR attendance, manual attendance, attendance analytics, leave proof upload, exam eligibility planning, email notifications and report export. The backend is built with Express and MongoDB, the frontend is built with React, and a separate FastAPI AI service performs face detection and recognition using InsightFace model packs such as Antelopev2 and Buffalo\_L.
+
+Unlike a simple attendance register, the system follows a review-first workflow. When a teacher captures classroom photos, the AI service suggests present and absent students. The result is stored in a Today Attendance Data draft, absentees are notified by email, and the teacher can correct the list before final submission. This reduces false marking and gives students a chance to report mistakes. The project also includes email OTP verification, password reset, profile email verification, leave approval/rejection emails, exam attendance warnings and class cancellation notices. This report explains the complete project from beginner level: problem background, requirements, system design, database structure, workflows, implementation, testing, results, limitations and future scope.
+
+\tableofcontents
+\listoffigures
+\listoftables
+\clearpage
+\pagenumbering{arabic}
+
+\input{Chapters/Chapter_1/Chapter1}
+\input{Chapters/Chapter_2/Chapter2}
+\input{Chapters/Chapter_3/Chapter3}
+\input{Chapters/Chapter_4/Chapter4}
+\input{Chapters/Chapter_5/Chapter5}
+\input{Chapters/Chapter_6/Chapter6}
+\input{Chapters/Chapter_7/Chapter7}
+\input{Chapters/Chapter_8/Chapter8}
+
+\appendix
+\input{Appendices/Appendix}
+
+\begin{thebibliography}{99}
+\bibitem{mern}
+MongoDB, Express, React and Node.js documentation, ``MERN stack application development,'' online documentation, accessed May 2026.
+
+\bibitem{fastapi}
+FastAPI documentation, ``FastAPI framework, high performance APIs with Python,'' online documentation, accessed May 2026.
+
+\bibitem{insightface}
+InsightFace project documentation, ``2D and 3D face analysis toolkit,'' online documentation, accessed May 2026.
+
+\bibitem{arcface}
+J. Deng, J. Guo, N. Xue and S. Zafeiriou, ``ArcFace: Additive Angular Margin Loss for Deep Face Recognition,'' in \textit{Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition}, 2019.
+
+\bibitem{scrfd}
+D. Guo et al., ``Sample and Computation Redistribution for Efficient Face Detection,'' SCRFD face detection model documentation and associated research resources, accessed May 2026.
+
+\bibitem{nodemailer}
+Nodemailer documentation, ``Send emails from Node.js,'' online documentation, accessed May 2026.
+
+\bibitem{mongodb}
+MongoDB documentation, ``Document data model, indexing and query operations,'' online documentation, accessed May 2026.
+
+\bibitem{react}
+React documentation, ``Building user interfaces with components,'' online documentation, accessed May 2026.
+
+\bibitem{samsrepo}
+Project source repository documentation, \textit{Smart Attendance Management System README, architecture notes and email notification notes}, local project documentation, 2026.
+\end{thebibliography}
+
+\end{document}

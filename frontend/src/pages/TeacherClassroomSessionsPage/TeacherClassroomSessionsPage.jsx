@@ -154,7 +154,7 @@ export function TeacherClassroomSessionsPage() {
         <section className="teacher-dashboard-greeting">
           <h1>Recent Sessions</h1>
           <p className="course-meta">
-            {classroom.subjectName} • {classroom.subjectCode} • {classroom.section}
+            {classroom.subjectName} • {classroom.subjectCode}
           </p>
         </section>
 
@@ -169,7 +169,9 @@ export function TeacherClassroomSessionsPage() {
                   </div>
                   <div className="timeline-content">
                     <strong>
-                      {sessionItem.presentCount} present • {sessionItem.absentCount} absent
+                      {sessionItem.cancelledCount
+                        ? `${sessionItem.cancelledCount} cancelled`
+                        : `${sessionItem.presentCount} present • ${sessionItem.absentCount} absent`}
                     </strong>
                     <p>Session ID: {sessionItem.sessionId}</p>
                   </div>

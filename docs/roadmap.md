@@ -16,8 +16,7 @@
 ## Phase 3
 
 - evaluate and plug in face recognition model
-- add liveness detection before enabling production face attendance
-- train absenteeism risk and anomaly detection models
+- continue improving classroom image quality checks and teacher review controls
 
 ## Phase 4
 

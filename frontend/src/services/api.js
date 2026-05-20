@@ -1,11 +1,35 @@
 const API_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:4000/api/v1";
 
+async function readResponseData(response) {
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    return response.json().catch(() => ({}));
+  }
+
+  const text = await response.text().catch(() => "");
+
+  return {
+    message:
+      text.match(/Cannot\s+(GET|POST|PATCH|DELETE)\s+[^\s<]+/)?.[0] ||
+      text.trim() ||
+      ""
+  };
+}
+
+function createRequestError(data, fallbackMessage) {
+  const error = new Error(data.message ?? fallbackMessage ?? "Request failed.");
+  error.details = data;
+  error.retryAfterSeconds = data.retryAfterSeconds;
+  return error;
+}
+
 async function getJson(path, fallbackMessage) {
   const response = await fetch(`${API_BASE_URL}${path}`);
-  const data = await response.json().catch(() => ({}));
+  const data = await readResponseData(response);
 
   if (!response.ok) {
-    throw new Error(data.message ?? fallbackMessage);
+    throw createRequestError(data, fallbackMessage);
   }
 
   return data;
@@ -33,10 +57,41 @@ export async function fetchTeacherDashboard(userId) {
   );
 }
 
+export async function fetchAdminDashboard(userId) {
+  return getJson(
+    `/admins/${encodeURIComponent(userId)}/dashboard`,
+    "Failed to load admin dashboard."
+  );
+}
+
 export async function fetchTeacherClassroom(userId, classId) {
   return getJson(
     `/teachers/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}`,
     "Failed to load teacher classroom."
+  );
+}
+
+export async function fetchClassDiscussion(userId, role, classId) {
+  const query = new URLSearchParams({
+    userId,
+    role
+  });
+
+  return getJson(
+    `/classes/${encodeURIComponent(classId)}/discussion?${query.toString()}`,
+    "Failed to load class discussion."
+  );
+}
+
+export async function fetchClassAssignments(userId, role, classId) {
+  const query = new URLSearchParams({
+    userId,
+    role
+  });
+
+  return getJson(
+    `/classes/${encodeURIComponent(classId)}/assignments?${query.toString()}`,
+    "Failed to load class assignments."
   );
 }
 
@@ -56,10 +111,42 @@ async function postJson(path, payload) {
     body: JSON.stringify(payload)
   });
 
-  const data = await response.json().catch(() => ({}));
+  const data = await readResponseData(response);
 
   if (!response.ok) {
-    throw new Error(data.message ?? "Request failed.");
+    throw createRequestError(data, "Request failed.");
+  }
+
+  return data;
+}
+
+async function patchJson(path, payload) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const data = await readResponseData(response);
+
+  if (!response.ok) {
+    throw createRequestError(data, "Request failed.");
+  }
+
+  return data;
+}
+
+async function deleteJson(path) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "DELETE"
+  });
+
+  const data = await readResponseData(response);
+
+  if (!response.ok) {
+    throw createRequestError(data, "Request failed.");
   }
 
   return data;
@@ -69,8 +156,76 @@ export function signupUser(payload) {
   return postJson("/auth/signup", payload);
 }
 
+export function requestSignupEmailOtp(payload) {
+  return postJson("/auth/signup-email/request", payload);
+}
+
+export function verifySignupEmailOtp(payload) {
+  return postJson("/auth/signup-email/verify", payload);
+}
+
 export function loginUser(payload) {
   return postJson("/auth/login", payload);
+}
+
+export function verifyEmail(payload) {
+  return postJson("/auth/verify-email", payload);
+}
+
+export function resendVerificationEmail(payload) {
+  return postJson("/auth/resend-verification", payload);
+}
+
+export function requestPasswordReset(payload) {
+  return postJson("/auth/password-reset/request", payload);
+}
+
+export function verifyPasswordResetOtp(payload) {
+  return postJson("/auth/password-reset/verify", payload);
+}
+
+export function resetPassword(payload) {
+  return postJson("/auth/password-reset/confirm", payload);
+}
+
+export function requestProfileEmailOtp(role, userId, payload) {
+  return postJson(
+    `/users/${encodeURIComponent(role)}/${encodeURIComponent(userId)}/email-otp`,
+    payload
+  );
+}
+
+export function updateUserProfile(role, userId, payload) {
+  return patchJson(
+    `/users/${encodeURIComponent(role)}/${encodeURIComponent(userId)}/profile`,
+    payload
+  );
+}
+
+export function updateAdminClassroomStatus(adminId, classId, payload) {
+  return patchJson(
+    `/admins/${encodeURIComponent(adminId)}/classes/${encodeURIComponent(classId)}/status`,
+    payload
+  );
+}
+
+export function deleteAdminClassroom(adminId, classId) {
+  return deleteJson(
+    `/admins/${encodeURIComponent(adminId)}/classes/${encodeURIComponent(classId)}`
+  );
+}
+
+export function updateAdminUserEmailVerification(adminId, role, userId, payload) {
+  return patchJson(
+    `/admins/${encodeURIComponent(adminId)}/users/${encodeURIComponent(role)}/${encodeURIComponent(userId)}/email-verification`,
+    payload
+  );
+}
+
+export function deleteAdminUser(adminId, role, userId) {
+  return deleteJson(
+    `/admins/${encodeURIComponent(adminId)}/users/${encodeURIComponent(role)}/${encodeURIComponent(userId)}`
+  );
 }
 
 export function joinStudentClass(userId, payload) {
@@ -88,9 +243,131 @@ export function createTeacherClass(userId, payload) {
   return postJson(`/teachers/${encodeURIComponent(userId)}/classes`, payload);
 }
 
+export function addTeacherClassroomStudent(userId, classId, payload) {
+  return postJson(
+    `/teachers/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}/students`,
+    payload
+  );
+}
+
+export function updateTeacherClassroomStudent(userId, classId, studentId, payload) {
+  return patchJson(
+    `/teachers/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}/students/${encodeURIComponent(studentId)}`,
+    payload
+  );
+}
+
+export function deleteTeacherClassroomStudent(userId, classId, studentId) {
+  return deleteJson(
+    `/teachers/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}/students/${encodeURIComponent(studentId)}`
+  );
+}
+
+export function submitManualAttendance(userId, classId, payload) {
+  return postJson(
+    `/teachers/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}/attendance/manual`,
+    payload
+  );
+}
+
+export function cancelTodayClass(userId, classId, payload) {
+  return postJson(
+    `/teachers/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}/cancel-today`,
+    payload
+  );
+}
+
+export function createQrAttendanceSession(userId, classId) {
+  return postJson(
+    `/teachers/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}/attendance/qr-session`,
+    {}
+  );
+}
+
+export function markQrAttendance(payload) {
+  return postJson("/students/attendance/qr-scan", payload);
+}
+
+export function postClassDiscussionMessage(classId, payload) {
+  return postJson(
+    `/classes/${encodeURIComponent(classId)}/discussion`,
+    payload
+  );
+}
+
+export function postClassDiscussionReply(classId, messageId, payload) {
+  return postJson(
+    `/classes/${encodeURIComponent(classId)}/discussion/${encodeURIComponent(messageId)}/replies`,
+    payload
+  );
+}
+
+export function postClassDiscussionReaction(classId, messageId, payload) {
+  return postJson(
+    `/classes/${encodeURIComponent(classId)}/discussion/${encodeURIComponent(messageId)}/reactions`,
+    payload
+  );
+}
+
+export function createClassAssignment(userId, classId, payload) {
+  return postJson(
+    `/teachers/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}/assignments`,
+    payload
+  );
+}
+
+export function submitClassAssignment(userId, classId, assignmentId, payload) {
+  return postJson(
+    `/students/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}/assignments/${encodeURIComponent(assignmentId)}/submissions`,
+    payload
+  );
+}
+
+export function submitStudentLeaveRequest(userId, classId, payload) {
+  return postJson(
+    `/students/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}/leave-requests`,
+    payload
+  );
+}
+
+export function reviewTeacherLeaveRequest(userId, classId, requestId, payload) {
+  return patchJson(
+    `/teachers/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}/leave-requests/${encodeURIComponent(requestId)}`,
+    payload
+  );
+}
+
+export function setTeacherClassExam(userId, classId, payload) {
+  return patchJson(
+    `/teachers/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}/exam`,
+    payload
+  );
+}
+
+export function archiveTeacherClass(userId, classId) {
+  return patchJson(
+    `/teachers/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}/archive`,
+    {}
+  );
+}
+
 export function processTeacherAttendance(userId, classId, payload) {
   return postJson(
     `/teachers/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}/attendance/session`,
+    payload
+  );
+}
+
+export function updateTodayAttendanceDraft(userId, classId, draftId, payload) {
+  return patchJson(
+    `/teachers/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}/attendance/today-draft/${encodeURIComponent(draftId)}`,
+    payload
+  );
+}
+
+export function finalizeTodayAttendanceDraft(userId, classId, draftId, payload) {
+  return postJson(
+    `/teachers/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}/attendance/today-draft/${encodeURIComponent(draftId)}/finalize`,
     payload
   );
 }

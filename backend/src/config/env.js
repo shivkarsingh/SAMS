@@ -15,6 +15,10 @@ function createOriginMatcher(originPattern) {
   return new RegExp(pattern);
 }
 
+function normalizeUrl(value) {
+  return String(value ?? "").trim().replace(/\s+/g, "");
+}
+
 const configuredFrontendOrigins = (process.env.FRONTEND_ORIGIN ??
   "http://localhost:5173,http://0.0.0.0:5173,https://markin-sams-frontend.vercel.app")
   .split(",")
@@ -42,9 +46,30 @@ export const env = {
   frontendOriginMatchers: configuredFrontendOrigins
     .map(createOriginMatcher)
     .filter(Boolean),
-  frontendAppUrl:
+  frontendAppUrl: normalizeUrl(
     process.env.FRONTEND_APP_URL ??
-    configuredFrontendOrigins.find((origin) => !origin.includes("*")) ??
-    "http://localhost:5173",
+      configuredFrontendOrigins.find((origin) => !origin.includes("*")) ??
+      "http://localhost:5173"
+  ),
+  emailEnabled: String(process.env.EMAIL_ENABLED ?? "false").toLowerCase() === "true",
+  emailFrom: process.env.EMAIL_FROM ?? "SAMS Notifications <no-reply@sams.local>",
+  emailHost: process.env.EMAIL_HOST ?? "",
+  emailPort: Number(process.env.EMAIL_PORT ?? 587),
+  emailSecure: String(process.env.EMAIL_SECURE ?? "false").toLowerCase() === "true",
+  emailUser: process.env.EMAIL_USER ?? "",
+  emailPassword: process.env.EMAIL_PASSWORD ?? "",
+  emailRetryCount: Number(process.env.EMAIL_RETRY_COUNT ?? 2),
+  emailRetryDelayMs: Number(process.env.EMAIL_RETRY_DELAY_MS ?? 1500),
+  emailQueueConcurrency: Number(process.env.EMAIL_QUEUE_CONCURRENCY ?? 3),
+  emailConnectionTimeoutMs: Number(process.env.EMAIL_CONNECTION_TIMEOUT_MS ?? 10000),
+  emailTestRecipient: process.env.EMAIL_TEST_RECIPIENT ?? "",
+  emailTestKey: process.env.EMAIL_TEST_KEY ?? "",
+  emailExposeOtpInResponse:
+    String(process.env.EMAIL_EXPOSE_OTP_IN_RESPONSE ?? "true").toLowerCase() ===
+    "true",
+  emailOtpExpiresMinutes: Number(process.env.EMAIL_OTP_EXPIRES_MINUTES ?? 10),
+  emailOtpResendCooldownSeconds: Number(
+    process.env.EMAIL_OTP_RESEND_COOLDOWN_SECONDS ?? 60
+  ),
   mongoUri: process.env.MONGO_URI ?? "mongodb://localhost:27017/sams"
 };

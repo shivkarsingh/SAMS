@@ -4,7 +4,7 @@ const userSchema = new mongoose.Schema(
   {
     role: {
       type: String,
-      enum: ["student", "teacher"],
+      enum: ["student", "teacher", "admin"],
       required: true
     },
     firstName: {
@@ -24,75 +24,74 @@ const userSchema = new mongoose.Schema(
       trim: true,
       uppercase: true
     },
+    rollNumber: {
+      type: String,
+      required() {
+        return this.role === "student";
+      },
+      trim: true,
+      uppercase: true
+    },
     passwordHash: {
       type: String,
       required: true
     },
     age: {
       type: Number,
-      required: true,
       min: 16
     },
     gender: {
       type: String,
       enum: ["male", "female", "non-binary", "prefer-not-to-say"],
-      required: true
+      default: "prefer-not-to-say"
     },
     batch: {
       type: String,
-      required() {
-        return this.role === "student";
-      },
       trim: true
     },
     yearOfPassing: {
-      type: Number,
-      required() {
-        return this.role === "student";
-      }
+      type: Number
     },
     department: {
       type: String,
-      required: true,
       trim: true
     },
     email: {
       type: String,
-      required: true,
       trim: true,
       lowercase: true
     },
+    emailVerified: {
+      type: Boolean,
+      default: false,
+      index: true
+    },
+    emailVerifiedAt: {
+      type: Date,
+      default: null
+    },
+    emailVerificationRequired: {
+      type: Boolean,
+      default: false
+    },
     phoneNumber: {
       type: String,
-      required: true,
       trim: true
     },
     designation: {
       type: String,
-      required() {
-        return this.role === "teacher";
-      },
       trim: true
     },
     specialization: {
       type: String,
-      required() {
-        return this.role === "teacher";
-      },
       trim: true
     },
     experienceYears: {
       type: Number,
-      required() {
-        return this.role === "teacher";
-      },
       min: 0
     },
     joiningYear: {
-      type: Number,
-      required() {
-        return this.role === "teacher";
-      }
+      type: Number
     }
   },
   {

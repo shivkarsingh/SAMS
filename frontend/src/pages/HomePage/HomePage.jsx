@@ -6,10 +6,10 @@ import "./HomePage.css";
 
 const navLinks = [
   { label: "Features", id: "features" },
-  { label: "Working", id: "working" },
+  { label: "How To Use", id: "working" },
   { label: "Testimonials", id: "testimonials" },
   { label: "About Us", id: "footer" },
-  { label: "Status", id: "footer" }
+  { label: "Status", id: "status" }
 ];
 
 const modelFeatureCards = [
@@ -45,103 +45,115 @@ const modelFeatureCards = [
 
 const projectFeatureCards = [
   {
-    title: "Role-Based Access",
+    title: "Secure Role Access",
     description:
-      "Separate login, student workspace, and teacher workspace flows keep access clean and secure.",
-    tags: ["student login", "teacher login", "session handling"]
+      "Students and teachers use separate dashboards, verified accounts, OTP email activation, and protected profile updates.",
+    tags: ["student login", "teacher login", "email OTP"]
   },
   {
-    title: "Teacher Dashboard",
+    title: "Teacher Class Workspace",
     description:
-      "Teachers can create classes, generate join links, monitor sections, and manage roster-ready attendance workflows.",
-    tags: ["class creation", "join code", "join link"]
+      "Teachers create classes, share join codes, manage rosters, view student details, and keep daily class work in one place.",
+    tags: ["class creation", "join code", "student details"]
   },
   {
-    title: "Student Dashboard",
+    title: "Student Analytics Dashboard",
     description:
-      "Students can join classes, track attendance, open schedules, and keep face enrollment ready from one place.",
-    tags: ["class join", "attendance view", "face profile"]
+      "Students see joined classes, attendance percentage, present and absent totals, class detail pages, and useful progress signals.",
+    tags: ["joined classes", "attendance %", "class analytics"]
   },
   {
-    title: "AI Attendance Verification",
+    title: "AI Photo Attendance",
     description:
-      "The AI service supports real face detection, embedding-based tracking, and ArcFace recognition for attendance sessions.",
-    tags: ["detection", "recognition", "review"]
+      "Teachers upload or capture classroom photos, run face verification, and get a roster-based preliminary attendance list.",
+    tags: ["camera capture", "face recognition", "roster match"]
   },
   {
-    title: "Teacher Review Flow",
+    title: "Today Attendance Data",
     description:
-      "Attendance is suggested first, then reviewed, corrected, and finalized by the teacher for safer results.",
-    tags: ["manual review", "finalize attendance", "session notes"]
+      "Photo results move into a 12-hour review section where teachers can mark Present, Absent, or Late before final submission.",
+    tags: ["draft review", "absent alerts", "final submission"]
   },
   {
-    title: "Reports And Analytics",
+    title: "Manual And QR Attendance",
     description:
-      "Attendance summaries, trends, class comparison, flagged-student insights, and history views are built into the flow.",
-    tags: ["attendance trend", "watchlist", "history"]
+      "When photo verification is not needed, teachers can mark manually, cancel a class, or generate a short-lived QR attendance code.",
+    tags: ["manual mark", "QR scan", "class cancel"]
   },
   {
-    title: "Schedules And Planning",
+    title: "Exam Planning And Eligibility",
     description:
-      "Both teacher and student dashboards surface today's schedule, weekly schedule, and next-class context.",
-    tags: ["today view", "weekly schedule", "next class"]
+      "Teachers set exam dates and required attendance. Students see eligibility, warnings, and minimum classes to attend.",
+    tags: ["exam calendar", "eligibility", "required %"]
   },
   {
-    title: "Alerts And Academic Signals",
+    title: "Attendance Calculator",
     description:
-      "The product already includes alerts, goals, achievements, quick insights, and watchlist-driven follow-up prompts.",
-    tags: ["alerts", "goals", "achievements"]
+      "Students can enter an exam date and required percentage to estimate how many upcoming classes they must attend safely.",
+    tags: ["what-if planning", "safe target", "student control"]
   },
   {
-    title: "Notes And Attendance Records",
+    title: "Leave And Medical Proof",
     description:
-      "Teachers can keep attendance notes while finalizing sessions, and the system maintains reusable face-profile notes as well.",
-    tags: ["teacher notes", "profile notes", "record history"]
+      "Students upload PDF or image proof for absence reasons. Teachers preview files online and approve or reject requests.",
+    tags: ["PDF preview", "medical report", "approve reject"]
   },
   {
-    title: "Geo And Expansion Ready",
+    title: "Email Notifications",
     description:
-      "The architecture is prepared for geo-fencing, stronger reporting layers, and future academic modules as the platform grows.",
-    tags: ["geo-ready", "scalable services", "future modules"]
+      "Professional emails cover welcome, verification, password reset, absence alerts, leave status, exam warnings, and class changes.",
+    tags: ["SMTP ready", "templates", "delivery logs"]
   },
   {
-    title: "Live Marks And Notes",
+    title: "Class Materials",
     description:
-      "The platform direction already supports academic add-ons like live marks, reusable notes, and class-linked learning context.",
-    tags: ["marks", "notes", "academic flow"]
+      "Notes, assignments, submissions, and class discussion tools keep learning context connected to every classroom.",
+    tags: ["notes", "assignments", "discussion"]
   },
   {
-    title: "Roster And Invite Control",
+    title: "Reports And Export",
     description:
-      "Join codes, invite links, class rosters, and class-level setup tools help teachers onboard students without friction.",
-    tags: ["roster", "invite links", "onboarding"]
+      "Teachers can inspect attendance history, monitor class summaries, and download date-range CSV reports for records.",
+    tags: ["history", "CSV export", "summaries"]
   }
 ];
 
 const workflowSteps = [
   {
     id: "01",
-    title: "Choose your role",
+    title: "Create and verify account",
     description:
-      "Teachers and students enter through dedicated authentication and dashboard flows."
+      "Sign up as a student or teacher, verify email with OTP, then log in to the correct dashboard."
   },
   {
     id: "02",
-    title: "Create or join a class",
+    title: "Create or join classes",
     description:
-      "Teachers create classrooms and students join using the generated join code or link."
+      "Teachers create classrooms and share join codes. Students join classes and see each class on their dashboard."
   },
   {
     id: "03",
-    title: "Prepare verification",
+    title: "Prepare attendance",
     description:
-      "Students enroll a face profile and the teacher captures attendance session images when needed."
+      "Students keep face enrollment ready. Teachers can use photo attendance, QR scan, or manual marking based on the situation."
   },
   {
     id: "04",
-    title: "Review and finalize",
+    title: "Review today attendance",
     description:
-      "The AI service suggests matches, then the teacher verifies and submits the final attendance record."
+      "AI photo results go to Today Attendance Data, absentees get early email, and teachers correct the list before final submission."
+  },
+  {
+    id: "05",
+    title: "Plan exams and leave",
+    description:
+      "Teachers set exam eligibility rules. Students use eligibility alerts, attendance calculator, and leave proof uploads."
+  },
+  {
+    id: "06",
+    title: "Track and export",
+    description:
+      "Dashboards update with analytics, class detail pages, notifications, and downloadable attendance records."
   }
 ];
 
@@ -301,8 +313,14 @@ export function HomePage() {
       };
     }
 
-    const services = Object.values(health.services ?? {});
-    const isOnline = services.every((service) => isHealthyStatus(service));
+    const coreServices = [
+      health.services?.backend,
+      health.services?.aiService,
+      health.services?.database
+    ];
+    const isOnline =
+      health.ready !== false &&
+      coreServices.every((service) => isHealthyStatus(service));
 
     return isOnline
       ? {
@@ -334,6 +352,10 @@ export function HomePage() {
         label: "MongoDB",
         status:
           health?.services?.database ?? (healthError ? "unavailable" : "checking")
+      },
+      {
+        label: "Email Alerts",
+        status: health?.services?.email ?? (healthError ? "unavailable" : "checking")
       }
     ],
     [health, healthError]
@@ -379,7 +401,7 @@ export function HomePage() {
 
         <nav className="nav">
           {navLinks.map((link) => (
-            <a key={link.id} href={`#${link.id}`}>
+            <a key={`${link.label}-${link.id}`} href={`#${link.id}`}>
               {link.label}
             </a>
           ))}
@@ -399,10 +421,11 @@ export function HomePage() {
         <section className="landing-hero" id="hero">
           <div className="landing-copy">
             <span className="section-kicker">Smart Attendance Management System</span>
-            <h1>Smart Attendance Management Made Effortless</h1>
+            <h1>MarkIn Smart Attendance</h1>
             <p className="landing-subheading">
-              Track, manage, and analyze attendance in real-time with secure,
-              automated, and AI-powered solutions.
+              Run AI photo attendance, review today&apos;s draft before it becomes
+              official, notify absentees early, manage leave proof, and help
+              students plan exam eligibility from one focused platform.
             </p>
 
             <div className="hero-actions">
@@ -412,32 +435,36 @@ export function HomePage() {
               <a className="secondary-button large" href="#/login">
                 Open Platform
               </a>
+              <span className={`live-chip ${liveStatus.tone}`}>
+                {liveStatus.label}
+              </span>
             </div>
 
             <div className="hero-workflow-strip">
               <article className="hero-workflow-card">
                 <span>01</span>
-                <strong>Login</strong>
-                <p>Enter as student or teacher with a dedicated workspace.</p>
+                <strong>Verify</strong>
+                <p>Sign up, confirm email by OTP, and enter the correct workspace.</p>
               </article>
               <article className="hero-workflow-card">
                 <span>02</span>
-                <strong>Verify</strong>
-                <p>Use face enrollment and AI-assisted attendance review flow.</p>
+                <strong>Capture</strong>
+                <p>Use classroom photos, manual marking, or QR scan for attendance.</p>
               </article>
               <article className="hero-workflow-card">
                 <span>03</span>
-                <strong>Track</strong>
-                <p>Monitor attendance, schedules, alerts, and class insights.</p>
+                <strong>Finalize</strong>
+                <p>Review Today Attendance Data, correct errors, then submit.</p>
               </article>
             </div>
 
             <div className="hero-insight-panel">
               <div className="hero-insight-copy">
                 <span className="metric-eyebrow">Unified workflow</span>
-                <strong>From secure access to final attendance submission.</strong>
+                <strong>From verified account to exam-ready attendance planning.</strong>
                 <p>
-                  The platform connects onboarding, verification, attendance review,
+                  The platform connects onboarding, photo verification, early
+                  absence alerts, teacher correction, leave proof, exam eligibility,
                   and reporting in one continuous product flow.
                 </p>
               </div>
@@ -445,15 +472,15 @@ export function HomePage() {
               <div className="hero-insight-rail">
                 <div className="hero-insight-line">
                   <span>Teacher control</span>
-                  <strong>Always in review loop</strong>
+                  <strong>12-hour draft review</strong>
                 </div>
                 <div className="hero-insight-line">
-                  <span>Student onboarding</span>
-                  <strong>Join class and enroll once</strong>
+                  <span>Student clarity</span>
+                  <strong>Attendance and eligibility visible</strong>
                 </div>
                 <div className="hero-insight-line">
-                  <span>Attendance records</span>
-                  <strong>History, notes, and insights ready</strong>
+                  <span>Email layer</span>
+                  <strong>OTP, alerts, and status updates</strong>
                 </div>
               </div>
             </div>
@@ -463,55 +490,55 @@ export function HomePage() {
             <div className="hero-preview-body">
               <div className="hero-preview-copy">
                 <span className="metric-eyebrow">Platform snapshot</span>
-                <h2>Built for clean operations, strong visibility, and confident attendance review.</h2>
+                <h2>Built for daily attendance, useful student insight, and teacher control.</h2>
                 <p>
                   A polished product surface for teachers and students, supported by
-                  secure workflows, attendance history, schedules, and AI-backed
-                  verification.
+                  secure OTP workflows, AI-backed verification, attendance history,
+                  leave proof, exam warnings, and dashboard analytics.
                 </p>
               </div>
 
               <div className="hero-visual">
                 <div className="hero-premium-board">
                   <article className="preview-card premium-card premium-card-primary">
-                    <span>Attendance workspace</span>
-                    <strong>Teacher-controlled review with AI assistance</strong>
-                    <p>From classroom capture to final submission in one focused flow.</p>
+                    <span>Today Attendance Data</span>
+                    <strong>AI result first becomes an editable teacher draft</strong>
+                    <p>Absentees are notified early, then teachers correct and finalize.</p>
                   </article>
 
                   <div className="hero-premium-grid">
                     <article className="preview-card premium-card">
                       <span>Teacher side</span>
-                      <strong>Classes, rosters, schedules</strong>
+                      <strong>Classes, rosters, exams, leave review</strong>
                     </article>
                     <article className="preview-card premium-card">
                       <span>Student side</span>
-                      <strong>Join, enroll, track progress</strong>
+                      <strong>Joined classes, analytics, calculator</strong>
                     </article>
                     <article className="preview-card premium-card">
-                      <span>AI layer</span>
-                      <strong>Detection, tracking, recognition</strong>
+                      <span>Email layer</span>
+                      <strong>OTP, absence, leave, exam alerts</strong>
                     </article>
                     <article className="preview-card premium-card">
                       <span>Analytics</span>
-                      <strong>History, alerts, trends, watchlists</strong>
+                      <strong>History, CSV, percentages, eligibility</strong>
                     </article>
                   </div>
 
                   <div className="hero-premium-footer">
                     <span className="hero-dot" />
-                    <p>Designed to feel like a real product, not a generic project landing page.</p>
+                    <p>Designed around the real daily loop of class, correction, warning, and record keeping.</p>
                   </div>
                 </div>
 
                 <div className="preview-stack hero-preview-stack">
                   <article className="preview-card premium-inline-card">
-                    <span>Secure login</span>
-                    <strong>Role-based access for students and teachers</strong>
+                    <span>Verification</span>
+                    <strong>Email OTP for signup, password recovery, and profile email changes</strong>
                   </article>
                   <article className="preview-card premium-inline-card">
-                    <span>Attendance records</span>
-                    <strong>History, notes, and review-ready workflows</strong>
+                    <span>Student planning</span>
+                    <strong>Exam calendar, attendance alerts, and required-class guidance</strong>
                   </article>
                 </div>
               </div>
@@ -522,10 +549,11 @@ export function HomePage() {
         <section className="section-block" id="features">
           <div className="section-heading landing-heading">
             <p className="section-kicker">Features</p>
-            <h2>Everything needed for a modern attendance platform.</h2>
+            <h2>Everything needed for attendance, review, proof, and eligibility.</h2>
             <p>
-              Built for teachers, students, and AI-assisted attendance workflows with
-              the core tools required for daily academic operations.
+              The landing page now mirrors the product: verified accounts, AI and
+              non-AI attendance paths, teacher correction, student analytics, leave
+              proof, exam planning, and professional email notifications.
             </p>
           </div>
 
@@ -557,12 +585,12 @@ export function HomePage() {
 
         <section className="section-block working-section" id="working">
           <div className="section-heading landing-heading">
-            <p className="section-kicker">Working</p>
-            <h2>Simple on the surface. Structured underneath.</h2>
+            <p className="section-kicker">How To Use</p>
+            <h2>One clear flow for teachers and students.</h2>
             <p>
-              The product flow follows the same sequence as the implementation:
-              authentication, classroom access, face enrollment, AI review, and final
-              attendance submission.
+              Start with verified access, then move through class setup, attendance
+              capture, review, notifications, exam planning, and records without
+              jumping between disconnected tools.
             </p>
           </div>
 
@@ -621,12 +649,13 @@ export function HomePage() {
               <AppBrand href="#/" subtitle="Smart Attendance Management System" />
               <p>
                 MarkIn is a focused attendance platform with teacher and student
-                dashboards, AI-backed verification, and MongoDB-powered record flow.
+                dashboards, AI-backed photo review, leave proof, exam eligibility,
+                email alerts, and MongoDB-powered records.
               </p>
 
               <div className="footer-button-row">
                 <a className="primary-button" href="#/signup">
-                  Sign In
+                  Sign Up
                 </a>
                 <a className="secondary-button" href="#/login">
                   Login
@@ -637,14 +666,18 @@ export function HomePage() {
             <div className="footer-column footer-card footer-card-connect">
               <strong>Connect</strong>
               <div className="footer-link-list">
-                <a href="https://github.com/" target="_blank" rel="noreferrer">
+                <a href="https://github.com/shivkarsingh" target="_blank" rel="noreferrer">
                   GitHub
                 </a>
-                <a href="https://www.linkedin.com/" target="_blank" rel="noreferrer">
+                <a
+                  href="https://www.linkedin.com/in/shivkar-singh/"
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   LinkedIn
                 </a>
-                <a href="tel:+910000000000">+91 00000 00000</a>
-                <a href="mailto:contact@markin.app">contact@markin.app</a>
+                <a href="tel:+918209292868">+91 8209292868</a>
+                <a href="mailto:shivkarcse@gmail.com">shivkarcse@gmail.com</a>
               </div>
             </div>
 
@@ -652,14 +685,14 @@ export function HomePage() {
               <strong>Navigate</strong>
               <div className="footer-link-list">
                 {navLinks.map((link) => (
-                  <a key={link.id} href={`#${link.id}`}>
+                  <a key={`${link.label}-${link.id}`} href={`#${link.id}`}>
                     {link.label}
                   </a>
                 ))}
               </div>
             </div>
 
-            <div className="footer-column footer-card footer-status-column">
+            <div className="footer-column footer-card footer-status-column" id="status">
               <div className="footer-status-head">
                 <strong>System Status</strong>
               </div>

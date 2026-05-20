@@ -1,0 +1,251 @@
+\chapter{Features and Working}
+\label{chap:features}
+
+This chapter explains the working of the system as a user would experience it. The purpose is to make the project understandable even for a reader who has not opened the code. Every major feature is described as a workflow: what the user does, what the backend does and what result appears.
+
+\section{Landing Page}
+
+The landing page introduces the project as a smart attendance platform rather than a simple register. It explains the main workflows: AI photo attendance, Today Attendance Data, class-wise student dashboard, exam eligibility, leave proof review, email alerts and teacher controls. It is useful for a first-time viewer because it gives a quick idea of the product before login.
+
+The landing page also performs a health check so developers can see whether the backend is reachable. In a real deployment this helps distinguish a frontend loading issue from a backend service issue.
+
+\section{Registration and Login}
+
+Registration starts by selecting the role and entering profile details. The system sends an email OTP. The user enters the OTP and the account becomes verified. After verification, the user can log in and access the role-specific dashboard.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+node distance=1.1cm,
+flowstep/.style={draw, rounded corners, align=center, minimum width=3.1cm, minimum height=0.9cm, fill=blue!6},
+arrow/.style={-Latex, thick}
+]
+\node[flowstep] (role) {Choose role};
+\node[flowstep, below=of role] (details) {Enter name, email\\and password};
+\node[flowstep, below=of details] (otp) {Receive OTP\\on email};
+\node[flowstep, below=of otp] (verify) {Verify OTP};
+\node[flowstep, below=of verify] (login) {Log in to\\dashboard};
+\draw[arrow] (role) -- (details);
+\draw[arrow] (details) -- (otp);
+\draw[arrow] (otp) -- (verify);
+\draw[arrow] (verify) -- (login);
+\end{tikzpicture}
+\caption{Registration and login working}
+\label{fig:registration-working}
+\end{figure}
+
+\section{Student Dashboard}
+
+The student dashboard is designed to answer useful student questions quickly. It shows the number of classes joined, total classes held, present count, absent count, attendance percentage, risk state, upcoming exams and notification count. Each class card opens a separate class page so the dashboard does not become crowded.
+
+\begin{table}[H]
+\centering
+\caption{Student dashboard feature matrix}
+\label{tab:student-feature-matrix}
+\begin{tabularx}{\textwidth}{p{3.7cm} X X}
+\toprule
+\textbf{Feature} & \textbf{What student sees} & \textbf{Why it is useful}\\
+\midrule
+Overview metrics & Joined classes, present, absent and percentage. & Converts attendance into simple academic status.\\
+Class cards & Subject code, teacher, schedule and attendance health. & Lets student focus on one class at a time.\\
+Notification bell & Count of exam, leave and attendance alerts. & Brings urgent items to attention.\\
+Upcoming exams & Exam date, required percentage and eligibility. & Connects attendance to exam appearance risk.\\
+Attendance calculator & Minimum future classes to attend. & Gives a clear plan instead of only a warning.\\
+Face enrollment reminder & Profile readiness for AI attendance. & Reduces future recognition failures.\\
+Leave request status & Pending, approved or rejected proof. & Avoids uncertainty after document upload.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+box/.style={draw, rounded corners, align=center, minimum width=3cm, minimum height=0.9cm, fill=blue!6},
+page/.style={draw, rounded corners, align=center, minimum width=3cm, minimum height=0.9cm, fill=green!10},
+arrow/.style={-Latex, thick}
+]
+\node[page] (dash) {Student\\Dashboard};
+\node[box, right=1.4cm of dash] (classcards) {Class cards};
+\node[page, right=1.4cm of classcards] (classpage) {Class Detail\\Page};
+\node[box, below=1.2cm of dash] (bell) {Bell icon};
+\node[page, right=1.4cm of bell] (notify) {Notifications\\Page};
+\node[box, below=1.2cm of bell] (tools) {Tools button};
+\node[page, right=1.4cm of tools] (calc) {Calculator and\\Exam Pages};
+\draw[arrow] (dash) -- (classcards);
+\draw[arrow] (classcards) -- (classpage);
+\draw[arrow] (dash) -- (bell);
+\draw[arrow] (bell) -- (notify);
+\draw[arrow] (dash) -- (tools);
+\draw[arrow] (tools) -- (calc);
+\end{tikzpicture}
+\caption{Student dashboard navigation flow}
+\label{fig:student-dashboard-flow}
+\end{figure}
+
+\section{Student Class Detail Page}
+
+The class detail page is a focused page for one class. It shows attendance percentage, total sessions, missed sessions, recent records, regular schedule and class information. It also includes the leave proof form. The student can upload images or PDF files for medical reports, leave letters or absence reasons. The student can later see whether the request is pending, approved or rejected.
+
+This separate page design is important. A student with many subjects should not have to read every detail on the main dashboard. The main dashboard gives summary and the class page gives depth.
+
+\section{Attendance Calculator}
+
+The attendance calculator is a planning tool. It takes current attendance percentage, current present and total counts, exam date, required eligibility percentage and expected number of future classes. When possible, future classes are estimated from the class schedule. The calculator then tells the student how many classes must be attended to reach the requirement safely.
+
+\begin{table}[H]
+\centering
+\caption{Attendance calculator inputs and outputs}
+\label{tab:calculator}
+\begin{tabularx}{\textwidth}{p{3.4cm} X}
+\toprule
+\textbf{Input or output} & \textbf{Meaning}\\
+\midrule
+Current present count & Number of classes already attended.\\
+Current total count & Number of classes already recorded.\\
+Current percentage & Existing attendance standing.\\
+Exam date & Date until which future classes are estimated.\\
+Required percentage & Eligibility threshold set by teacher or entered by student.\\
+Future classes & Number of scheduled classes before the exam.\\
+Minimum required attendance & Number of future classes the student should attend.\\
+Safety message & Explains whether the target is possible, safe or risky.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Teacher Dashboard}
+
+The teacher dashboard is designed for repeated classroom work. It provides class creation, class list, schedule, exam setup and access to each class. A teacher can create a subject with code, section, semester and schedule. The generated join code allows students to join. The teacher can open a class to see students, attendance performance, leave requests and attendance controls.
+
+\section{Teacher Attendance Workflow}
+
+The teacher has multiple ways to take attendance. Manual attendance is useful for small classes or corrections. QR attendance is useful for quick self-marking during a time-limited session. AI photo attendance is useful when the teacher wants to capture classroom presence quickly from images.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+flowstep/.style={draw, rounded corners, align=center, minimum width=3.2cm, minimum height=1cm, fill=blue!6},
+choice/.style={draw, diamond, aspect=1.7, align=center, fill=yellow!15},
+done/.style={draw, rounded corners, align=center, minimum width=3.2cm, minimum height=1cm, fill=green!12},
+arrow/.style={-Latex, thick}
+]
+\node[flowstep] (open) {Open teacher\\class page};
+\node[choice, right=1.7cm of open] (method) {Choose\\method};
+\node[flowstep, above right=1.1cm and 1.5cm of method] (manual) {Manual\\attendance};
+\node[flowstep, right=1.9cm of method] (photo) {Photo AI\\attendance};
+\node[flowstep, below right=1.1cm and 1.5cm of method] (qr) {QR\\attendance};
+\node[flowstep, right=1.6cm of photo] (draft) {Review Today\\Attendance Data};
+\node[done, right=1.6cm of draft] (final) {Final\\submission};
+\draw[arrow] (open) -- (method);
+\draw[arrow] (method) -- (manual);
+\draw[arrow] (method) -- (photo);
+\draw[arrow] (method) -- (qr);
+\draw[arrow] (manual) -- (final);
+\draw[arrow] (qr) -- (final);
+\draw[arrow] (photo) -- (draft);
+\draw[arrow] (draft) -- (final);
+\end{tikzpicture}
+\caption{Teacher attendance workflow}
+\label{fig:teacher-attendance-flow}
+\end{figure}
+
+\section{AI Photo Attendance}
+
+In AI photo attendance, the teacher captures or uploads a classroom photo. The backend sends the photo to the AI service. The AI service detects faces and compares them with enrolled student face profiles. It returns matched students and verification notes. The teacher sees the result in a useful form: who is probably present, who is absent and which notes require attention.
+
+The result goes to Today Attendance Data, not directly to final records. This is the key safety feature. Students who are marked absent receive an email early. If there is an error, the student can contact the teacher, and the teacher can correct the draft. This approach improves trust because the system is transparent and correctable.
+
+\section{Today Attendance Data Section}
+
+The Today Attendance Data section contains the current draft attendance for the day. It shows present students and absent students. The teacher can add a student to the present list, remove a student, change status and finalize. The draft can also be finalized automatically after the configured period, such as twelve hours, so that attendance does not remain pending forever.
+
+\begin{table}[H]
+\centering
+\caption{Today Attendance Data actions}
+\label{tab:today-actions}
+\begin{tabularx}{\textwidth}{p{3.3cm} X X}
+\toprule
+\textbf{Action} & \textbf{Who performs it} & \textbf{Result}\\
+\midrule
+Create draft & Teacher through photo attendance workflow & AI suggested attendance is stored for review.\\
+Notify absentees & Backend email module & Students marked absent receive early email warning.\\
+Add student & Teacher & Corrects false absent or missed recognition.\\
+Remove student & Teacher & Corrects false present or accidental entry.\\
+Finalize manually & Teacher & Draft becomes final attendance records.\\
+Finalize automatically & Scheduler & Draft is submitted after the configured waiting period.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Leave Proof and Medical Report Workflow}
+
+The leave proof workflow solves a common issue: students often have a valid reason for absence but proof is shared informally through messages. In SAMS, proof is connected to the class and date. The student submits the request from the class detail page. The teacher previews the document in the student detail section and approves or rejects it. The student receives an email and dashboard status update.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+flowstep/.style={draw, rounded corners, align=center, minimum width=3.2cm, minimum height=1cm, fill=blue!6},
+review/.style={draw, rounded corners, align=center, minimum width=3.2cm, minimum height=1cm, fill=yellow!18},
+done/.style={draw, rounded corners, align=center, minimum width=3.2cm, minimum height=1cm, fill=green!12},
+arrow/.style={-Latex, thick}
+]
+\node[flowstep] (student) {Student uploads\\proof};
+\node[review, right=1.5cm of student] (teacher) {Teacher previews\\PDF or image};
+\node[review, right=1.5cm of teacher] (decision) {Approve or\\reject};
+\node[done, below=1.2cm of decision] (email) {Student receives\\email};
+\node[done, left=1.5cm of email] (status) {Dashboard status\\updated};
+\draw[arrow] (student) -- (teacher);
+\draw[arrow] (teacher) -- (decision);
+\draw[arrow] (decision) -- (email);
+\draw[arrow] (decision) -- (status);
+\end{tikzpicture}
+\caption{Leave proof review workflow}
+\label{fig:leave-flow}
+\end{figure}
+
+\section{Exam Scheduling and Eligibility}
+
+The teacher can define an upcoming exam for a class. The exam entry contains exam date, required attendance percentage and optional notes. The student dashboard uses current attendance and schedule information to show eligibility. If the student is below the required percentage, the dashboard and email warnings explain the problem.
+
+This feature is more useful than a normal attendance percentage because it connects present behaviour to future consequence. A student can see how many classes must be attended before the exam. A teacher can warn students early instead of announcing ineligibility at the last moment.
+
+\section{Notification Bell and Separate Pages}
+
+The student dashboard includes a notification bell icon. It summarizes urgent items such as low attendance, upcoming exam risk, face enrollment reminder and leave request decision. The bell opens a separate notification page instead of expanding large content inside the dashboard. Similarly, tools such as the calculator and exams open on separate pages. This keeps the dashboard efficient and prevents it from becoming overloaded.
+
+\section{Class Cancellation and Reschedule Notice}
+
+If a class is cancelled or rescheduled, the teacher can update the class state. Students receive a bulk email notice with updated information. The attendance record can use a class-cancelled status so that cancelled sessions do not reduce student attendance percentage.
+
+\section{Assignments and Class Discussion}
+
+The project also includes class assignment and discussion features. Teachers can create assignments for a class, students can submit responses and class discussion messages can include replies or reactions. These features are useful because attendance systems are often part of a wider class management workflow. Keeping assignments and discussions in the same class context gives students one place to check academic activity.
+
+\section{Feature Summary}
+
+\begin{longtable}{p{3.5cm} p{4.8cm} p{5.1cm}}
+\caption{Complete feature matrix}
+\label{tab:complete-feature-matrix}\\
+\toprule
+\textbf{Feature} & \textbf{Student benefit} & \textbf{Teacher benefit}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Feature} & \textbf{Student benefit} & \textbf{Teacher benefit}\\
+\midrule
+\endhead
+Email verification & Ensures account email can receive alerts. & Ensures teacher account can send and receive system notices.\\
+Class join code & Easy class joining. & Less manual roster creation.\\
+Class-wise dashboard & Understands subject-specific performance. & Reduces repeated student queries.\\
+Photo attendance & Less roll-call time. & Faster attendance with review controls.\\
+QR attendance & Fast self-marking when allowed. & Useful alternative to photo recognition.\\
+Today Attendance Data & Early chance to report mistakes. & Correctable draft before final submission.\\
+Leave proof upload & Formal way to submit medical or leave documents. & Online review without downloading every file.\\
+Exam eligibility & Clear target before exam. & Early warning for at-risk students.\\
+Attendance calculator & Personal planning tool. & Reduces confusion about required classes.\\
+Notification bell & Urgent items in one place. & Students see warnings without teacher repeating them.\\
+Email alerts & Important changes reach inbox. & Automated communication for repetitive events.\\
+Cancellation notice & Knows class changes quickly. & Bulk class communication.\\
+\bottomrule
+\end{longtable}
+
+This chapter described the working features. The next chapter verifies these features through testing and result analysis.

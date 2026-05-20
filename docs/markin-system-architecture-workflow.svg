@@ -119,7 +119,7 @@
 
   <rect class="box-ai" x="1095" y="205" width="610" height="80"/>
   <text class="box-title" x="1400" y="238" text-anchor="middle">FastAPI AI Service</text>
-  <text class="body" x="1125" y="266">Endpoints: /faces/enroll, /attendance/classroom-recognition, /attendance/finalize, /verification/liveness</text>
+  <text class="body" x="1125" y="266">Endpoints: /faces/enroll, /attendance/classroom-recognition, /attendance/finalize, /verification/face</text>
 
   <rect class="box-ai" x="1095" y="320" width="250" height="190"/>
   <text class="box-title" x="1220" y="355" text-anchor="middle">Enrollment Pipeline</text>
@@ -137,7 +137,7 @@
   <text class="body" x="1390" y="390">- Face Detection: SCRFD</text>
   <text class="body" x="1390" y="418">- Face Tracking: ByteTrack</text>
   <text class="body" x="1390" y="446">- Face Recognition: ArcFace-style embeddings</text>
-  <text class="body" x="1390" y="474">- Liveness: MediaPipe Face Landmarker</text>
+  <text class="body" x="1390" y="474">- Review: teacher confirmation for uncertain matches</text>
   <text class="body" x="1390" y="502">- Anti-Spoof: MiniFASNetV2</text>
 
   <rect class="box-ai" x="1095" y="545" width="610" height="280"/>
@@ -167,7 +167,7 @@
   <rect class="box-ai" x="1095" y="860" width="290" height="175"/>
   <text class="box-title" x="1240" y="895" text-anchor="middle">Liveness / Anti-Spoof Flow</text>
   <text class="body" x="1120" y="930">- Blink and head movement signals</text>
-  <text class="body" x="1120" y="958">- Passive spoof score for screen / print attack risk</text>
+  <text class="body" x="1120" y="958">- Teacher review notes for uncertain or low-quality matches</text>
   <text class="body" x="1120" y="986">- Decision: allow, retry capture, or manual review</text>
 
   <rect class="box-db" x="1415" y="860" width="290" height="175"/>

@@ -1,0 +1,75 @@
+\chapter{Introduction}
+\label{ch:introduction}
+\lhead{Chapter 1. \emph{Introduction}}
+
+\section{Project Overview}
+Attendance is one of the most common administrative activities in schools, colleges and training institutions. In many classrooms it is still handled by calling names, signing registers or manually entering presence into a spreadsheet. These methods are simple, but they become slow and unreliable when the number of students and classes increases. A teacher may spend several minutes marking attendance, students may be marked incorrectly, and the attendance percentage may not be visible to students until it is too late to recover.
+
+The \projecttitle{} is designed as a modern solution to this problem. It combines a web application, a backend API, a database and an artificial intelligence service. Teachers can create classes, add or invite students, run attendance using classroom photographs, verify results, manage students, schedule exams and review leave requests. Students can join classes, enroll their face profile, view attendance analytics, upload leave proof, check exam eligibility and receive notifications. The system is not only an attendance marker; it is an academic support platform that explains what the attendance data means.
+
+The product name used in the user interface is \productname. SAMS stands for Smart Attendance Management System. The word MarkIn represents the idea of marking attendance in a smarter and safer way. The project is implemented as a three-service architecture: React frontend, Express backend and FastAPI AI service. MongoDB is used for persistent storage, and the AI service uses face detection and recognition models to support photo-based attendance.
+
+\section{Motivation}
+The main motivation behind this project is to make attendance more accurate, transparent and useful. Traditional attendance systems usually solve only one task: recording present or absent. In practice, an institution needs much more. Teachers need a clean roster and a safe way to correct AI mistakes. Students need to know which class is weak, how many classes they must attend before an exam and whether leave proof was approved. Administrators need records that can be audited and exported.
+
+The project therefore focuses on four ideas:
+\begin{enumerate}[label=\arabic*.]
+    \item \textbf{Reduce teacher workload:} Camera-based attendance, QR attendance and manual controls reduce repetitive work.
+    \item \textbf{Protect correctness:} AI suggestions are not blindly finalized; a teacher reviews Today Attendance Data before submission.
+    \item \textbf{Inform students early:} Low attendance, absence, leave status and exam eligibility are communicated through dashboards and email.
+    \item \textbf{Keep data useful:} Attendance is converted into analytics, recovery guidance, class summaries and CSV reports.
+\end{enumerate}
+
+\section{Problem Statement}
+Educational institutions require a reliable attendance management system that can record attendance efficiently, reduce manual errors, support verification, notify students about important attendance events and provide meaningful analytics. Existing manual or semi-digital methods are often slow, fragmented and reactive. They do not provide real-time correction workflows, AI-assisted classroom verification, leave proof handling, exam eligibility planning or email-based communication in one integrated product.
+
+The problem can be stated as follows:
+
+\begin{quote}
+To design and implement a full-stack Smart Attendance Management System that allows teachers and students to manage attendance, class activities, AI-assisted verification, leave documentation, exam eligibility and notifications through a secure and user-friendly web platform.
+\end{quote}
+
+\section{Objectives}
+The objectives of the project are:
+\begin{itemize}
+    \item To provide separate student and teacher dashboards with role-based access.
+    \item To allow teachers to create classes and students to join using class codes.
+    \item To allow students to enroll face profiles for classroom photo attendance.
+    \item To implement AI-assisted recognition using a separate FastAPI service.
+    \item To create a review-first attendance workflow where teachers verify results before final submission.
+    \item To send email notifications for verification, password reset, absence, leave status, exam warnings and class cancellation.
+    \item To provide student analytics such as total classes, present count, absent count, percentage and recovery guidance.
+    \item To support leave or medical proof upload with teacher approval/rejection.
+    \item To support exam scheduling and attendance eligibility calculation.
+    \item To keep the architecture modular, maintainable and scalable.
+\end{itemize}
+
+\section{Scope of the Project}
+The current project scope includes frontend user experience, backend business rules, MongoDB persistence, AI-service integration and email notification workflows. The system supports real classroom workflows such as class creation, joining, attendance capture, draft review, final submission, QR attendance, manual attendance, leave proof, assignments, discussion, notes, exams and analytics.
+
+The project does not claim to replace institutional ERP systems completely. Instead, it focuses on attendance-centered academic operations. It can later integrate with ERP, biometric hardware, institutional SSO, payment systems or official exam portals if required.
+
+\section{Users of the System}
+\begin{table}[H]
+\centering
+\caption{Primary users of the system}
+\label{tab:users}
+\begin{tabularx}{\textwidth}{p{3.2cm}X}
+\toprule
+\textbf{User Type} & \textbf{Purpose in System}\\
+\midrule
+Student & Joins classes, enrolls face profile, views attendance, checks exam eligibility, receives notifications and submits leave proof.\\
+Teacher & Creates classes, manages rosters, runs attendance, corrects Today Attendance Data, finalizes attendance, reviews leave requests and schedules exams.\\
+AI Service & Performs face detection, embedding generation, roster matching and attendance session analysis.\\
+Backend Service & Owns authentication, authorization, MongoDB access, email delivery, attendance rules and API orchestration.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Why the Project is Useful}
+The usefulness of the project is visible from both student and teacher perspectives. A student does not need to guess whether attendance is safe for exams. The dashboard shows joined classes, attendance percentages, present/absent counts, upcoming exams and minimum classes to attend. A teacher does not need to manually call every student name when a clear classroom photo is available. The AI service suggests attendance, but final control remains with the teacher.
+
+The system also solves a common communication gap. If a student is marked absent from photo attendance, the student receives an email immediately after the draft is created. If the student believes the result is wrong, the teacher can correct the draft before final submission. This small workflow makes the system more trustworthy than a direct AI auto-submit model.
+
+\section{Report Organization}
+This report is organized to help a beginner understand the project step by step. Chapter 2 discusses existing systems and related concepts. Chapter 3 explains requirements. Chapter 4 describes architecture and design. Chapter 5 explains implementation. Chapter 6 explains features and working flows. Chapter 7 presents testing and results. Chapter 8 concludes the work with limitations and future scope. The appendix contains route summaries, setup guidance and additional reference material.

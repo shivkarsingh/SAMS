@@ -1,0 +1,220 @@
+\chapter{Requirement Analysis}
+\label{chap:requirements}
+
+Requirement analysis explains what the system must do, who will use it, which data it must handle, and what quality conditions must be satisfied. For \productname{}, the requirements were derived from the practical problems faced in daily attendance work: teachers need faster marking, students need transparency, and administrators need dependable records. The system therefore combines attendance capture, verification, analytics, document proof, exam eligibility and email communication into one connected workflow.
+
+\section{Stakeholders}
+
+The project has two primary user groups and a few supporting stakeholders. A teacher operates classes, attendance sessions, leave approvals and exam rules. A student joins classes, checks attendance, submits documents and receives alerts. The department or institute can use the stored data for records, compliance and reports. Parents may optionally receive absence alerts when the student profile contains a parent email address.
+
+\begin{table}[H]
+\centering
+\caption{Stakeholders and their expectations}
+\label{tab:stakeholders}
+\begin{tabularx}{\textwidth}{p{3cm} X X}
+\toprule
+\textbf{Stakeholder} & \textbf{Main expectation} & \textbf{How SAMS supports it}\\
+\midrule
+Student & Clear attendance status, class-wise records, exam eligibility, proof submission and alerts. & Student dashboard, class detail pages, attendance calculator, leave proof upload, notification page and email alerts.\\
+Teacher & Fast attendance capture, reliable correction, class management and student analytics. & Teacher dashboard, AI photo attendance, Today Attendance Data draft, manual edits, QR attendance, leave review and exam setup.\\
+Department & Consistent attendance records and reduced manual paperwork. & MongoDB-backed records, final attendance submission, export-ready summaries and audit-friendly email logs.\\
+Parent or guardian & Optional awareness when a student is absent. & Optional parent email on the student profile for absent notifications.\\
+System maintainer & Modular codebase and simple deployment. & Separate frontend, backend and AI service with environment-based configuration.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Functional Requirements}
+
+Functional requirements describe the visible actions supported by the application. The first major requirement is authentication. Students and teachers should be able to register, verify their email using an OTP, log in, update profile details and reset forgotten passwords. The system must not treat an unverified account as fully active because email is used for important academic notifications.
+
+The second requirement is class management. A teacher should be able to create a class with subject name, subject code, section, semester, academic year, room and weekly schedule. Students should be able to join a class through a join code or join link. The teacher should be able to view the roster and add, update or remove students when needed.
+
+The third requirement is attendance capture. The system should allow manual attendance, QR attendance and AI-assisted photo attendance. Manual attendance is useful when a teacher wants direct control. QR attendance is useful when students physically present in class can scan a session code. AI-assisted photo attendance is useful when the teacher wants to take classroom photos and let the system identify likely present students.
+
+The fourth requirement is review before finalization. Photo attendance cannot be considered perfect because classroom lighting, camera angle, occlusion and missing face enrollment can affect recognition. Therefore, AI results must first go to a draft area called Today Attendance Data. The teacher can add or remove students from this draft. Absentees are notified early so that a mistaken absence can be reported before final submission. If the teacher does not finalize manually, the backend scheduler can finalize eligible drafts after the configured delay.
+
+The fifth requirement is student usefulness. A student dashboard should not simply show a percentage. It should show total classes, present count, absent count, class-wise status, upcoming exams, safe attendance information, notifications and navigation to separate class pages. Each class page should provide schedule, recent attendance, leave proof submission and useful context for improving attendance.
+
+The sixth requirement is academic communication. The backend must send professional emails for signup verification, welcome message, password reset, profile email verification, leave approval or rejection, absent notification, exam attendance warning and class cancellation or rescheduling. The email module should be modular, retry failed delivery and store delivery status without exposing SMTP secrets.
+
+\begin{longtable}{p{3.2cm} p{4.6cm} p{5.8cm}}
+\caption{Functional requirement summary}
+\label{tab:functional-reqs}\\
+\toprule
+\textbf{Module} & \textbf{Requirement} & \textbf{Expected behaviour}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Module} & \textbf{Requirement} & \textbf{Expected behaviour}\\
+\midrule
+\endhead
+Authentication & Email verified registration & User enters registration details, receives OTP, verifies email and then receives a welcome email.\\
+Authentication & Forgot password & User requests reset, receives OTP or reset token, and can set a new password before expiry.\\
+Profile & Email update & User submits new email, verifies OTP and only then the profile email is changed.\\
+Classroom & Teacher creates class & Teacher defines subject, code, section, schedule and metadata. System generates join code.\\
+Classroom & Student joins class & Student submits join code and becomes part of the class roster.\\
+Attendance & Manual marking & Teacher can directly mark present, absent, late, excused or cancelled records.\\
+Attendance & QR marking & Teacher creates a QR session; students scan to mark attendance within the allowed window.\\
+Attendance & Photo marking & Teacher uploads classroom photo; backend sends it to AI service; suggested attendance is stored as a draft.\\
+Draft review & Today Attendance Data & Teacher sees present and absent names, corrects the draft and finalizes it.\\
+Leave proof & Student upload & Student submits reason, absence date and image or PDF proof from the class detail page.\\
+Leave review & Teacher decision & Teacher previews files online, approves or rejects, and student receives email.\\
+Exam planning & Teacher exam setup & Teacher sets exam date and required attendance percentage.\\
+Exam planning & Student eligibility & Student sees eligibility, minimum classes to attend and warnings when below threshold.\\
+Notifications & Dashboard alerts & Important alerts appear under the student notification bell and notification page.\\
+Email & Delivery logging & Each email event is queued, retried and written to delivery logs with safe metadata.\\
+\bottomrule
+\end{longtable}
+
+\section{Non-Functional Requirements}
+
+Non-functional requirements describe the quality of the system rather than a single button or page. In an attendance system these qualities are important because incorrect records can directly affect student eligibility. The system must be reliable, understandable, responsive, secure and maintainable.
+
+\begin{table}[H]
+\centering
+\caption{Non-functional requirements}
+\label{tab:nonfunctional}
+\begin{tabularx}{\textwidth}{p{3.5cm} X}
+\toprule
+\textbf{Quality attribute} & \textbf{Requirement for this project}\\
+\midrule
+Usability & Dashboards should show the most useful information first and should avoid confusing students with raw data only.\\
+Accuracy & AI attendance should be treated as an assistive result, not an unquestioned final record. Teacher review remains part of the workflow.\\
+Security & Passwords, email OTPs, SMTP credentials and database connection strings must not be exposed in frontend code or reports.\\
+Performance & Dashboard APIs should return summarized data so that the frontend can render quickly without doing heavy calculations.\\
+Scalability & Email sending should use a queue and limited concurrency so bulk class notifications do not block normal API responses.\\
+Maintainability & Frontend, backend and AI logic should remain separated so each service can evolve independently.\\
+Observability & Health and email status endpoints should show safe operational state without revealing secrets.\\
+Portability & The app should run locally through workspace scripts and should support Docker-based deployment.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{User Roles and Permissions}
+
+Role separation is necessary because students and teachers perform different actions. The student should not be able to finalize attendance or approve leave. The teacher should not need direct database access. The backend API is the control point for enforcing these actions.
+
+\begin{table}[H]
+\centering
+\caption{User roles and permissions}
+\label{tab:roles}
+\begin{tabularx}{\textwidth}{p{3cm} X X}
+\toprule
+\textbf{Action} & \textbf{Student} & \textbf{Teacher}\\
+\midrule
+Register and verify email & Allowed & Allowed\\
+Log in and update profile & Allowed & Allowed\\
+Create class & Not allowed & Allowed\\
+Join class & Allowed & Not required\\
+View own attendance & Allowed & Can view class attendance\\
+View all students in a class & Not allowed & Allowed for own classes\\
+Submit leave proof & Allowed for own class membership & Not applicable\\
+Preview leave proof & Own submissions only & Allowed for students in own class\\
+Approve or reject leave & Not allowed & Allowed\\
+Set exam date and eligibility threshold & Not allowed & Allowed\\
+Use attendance calculator & Allowed & Can interpret class-level analytics\\
+Create attendance draft & Not allowed & Allowed\\
+Edit and finalize Today Attendance Data & Not allowed & Allowed\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Use Case View}
+
+A beginner can understand the system through use cases. A use case is a user goal written from the user's perspective. For example, ``student checks exam eligibility'' is a use case. It is not just a page; it includes input data, processing and result.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+actor/.style={draw, rounded corners, minimum width=2.6cm, minimum height=0.9cm, fill=gray!10},
+case/.style={draw, ellipse, align=center, minimum width=3.5cm, minimum height=1cm, fill=blue!6},
+line/.style={-Latex, thick}
+]
+\node[actor] (student) {Student};
+\node[actor, below=4.3cm of student] (teacher) {Teacher};
+\node[case, right=3.2cm of student] (dash) {View dashboard\\and notifications};
+\node[case, below=1.15cm of dash] (leave) {Submit leave\\proof};
+\node[case, below=1.15cm of leave] (calc) {Check exam\\eligibility};
+\node[case, right=3.6cm of teacher] (class) {Create class\\and schedule};
+\node[case, above=1.15cm of class] (att) {Run attendance\\session};
+\node[case, below=1.15cm of class] (review) {Review leave\\and students};
+\node[case, above=1.15cm of att] (exam) {Set exam\\criteria};
+\draw[line] (student) -- (dash);
+\draw[line] (student) -- (leave);
+\draw[line] (student) -- (calc);
+\draw[line] (teacher) -- (class);
+\draw[line] (teacher) -- (att);
+\draw[line] (teacher) -- (review);
+\draw[line] (teacher) -- (exam);
+\end{tikzpicture}
+\caption{High-level user role use cases}
+\label{fig:usecases}
+\end{figure}
+
+\section{Data Requirements}
+
+The system requires structured data about users, classes, attendance, face enrollment, leave requests, exams and email events. MongoDB is a suitable choice because class and attendance documents may contain nested schedule slots, attachment metadata and draft records. The backend still defines schemas using Mongoose so the application has validation and consistent field names.
+
+\begin{table}[H]
+\centering
+\caption{Important data required by SAMS}
+\label{tab:data-requirements}
+\begin{tabularx}{\textwidth}{p{3.5cm} X}
+\toprule
+\textbf{Data item} & \textbf{Purpose}\\
+\midrule
+User profile & Stores role, user id, name, email, verification state, optional parent email and profile metadata.\\
+Classroom & Stores teacher ownership, subject information, section, room, schedule and join code.\\
+Class membership & Connects a student to a class and supports roster analytics.\\
+Face profile & Stores enrollment state and face embeddings or metadata needed by the AI-backed workflow.\\
+Attendance record & Stores final attendance decisions with status, date, class and source.\\
+Attendance draft & Stores temporary Today Attendance Data before final submission.\\
+Leave request & Stores absence date, reason, request type, attachments and review decision.\\
+Class exam & Stores exam date, required attendance percentage and teacher notes.\\
+Email delivery log & Stores delivery status, template name, recipient metadata and error details if sending fails.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Input and Output Requirements}
+
+Inputs must be simple enough for a normal college user. A teacher should only need class details, attendance photos, QR controls or manual status selections. A student should only need join code, profile details, absence reason, proof files and optional calculator inputs. The backend should validate these inputs before storing them.
+
+The outputs should be actionable. Instead of only showing raw attendance records, the student dashboard should answer questions such as: How many classes have I joined? Which class is risky? How many total sessions were held? How many were present or absent? Am I eligible for the next exam? How many future classes should I attend to be safe? The teacher dashboard should answer questions such as: Which classes need action today? Which students are below range? Which leave requests are pending? Which attendance drafts still require final submission?
+
+\section{Constraints and Assumptions}
+
+The project assumes a college environment where classes are organized by teacher, subject and section. The system assumes that students and teachers have email access because verification and alerts are part of the workflow. It also assumes that the teacher remains responsible for final attendance accuracy because computer vision cannot be perfect under all classroom conditions.
+
+The major technical constraints are camera quality, lighting conditions, network availability and the availability of AI model files. If the AI service is unavailable, manual or QR attendance can still support the academic workflow. If email delivery fails, the backend records the failure and can be configured with retries. If a student has not completed face enrollment, the system warns the student and the teacher can rely on other attendance methods.
+
+\section{Requirement Traceability}
+
+Requirement traceability helps connect features to project modules. This makes testing easier because each requirement can be mapped to a backend service and a frontend page.
+
+\begin{longtable}{p{3.4cm} p{4.4cm} p{5.8cm}}
+\caption{Requirement traceability matrix}
+\label{tab:req-traceability}\\
+\toprule
+\textbf{Requirement} & \textbf{Backend area} & \textbf{Frontend area}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Requirement} & \textbf{Backend area} & \textbf{Frontend area}\\
+\midrule
+\endhead
+Email verification & Auth and email OTP services & Signup and verification screens\\
+Student dashboard analytics & Student dashboard service and attendance analytics service & Student dashboard, notification page and class detail page\\
+Teacher dashboard analytics & Teacher dashboard service and classroom services & Teacher dashboard and class students page\\
+Face enrollment & Face profile service and AI service bridge & Student face enrollment page\\
+Photo attendance & Attendance service, teacher classroom controller and AI gateway & Teacher attendance workspace\\
+Today Attendance Data & Attendance draft model, scheduler and finalize endpoints & Teacher draft review section\\
+Leave proof & Leave request service, attachment metadata and email notification service & Student class detail and teacher student detail page\\
+Exam eligibility & Exam schedule service and attendance analytics & Upcoming exams section and calculator page\\
+Notifications & Dashboard services and student notification builder & Bell icon and separate notification view\\
+Email status & Email service and delivery logs & Email setup or test/status view\\
+\bottomrule
+\end{longtable}
+
+This chapter defined the expectations of the system. The next chapter converts these requirements into an architecture and design that explains how the frontend, backend, database and AI service work together.

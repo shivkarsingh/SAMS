@@ -16,12 +16,18 @@ function getInitials(profile) {
   return `${profile.firstName?.[0] ?? ""}${profile.lastName?.[0] ?? ""}`.toUpperCase();
 }
 
-export function TeacherProfileSection({ profile, onSaveProfile }) {
+export function TeacherProfileSection({
+  profile,
+  onSaveProfile,
+  onRequestEmailOtp
+}) {
   const [form, setForm] = useState(profile);
   const [status, setStatus] = useState("");
+  const [emailOtp, setEmailOtp] = useState("");
 
   useEffect(() => {
     setForm(profile);
+    setEmailOtp("");
   }, [profile]);
 
   function updateField(field, value) {
@@ -45,11 +51,39 @@ export function TeacherProfileSection({ profile, onSaveProfile }) {
     reader.readAsDataURL(file);
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
-    onSaveProfile(form);
-    setStatus("Profile updated.");
+    setStatus("Saving profile...");
+
+    try {
+      const response = await onSaveProfile(form, emailOtp);
+      setStatus(response?.message ?? "Profile updated.");
+      setEmailOtp("");
+    } catch (error) {
+      setStatus(
+        error instanceof Error ? error.message : "Unable to update profile."
+      );
+    }
   }
+
+  async function handleRequestOtp() {
+    setStatus("Sending email OTP...");
+
+    try {
+      const response = await onRequestEmailOtp(form.email);
+      setStatus(
+        `${response?.message ?? "OTP sent."}${response?.verification?.devOtp ? ` Dev OTP: ${response.verification.devOtp}` : ""}`
+      );
+    } catch (error) {
+      setStatus(
+        error instanceof Error ? error.message : "Unable to send email OTP."
+      );
+    }
+  }
+
+  const emailChanged =
+    String(form.email ?? "").trim().toLowerCase() !==
+    String(profile.email ?? "").trim().toLowerCase();
 
   return (
     <section className="glass-card dashboard-panel teacher-profile-panel" id="profile">
@@ -93,6 +127,29 @@ export function TeacherProfileSection({ profile, onSaveProfile }) {
               </label>
             ))}
           </div>
+
+          {emailChanged ? (
+            <div className="profile-email-otp-panel">
+              <p>Verify the new email before saving this profile.</p>
+              <label className="field">
+                <span>Email OTP</span>
+                <input
+                  value={emailOtp}
+                  onChange={(event) => setEmailOtp(event.target.value)}
+                  placeholder="6 digit OTP"
+                  inputMode="numeric"
+                  maxLength={6}
+                />
+              </label>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={handleRequestOtp}
+              >
+                Send OTP
+              </button>
+            </div>
+          ) : null}
 
           <div className="teacher-profile-actions">
             <button className="primary-button" type="submit">

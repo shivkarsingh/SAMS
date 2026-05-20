@@ -6,9 +6,124 @@
   margin-top: 20px;
 }
 
+.teacher-roster-manager-panel {
+  margin-top: 20px;
+}
+
+.teacher-roster-form {
+  display: grid;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.teacher-roster-form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.teacher-roster-actions,
+.teacher-student-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.teacher-student-row-actions {
+  justify-content: flex-end;
+}
+
+.danger-action {
+  color: #fecdd3;
+  border-color: rgba(251, 113, 133, 0.28);
+}
+
+.danger-action:hover {
+  border-color: rgba(251, 113, 133, 0.48);
+  background: rgba(251, 113, 133, 0.12);
+}
+
+.teacher-student-filter-topline {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.teacher-student-filter-topline h2 {
+  margin: 0;
+}
+
+.teacher-filter-label,
+.teacher-safe-range-control > span,
+.teacher-sort-control > span {
+  color: #8ea0bd;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.teacher-student-control-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(260px, 1.15fr) minmax(220px, 0.8fr);
+  gap: 16px;
+  align-items: end;
+  margin: 18px 0;
+}
+
+.teacher-safe-range-control,
+.teacher-sort-control {
+  display: grid;
+  gap: 8px;
+}
+
+.teacher-safe-range-inputs {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 80px auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.teacher-safe-range-inputs input[type="range"] {
+  accent-color: #38bdf8;
+}
+
+.teacher-safe-range-inputs input[type="number"],
+.teacher-sort-control select {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 13px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #f4f7fb;
+  outline: none;
+}
+
+.teacher-safe-range-inputs input:focus,
+.teacher-sort-control select:focus {
+  border-color: rgba(103, 232, 249, 0.45);
+  box-shadow: 0 0 0 4px rgba(103, 232, 249, 0.08);
+}
+
+.teacher-safe-range-inputs strong {
+  color: #e5edf8;
+}
+
+.teacher-student-filter-groups {
+  display: grid;
+  gap: 16px;
+}
+
+.teacher-student-filter-group {
+  display: grid;
+  gap: 10px;
+}
+
 .teacher-student-filter-row,
-.teacher-student-card-head,
-.teacher-student-metrics {
+.teacher-student-profile {
   display: flex;
   gap: 14px;
 }
@@ -17,54 +132,480 @@
   flex-wrap: wrap;
 }
 
+.teacher-student-filter-row .role-tab {
+  gap: 9px;
+}
+
+.teacher-student-filter-row .role-tab span {
+  display: inline-flex;
+  min-width: 24px;
+  min-height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.teacher-student-result-bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 18px;
+  padding: 13px 15px;
+  border: 1px solid rgba(103, 232, 249, 0.14);
+  border-radius: 16px;
+  background: rgba(103, 232, 249, 0.06);
+}
+
+.teacher-student-result-bar strong {
+  font-size: 1.1rem;
+}
+
+.teacher-student-result-bar span {
+  color: #9caecc;
+}
+
 .teacher-student-list {
   display: grid;
-  gap: 16px;
+  gap: 10px;
   margin-top: 22px;
 }
 
-.teacher-student-card {
-  padding: 22px;
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+.teacher-student-calendar-panel {
+  display: grid;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid rgba(103, 232, 249, 0.15);
+  border-radius: 22px;
+  background: rgba(103, 232, 249, 0.05);
+}
+
+.teacher-student-calendar-header,
+.teacher-calendar-toolbar,
+.teacher-calendar-legend {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.teacher-student-calendar-header h3,
+.teacher-student-calendar-header p {
+  margin: 8px 0 0;
+}
+
+.teacher-student-calendar-header p {
+  color: #9caecc;
+}
+
+.teacher-student-calendar-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.teacher-student-calendar-stats div {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.teacher-student-calendar-stats span {
+  display: block;
+  color: #8ea0bd;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.teacher-student-calendar-stats strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 1.35rem;
+}
+
+.teacher-student-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.teacher-calendar-weekday {
+  color: #8ea0bd;
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.teacher-calendar-day {
+  display: grid;
+  min-height: 76px;
+  align-content: space-between;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.04);
 }
 
-.teacher-student-card-head {
-  align-items: start;
-  justify-content: space-between;
+.teacher-calendar-day strong {
+  font-size: 0.95rem;
 }
 
-.teacher-student-card-head h3 {
-  margin: 0 0 8px;
+.teacher-calendar-day span {
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
-.teacher-student-card-head span {
-  color: #8ea0bd;
+.teacher-calendar-day.present {
+  border-color: rgba(34, 197, 94, 0.3);
+  background: rgba(34, 197, 94, 0.14);
+  color: #bbf7d0;
 }
 
-.teacher-student-metrics {
-  margin-top: 18px;
+.teacher-calendar-day.absent,
+.teacher-calendar-day.late {
+  border-color: rgba(251, 113, 133, 0.32);
+  background: rgba(251, 113, 133, 0.14);
+  color: #fecdd3;
 }
 
-.teacher-student-metrics div {
-  flex: 1;
-  min-width: 0;
+.teacher-calendar-day.cancelled {
+  border-color: rgba(148, 163, 184, 0.24);
+  background: rgba(148, 163, 184, 0.1);
+  color: #cbd5e1;
+}
+
+.teacher-calendar-day.empty {
+  visibility: hidden;
+}
+
+.teacher-calendar-legend {
+  justify-content: flex-start;
+}
+
+.teacher-calendar-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #9caecc;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.teacher-calendar-legend span::before {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  content: "";
+}
+
+.teacher-calendar-legend .present::before {
+  background: #22c55e;
+}
+
+.teacher-calendar-legend .absent::before {
+  background: #fb7185;
+}
+
+.teacher-calendar-legend .cancelled::before {
+  background: #94a3b8;
+}
+
+.teacher-calendar-legend .none::before {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.teacher-leave-review-panel,
+.teacher-leave-request-list,
+.teacher-leave-proof-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.teacher-leave-review-panel {
+  padding-top: 6px;
+}
+
+.teacher-leave-review-message {
+  margin: 0;
+  color: #fcd34d;
+}
+
+.teacher-leave-request-card {
+  display: grid;
+  gap: 14px;
   padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.04);
 }
 
-.teacher-student-metrics span {
-  display: block;
-  margin-bottom: 8px;
+.teacher-leave-request-card.approved {
+  border-color: rgba(34, 197, 94, 0.2);
+}
+
+.teacher-leave-request-card.rejected {
+  border-color: rgba(251, 113, 133, 0.22);
+}
+
+.teacher-leave-request-head,
+.teacher-leave-proof-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.teacher-leave-request-head span,
+.teacher-leave-proof-head span,
+.teacher-leave-request-card p {
+  color: #9caecc;
+}
+
+.teacher-leave-request-card p {
+  margin: 0;
+}
+
+.leave-status-pill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: capitalize;
+}
+
+.leave-status-pill.pending {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fcd34d;
+}
+
+.leave-status-pill.approved {
+  background: rgba(34, 197, 94, 0.12);
+  color: #86efac;
+}
+
+.leave-status-pill.rejected {
+  background: rgba(251, 113, 133, 0.13);
+  color: #fecdd3;
+}
+
+.teacher-leave-proof-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.teacher-leave-proof-preview {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.teacher-leave-proof-preview img,
+.teacher-leave-proof-preview iframe {
+  width: 100%;
+  height: 260px;
+  border: 0;
+  border-radius: 12px;
+  background: #020617;
+  object-fit: contain;
+}
+
+.teacher-leave-note-field textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #f4f7fb;
+  outline: none;
+}
+
+.teacher-student-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(140px, 200px) minmax(90px, auto) auto auto minmax(150px, auto);
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.teacher-student-profile {
+  align-items: center;
+  min-width: 0;
+}
+
+.teacher-student-avatar {
+  display: inline-flex;
+  width: 42px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0891b2, #34d399);
+  color: #f8fafc;
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.teacher-student-identity {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.teacher-student-identity strong {
+  overflow: hidden;
+  color: #f8fafc;
+  font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teacher-student-identity span {
   color: #8ea0bd;
 }
 
+.teacher-student-attendance-metric {
+  min-width: 150px;
+}
+
+.teacher-student-classes-count {
+  display: grid;
+  gap: 3px;
+  color: #f8fafc;
+}
+
+.teacher-student-classes-count span {
+  color: #8ea0bd;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.teacher-attendance-meter {
+  width: 100%;
+  height: 7px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.teacher-attendance-meter span {
+  display: block;
+  height: 100%;
+  margin: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #fb7185, #fbbf24, #34d399);
+}
+
+.teacher-range-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.teacher-range-pill.high {
+  background: rgba(34, 197, 94, 0.12);
+  color: #86efac;
+}
+
+.teacher-range-pill.low {
+  background: rgba(251, 113, 133, 0.13);
+  color: #fecdd3;
+}
+
+.teacher-range-pill.pending {
+  background: rgba(245, 158, 11, 0.13);
+  color: #fcd34d;
+}
+
+.teacher-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 9px 12px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.teacher-status-pill.submitted {
+  background: rgba(34, 197, 94, 0.12);
+  color: #86efac;
+}
+
+.teacher-status-pill.pending {
+  background: rgba(251, 191, 36, 0.13);
+  color: #fde68a;
+}
+
+@media (max-width: 980px) {
+  .teacher-roster-form-grid,
+  .teacher-student-control-grid,
+  .teacher-student-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .teacher-range-pill,
+  .teacher-student-row-actions {
+    justify-self: start;
+  }
+}
+
 @media (max-width: 720px) {
-  .teacher-student-card-head,
-  .teacher-student-metrics {
+  .teacher-student-filter-topline,
+  .teacher-student-result-bar {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .teacher-student-control-grid,
+  .teacher-roster-form-grid,
+  .teacher-student-calendar-stats,
+  .teacher-leave-proof-grid,
+  .teacher-student-row {
+    grid-template-columns: 1fr;
+  }
+
+  .teacher-student-calendar-grid {
+    gap: 5px;
+  }
+
+  .teacher-calendar-day {
+    min-height: 58px;
+    padding: 7px;
+  }
+
+  .teacher-safe-range-inputs {
+    grid-template-columns: 1fr 76px auto;
+  }
+
+  .teacher-student-attendance-metric {
+    width: 100%;
   }
 }

@@ -1,0 +1,231 @@
+\chapter{Supplementary Material}
+\label{appendix:setup}
+
+This appendix gives practical reference material for readers who want to understand the project setup, API surface and data model quickly. All environment examples are sanitized. Real database URLs, SMTP passwords and app passwords must never be written in documentation.
+
+\section{Sanitized Environment Setup}
+
+\subsection{Backend Environment Example}
+
+\begin{verbatim}
+NODE_ENV=development
+PORT=4000
+FRONTEND_ORIGIN=http://localhost:5173
+MONGODB_URI=mongodb://localhost:27017/sams
+
+AI_SERVICE_BASE_URL=http://localhost:8000
+AI_REQUEST_TIMEOUT_MS=120000
+AI_HEALTH_TIMEOUT_MS=10000
+
+EMAIL_ENABLED=true
+EMAIL_FROM="SAMS Notifications <your-address@example.com>"
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=465
+EMAIL_SECURE=true
+EMAIL_USER=your-address@example.com
+EMAIL_PASSWORD=your-app-password
+EMAIL_RETRY_COUNT=2
+EMAIL_RETRY_DELAY_MS=2000
+EMAIL_QUEUE_CONCURRENCY=3
+EMAIL_TEST_RECIPIENT=your-test-recipient@example.com
+EMAIL_TEST_KEY=change-this-test-key
+EMAIL_OTP_EXPIRES_MINUTES=10
+EMAIL_EXPOSE_OTP_IN_RESPONSE=false
+\end{verbatim}
+
+\subsection{AI Service Environment Example}
+
+\begin{verbatim}
+MODEL_DEVICE=cpu
+FACE_ANALYSIS_PROVIDERS=CPUExecutionProvider
+FACE_ANALYSIS_MODEL_PACK=antelopev2
+FACE_ANALYSIS_MODEL_PACKS=antelopev2,buffalo_l
+FACE_ANALYSIS_AUTO_DOWNLOAD=true
+\end{verbatim}
+
+\section{Common Development Commands}
+
+\begin{table}[H]
+\centering
+\caption{Common development commands}
+\label{tab:dev-commands}
+\begin{tabularx}{\textwidth}{p{5.2cm} X}
+\toprule
+\textbf{Command} & \textbf{Purpose}\\
+\midrule
+\texttt{npm run dev} & Start multiple project services from the monorepo when configured.\\
+\texttt{npm run dev:frontend} & Start the React frontend development server.\\
+\texttt{npm run dev:backend} & Start the Express backend server.\\
+\texttt{npm run dev:ai} & Start the FastAPI AI service through the project script.\\
+\texttt{npm --workspace backend install} & Install backend Node.js dependencies.\\
+\texttt{npm --workspace frontend install} & Install frontend Node.js dependencies.\\
+\texttt{pip install -r ai-service/requirements.txt} & Install AI service Python dependencies.\\
+\texttt{docker compose up} & Start services defined in Docker Compose, including MongoDB when configured.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{API Endpoint Summary}
+
+The following table summarizes the major REST endpoints visible from the current backend router. It is not a substitute for generated API documentation, but it helps a reader understand the project scope.
+
+\begin{longtable}{p{2cm} p{6.2cm} p{5.5cm}}
+\caption{API endpoint summary}
+\label{tab:api-summary}\\
+\toprule
+\textbf{Method} & \textbf{Endpoint} & \textbf{Purpose}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Method} & \textbf{Endpoint} & \textbf{Purpose}\\
+\midrule
+\endhead
+GET & \texttt{/api/v1/health} & Backend health and dependency status.\\
+GET & \texttt{/api/v1/email/status} & Safe email service status.\\
+POST & \texttt{/api/v1/email/verify} & Verify SMTP connection.\\
+POST & \texttt{/api/v1/email/test} & Send protected test email.\\
+GET & \texttt{/api/v1/attendance/summary} & General attendance summary.\\
+POST & \texttt{/api/v1/attendance/verify} & Attendance verification endpoint.\\
+POST & \texttt{/api/v1/auth/signup} & Register user and start verification.\\
+POST & \texttt{/api/v1/auth/login} & Log in user.\\
+POST & \texttt{/api/v1/auth/verify-email} & Verify email OTP.\\
+POST & \texttt{/api/v1/auth/resend-verification} & Resend signup verification OTP.\\
+POST & \texttt{/api/v1/auth/password-reset/request} & Request password reset OTP.\\
+POST & \texttt{/api/v1/auth/password-reset/confirm} & Confirm password reset.\\
+POST & \texttt{/api/v1/users/:role/:userId/email-otp} & Send OTP for profile email update.\\
+PATCH & \texttt{/api/v1/users/:role/:userId/profile} & Update user profile after validation.\\
+GET & \texttt{/api/v1/classes/:classId/assignments} & List class assignments.\\
+GET & \texttt{/api/v1/classes/:classId/discussion} & List class discussion messages.\\
+POST & \texttt{/api/v1/classes/:classId/discussion} & Post a class discussion message.\\
+POST & \texttt{/api/v1/classes/:classId/discussion/:messageId/replies} & Add reply to discussion message.\\
+POST & \texttt{/api/v1/classes/:classId/discussion/:messageId/reactions} & React to a discussion message.\\
+GET & \texttt{/api/v1/students/:userId/dashboard} & Load student dashboard summary.\\
+POST & \texttt{/api/v1/students/:studentId/classes/join} & Student joins a class.\\
+POST & \texttt{/api/v1/students/:studentId/classes/:classId/assignments/:assignmentId/submissions} & Submit assignment work.\\
+POST & \texttt{/api/v1/students/:studentId/classes/:classId/leave-requests} & Submit leave or medical proof.\\
+GET & \texttt{/api/v1/students/:studentId/face-profile} & Load face enrollment profile state.\\
+POST & \texttt{/api/v1/students/:studentId/face-profile/enroll} & Enroll student face profile.\\
+GET & \texttt{/api/v1/teachers/:userId/dashboard} & Load teacher dashboard summary.\\
+POST & \texttt{/api/v1/teachers/:teacherId/classes} & Teacher creates a class.\\
+POST & \texttt{/api/v1/teachers/:teacherId/classes/:classId/assignments} & Teacher creates assignment.\\
+PATCH & \texttt{/api/v1/teachers/:teacherId/classes/:classId/exam} & Set exam date and required percentage.\\
+GET & \texttt{/api/v1/teachers/:teacherId/classes/:classId} & Load teacher class detail.\\
+POST & \texttt{/api/v1/teachers/:teacherId/classes/:classId/students} & Add student to class roster.\\
+PATCH & \texttt{/api/v1/teachers/:teacherId/classes/:classId/students/:studentId} & Update roster student.\\
+DELETE & \texttt{/api/v1/teachers/:teacherId/classes/:classId/students/:studentId} & Remove roster student.\\
+POST & \texttt{/api/v1/teachers/:teacherId/classes/:classId/attendance/manual} & Submit manual attendance.\\
+POST & \texttt{/api/v1/teachers/:teacherId/classes/:classId/cancel-today} & Cancel today's class.\\
+POST & \texttt{/api/v1/teachers/:teacherId/classes/:classId/attendance/qr-session} & Create QR attendance session.\\
+POST & \texttt{/api/v1/students/attendance/qr-scan} & Student marks attendance through QR scan.\\
+POST & \texttt{/api/v1/teachers/:teacherId/classes/:classId/attendance/session} & Process photo attendance and create draft.\\
+PATCH & \texttt{/api/v1/teachers/:teacherId/classes/:classId/attendance/today-draft/:draftId} & Update Today Attendance Data draft.\\
+POST & \texttt{/api/v1/teachers/:teacherId/classes/:classId/attendance/today-draft/:draftId/finalize} & Finalize Today Attendance Data draft.\\
+POST & \texttt{/api/v1/teachers/:teacherId/classes/:classId/attendance/finalize} & Finalize attendance records directly.\\
+PATCH & \texttt{/api/v1/teachers/:teacherId/classes/:classId/leave-requests/:requestId} & Approve or reject leave request.\\
+\bottomrule
+\end{longtable}
+
+\section{Model and Collection Reference}
+
+\begin{longtable}{p{3.7cm} p{9.5cm}}
+\caption{Model reference}
+\label{tab:model-reference}\\
+\toprule
+\textbf{Model} & \textbf{Main fields and meaning}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Model} & \textbf{Main fields and meaning}\\
+\midrule
+\endhead
+User & user id, role, name, email, parent email, email verified flag and profile fields.\\
+EmailOtp & email, purpose, OTP hash or value metadata, expiry and used state.\\
+Classroom & class id, teacher id, subject name, subject code, section, room, semester and schedule slots.\\
+ClassMembership & class id, student id, membership state and timestamps.\\
+AttendanceRecord & class id, student id, student name, status, source, recorded date and notes.\\
+AttendanceDraft & class id, teacher id, draft records, source, created time, finalize time and final status.\\
+QrAttendanceSession & class id, session code, expiry, active state and scan information.\\
+FaceProfile & student id, enrollment state and face recognition metadata.\\
+LeaveRequest & class id, student id, absence date, reason, type, attachments, status and teacher note.\\
+ClassExam & class id, exam title, exam date, required attendance percentage and notes.\\
+EmailDeliveryLog & recipient, template name, notification key, status, attempts and error summary.\\
+ClassAssignment & class id, teacher id, title, description, due date and attachment metadata.\\
+ClassAssignmentSubmission & assignment id, class id, student id, submitted content and status.\\
+ClassDiscussionMessage & class id, author, message, replies, reactions and timestamps.\\
+\bottomrule
+\end{longtable}
+
+\section{Sample Email Template Content}
+
+The exact design of email templates can be changed, but every template should include clear subject, greeting, dynamic class or account information and a short action line. The following examples are intentionally generic.
+
+\begin{table}[H]
+\centering
+\caption{Sample email subjects}
+\label{tab:email-subjects}
+\begin{tabularx}{\textwidth}{p{4cm} X}
+\toprule
+\textbf{Event} & \textbf{Sample subject line}\\
+\midrule
+Signup verification & Verify your SAMS account\\
+Welcome message & Welcome to MarkIn / SAMS\\
+Password reset & Reset your SAMS password\\
+Profile email verification & Confirm your new profile email\\
+Leave approved & Your leave request has been approved\\
+Leave rejected & Your leave request has been reviewed\\
+Exam attendance warning & Attendance warning for upcoming exam\\
+Absent notification & You were marked absent today\\
+Class cancellation & Class cancelled or rescheduled\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Report Figure Inventory}
+
+\begin{table}[H]
+\centering
+\caption{Important diagrams included in the report}
+\label{tab:figure-inventory}
+\begin{tabularx}{\textwidth}{p{4cm} X}
+\toprule
+\textbf{Diagram} & \textbf{Purpose}\\
+\midrule
+Overall architecture & Shows frontend, backend, AI service, database and email relationship.\\
+Service communication & Explains API calls and data flow between services.\\
+Entity relationship & Explains MongoDB collections and relationships.\\
+Today Attendance Data flow & Shows draft creation, absentee alert, correction and finalization.\\
+Email notification flow & Shows event, template, queue, SMTP and delivery log.\\
+Student dashboard flow & Shows dashboard to class, notification and tool pages.\\
+Teacher attendance flow & Shows manual, QR and AI photo attendance routes.\\
+Leave proof flow & Shows upload, preview, approve or reject and notification.\\
+Deployment view & Shows production hosting arrangement.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Glossary}
+
+\begin{longtable}{p{3.3cm} p{10cm}}
+\caption{Glossary}
+\label{tab:glossary}\\
+\toprule
+\textbf{Term} & \textbf{Meaning}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Term} & \textbf{Meaning}\\
+\midrule
+\endhead
+SAMS & Smart Attendance Management System.\\
+MarkIn & Product name used for the SAMS application.\\
+Attendance draft & Temporary attendance data created before final submission.\\
+Today Attendance Data & Teacher review section for current draft attendance.\\
+Face enrollment & Process where a student registers face data for AI attendance.\\
+OTP & One-time password sent by email for verification or password recovery.\\
+Eligibility percentage & Minimum attendance required to appear in an exam.\\
+Roster & List of students enrolled in a class.\\
+SMTP & Standard protocol used for sending email through a mail provider.\\
+Mongoose & MongoDB object modelling library used in the backend.\\
+FastAPI & Python framework used for the AI service.\\
+\bottomrule
+\end{longtable}

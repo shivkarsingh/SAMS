@@ -35,7 +35,7 @@ export function JoinClassPage() {
         loading: false,
         tone: "warning",
         title: "Invalid class invite",
-        message: "This join link is missing a valid class code."
+        message: "A valid class join code is required."
       });
       return;
     }

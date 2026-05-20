@@ -27,9 +27,6 @@ class Settings:
     face_recognition_model: str = os.getenv(
         "FACE_RECOGNITION_MODEL", "ArcFace ResNet100@Glint360K (InsightFace antelopev2)"
     )
-    attendance_risk_model: str = os.getenv(
-        "ATTENDANCE_RISK_MODEL", "XGBoost placeholder"
-    )
     model_device: str = os.getenv("MODEL_DEVICE", "auto").lower()
     image_download_timeout_seconds: float = float(
         os.getenv("IMAGE_DOWNLOAD_TIMEOUT_SECONDS", "10")

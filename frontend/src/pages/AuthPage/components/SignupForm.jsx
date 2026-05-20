@@ -1,4 +1,36 @@
-export function SignupForm({ form, status, onChange, onRoleChange, onSubmit }) {
+function RequiredMark() {
+  return (
+    <span className="required-marker" aria-label="required">
+      *
+    </span>
+  );
+}
+
+export function SignupForm({
+  form,
+  status,
+  verification,
+  verificationOtp,
+  resendCooldown,
+  onChange,
+  onVerificationOtpChange,
+  onRequestEmailOtp,
+  onVerifyEmail,
+  onResendVerification,
+  onRoleChange,
+  onSubmit
+}) {
+  const hasPasswordMismatch =
+    form.password && form.confirmPassword && form.password !== form.confirmPassword;
+  const normalizedEmail = form.email.trim().toLowerCase();
+  const isStudentSignup = form.role === "student";
+  const isCurrentVerificationEmail = verification?.email === normalizedEmail;
+  const isEmailVerified =
+    isStudentSignup && isCurrentVerificationEmail && verification?.verified;
+  const isEmailOtpPending =
+    isStudentSignup && isCurrentVerificationEmail && verification && !verification.verified;
+  const canShowEmailVerification = isStudentSignup && form.email.trim();
+
   return (
     <form className="glass-card auth-card auth-card-large" onSubmit={onSubmit}>
       <div className="auth-card-header">
@@ -27,43 +59,73 @@ export function SignupForm({ form, status, onChange, onRoleChange, onSubmit }) {
 
       <div className="form-grid">
         <label className="field">
-          <span>First Name</span>
+          <span>
+            First Name <RequiredMark />
+          </span>
           <input
             name="firstName"
             value={form.firstName}
             onChange={onChange}
             placeholder="Enter first name"
+            minLength="2"
+            autoComplete="given-name"
             required
           />
         </label>
         <label className="field">
-          <span>Last Name</span>
+          <span>
+            Last Name <RequiredMark />
+          </span>
           <input
             name="lastName"
             value={form.lastName}
             onChange={onChange}
             placeholder="Enter last name"
+            minLength="2"
+            autoComplete="family-name"
             required
           />
         </label>
         <label className="field">
-          <span>ID</span>
+          <span>
+            ID <RequiredMark />
+          </span>
           <input
             name="userId"
             value={form.userId}
             onChange={onChange}
-            placeholder={form.role === "teacher" ? "TCH-1001" : "STU-1001"}
+            placeholder={form.role === "student" ? "name#01" : undefined}
+            autoComplete="username"
             required
           />
         </label>
         <label className="field">
-          <span>Password</span>
+          <span>
+            Password <RequiredMark />
+          </span>
           <input
             name="password"
             type="password"
             value={form.password}
             onChange={onChange}
+            className={hasPasswordMismatch ? "input-error" : undefined}
             placeholder="Create password"
+            autoComplete="new-password"
+            required
+          />
+        </label>
+        <label className="field">
+          <span>
+            Confirm Password <RequiredMark />
+          </span>
+          <input
+            name="confirmPassword"
+            type="password"
+            value={form.confirmPassword}
+            onChange={onChange}
+            className={hasPasswordMismatch ? "input-error" : undefined}
+            placeholder="Enter password again"
+            autoComplete="new-password"
             required
           />
         </label>
@@ -73,15 +135,16 @@ export function SignupForm({ form, status, onChange, onRoleChange, onSubmit }) {
             name="age"
             type="number"
             min="16"
+            max="100"
             value={form.age}
             onChange={onChange}
             placeholder="Enter age"
-            required
           />
         </label>
         <label className="field">
           <span>Gender</span>
           <select name="gender" value={form.gender} onChange={onChange}>
+            <option value="">Select gender</option>
             <option value="male">Male</option>
             <option value="female">Female</option>
             <option value="non-binary">Non-binary</option>
@@ -92,13 +155,26 @@ export function SignupForm({ form, status, onChange, onRoleChange, onSubmit }) {
         {form.role === "student" ? (
           <>
             <label className="field">
+              <span>
+                Roll No <RequiredMark />
+              </span>
+              <input
+                name="rollNumber"
+                value={form.rollNumber}
+                onChange={onChange}
+                pattern="[A-Za-z0-9._/-]{2,}"
+                title="Use letters, numbers, dots, slashes, underscores, or hyphens."
+                autoComplete="off"
+                required
+              />
+            </label>
+            <label className="field">
               <span>Batch</span>
               <input
                 name="batch"
                 value={form.batch}
                 onChange={onChange}
                 placeholder="2022-2026"
-                required
               />
             </label>
             <label className="field">
@@ -107,10 +183,9 @@ export function SignupForm({ form, status, onChange, onRoleChange, onSubmit }) {
                 name="yearOfPassing"
                 type="number"
                 min="2024"
+                max="2100"
                 value={form.yearOfPassing}
                 onChange={onChange}
-                placeholder="2026"
-                required
               />
             </label>
           </>
@@ -122,8 +197,6 @@ export function SignupForm({ form, status, onChange, onRoleChange, onSubmit }) {
                 name="designation"
                 value={form.designation}
                 onChange={onChange}
-                placeholder="Assistant Professor"
-                required
               />
             </label>
             <label className="field">
@@ -132,8 +205,6 @@ export function SignupForm({ form, status, onChange, onRoleChange, onSubmit }) {
                 name="specialization"
                 value={form.specialization}
                 onChange={onChange}
-                placeholder="Artificial Intelligence"
-                required
               />
             </label>
           </>
@@ -146,20 +217,83 @@ export function SignupForm({ form, status, onChange, onRoleChange, onSubmit }) {
             value={form.department}
             onChange={onChange}
             placeholder="Computer Science"
-            required
           />
         </label>
         <label className="field">
-          <span>Email</span>
+          <span>
+            Email <RequiredMark />
+            {isEmailVerified ? (
+              <span className="email-verified-badge">
+                <span aria-hidden="true">✓</span> Verified
+              </span>
+            ) : null}
+          </span>
           <input
             name="email"
             type="email"
             value={form.email}
             onChange={onChange}
             placeholder="name@example.com"
+            autoComplete="email"
             required
           />
         </label>
+        {canShowEmailVerification ? (
+          <div
+            className={`auth-email-verify-panel field-span-2 ${
+              isEmailVerified ? "verified" : ""
+            }`}
+          >
+            {isEmailVerified ? (
+              <div className="auth-email-verified">
+                <span aria-hidden="true">✓</span>
+                <strong>Email verified</strong>
+              </div>
+            ) : isEmailOtpPending ? (
+              <>
+                <label className="field">
+                  <span>Email OTP</span>
+                  <input
+                    value={verificationOtp}
+                    onChange={(event) => onVerificationOtpChange(event.target.value)}
+                    placeholder="6 digit OTP"
+                    inputMode="numeric"
+                    maxLength={6}
+                  />
+                </label>
+                <div className="auth-otp-actions">
+                  <button
+                    className="primary-button"
+                    type="button"
+                    onClick={onVerifyEmail}
+                    disabled={status.loading}
+                  >
+                    Verify Email
+                  </button>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={onResendVerification}
+                    disabled={status.loading || resendCooldown > 0}
+                  >
+                    {resendCooldown > 0
+                      ? `Resend in ${resendCooldown}s`
+                      : "Resend OTP"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={onRequestEmailOtp}
+                disabled={status.loading}
+              >
+                Verify Email
+              </button>
+            )}
+          </div>
+        ) : null}
         <label className="field field-span-2">
           <span>Phone Number</span>
           <input
@@ -167,7 +301,10 @@ export function SignupForm({ form, status, onChange, onRoleChange, onSubmit }) {
             value={form.phoneNumber}
             onChange={onChange}
             placeholder="+91 98765 43210"
-            required
+            inputMode="tel"
+            pattern={"\\+?[0-9\\s-]{7,15}"}
+            title="Use 7 to 15 digits. Spaces, hyphens, and a leading + are allowed."
+            autoComplete="tel"
           />
         </label>
 
@@ -179,10 +316,9 @@ export function SignupForm({ form, status, onChange, onRoleChange, onSubmit }) {
                 name="experienceYears"
                 type="number"
                 min="0"
+                max="60"
                 value={form.experienceYears}
                 onChange={onChange}
-                placeholder="5"
-                required
               />
             </label>
             <label className="field">
@@ -191,17 +327,16 @@ export function SignupForm({ form, status, onChange, onRoleChange, onSubmit }) {
                 name="joiningYear"
                 type="number"
                 min="2000"
+                max="2100"
                 value={form.joiningYear}
                 onChange={onChange}
-                placeholder="2021"
-                required
               />
             </label>
           </>
         )}
       </div>
 
-      <button className="primary-button submit-button" type="submit">
+      <button className="primary-button submit-button" type="submit" disabled={status.loading}>
         {status.loading ? "Creating..." : "Create Account"}
       </button>
 

@@ -132,9 +132,9 @@
 .landing-copy h1 {
   margin: 0;
   max-width: 10ch;
-  font-size: clamp(3.7rem, 7vw, 6.7rem);
+  font-size: 5.9rem;
   line-height: 0.9;
-  letter-spacing: -0.085em;
+  letter-spacing: 0;
   text-wrap: balance;
 }
 
@@ -312,9 +312,9 @@
 .hero-preview-copy h2 {
   margin: 0;
   max-width: 15ch;
-  font-size: clamp(2.1rem, 3vw, 3.1rem);
+  font-size: 2.75rem;
   line-height: 0.98;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
 }
 
 .hero-preview-copy p {
@@ -463,9 +463,9 @@
   max-width: 22ch;
   width: 100%;
   margin: 0;
-  font-size: clamp(2rem, 3.4vw, 2.95rem);
+  font-size: 2.65rem;
   line-height: 1.04;
-  letter-spacing: -0.05em;
+  letter-spacing: 0;
   text-wrap: balance;
 }
 
@@ -902,7 +902,7 @@
   margin: 0;
   font-size: 1.32rem;
   line-height: 1.18;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
 }
 
 .workflow-step p:last-child {
@@ -1142,7 +1142,7 @@
   margin-bottom: 16px;
   color: #f3f8ff;
   font-size: 1rem;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .footer-status-column {
@@ -1244,7 +1244,7 @@
 .footer-bottom-line span:first-child {
   color: #dfeaf8;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .footer-bottom-line span:last-child {
@@ -1274,6 +1274,15 @@
   .landing-hero {
     min-height: auto;
     padding-top: 20px;
+  }
+
+  .landing-copy h1 {
+    font-size: 4.6rem;
+  }
+
+  .hero-preview-copy h2,
+  .landing-heading h2 {
+    font-size: 2.35rem;
   }
 
   .landing-copy h1,
@@ -1372,6 +1381,15 @@
 @media (max-width: 640px) {
   .nav {
     display: none;
+  }
+
+  .landing-copy h1 {
+    font-size: 3.55rem;
+  }
+
+  .hero-preview-copy h2,
+  .landing-heading h2 {
+    font-size: 2rem;
   }
 
   .topbar {

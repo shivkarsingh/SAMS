@@ -1,11 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import QRCode from "qrcode";
 import { AppBrand } from "../../components/common/AppBrand";
 import { LoadingCard } from "../../components/common/LoadingCard";
 import { PageBackground } from "../../components/common/PageBackground";
 import {
+  cancelTodayClass,
+  createQrAttendanceSession,
   fetchTeacherClassroom,
+  finalizeTodayAttendanceDraft,
   finalizeTeacherAttendance,
-  processTeacherAttendance
+  processTeacherAttendance,
+  submitManualAttendance,
+  updateTodayAttendanceDraft
 } from "../../services/api";
 import { clearSession, getSession } from "../../services/session";
 import { convertFilesToImagesPayload } from "../../utils/fileReaders";
@@ -44,17 +50,298 @@ function downloadFile(content, fileName, type) {
   URL.revokeObjectURL(url);
 }
 
+const rollNumberCollator = new Intl.Collator("en", {
+  numeric: true,
+  sensitivity: "base"
+});
+
+function compareStudentsByRollNumber(left, right) {
+  const rollComparison = rollNumberCollator.compare(
+    left.rollNumber || left.studentUserId,
+    right.rollNumber || right.studentUserId
+  );
+
+  if (rollComparison !== 0) {
+    return rollComparison;
+  }
+
+  return String(left.studentName).localeCompare(String(right.studentName));
+}
+
+function getConfidenceTone(confidence) {
+  const numericConfidence = Number(confidence);
+
+  if (!Number.isFinite(numericConfidence)) {
+    return "unavailable";
+  }
+
+  if (numericConfidence >= 0.85) {
+    return "high";
+  }
+
+  if (numericConfidence >= 0.7) {
+    return "medium";
+  }
+
+  return "low";
+}
+
+function formatConfidencePercent(confidence) {
+  const numericConfidence = Number(confidence);
+
+  if (!Number.isFinite(numericConfidence)) {
+    return 0;
+  }
+
+  return Math.round(Math.max(0, Math.min(1, numericConfidence)) * 100);
+}
+
+function formatConfidenceLabel(confidence) {
+  const numericConfidence = Number(confidence);
+
+  if (!Number.isFinite(numericConfidence)) {
+    return "N/A";
+  }
+
+  return `${formatConfidencePercent(numericConfidence)}%`;
+}
+
+function getInitials(name) {
+  const words = String(name ?? "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (!words.length) {
+    return "?";
+  }
+
+  return words
+    .slice(0, 2)
+    .map((word) => word.charAt(0).toUpperCase())
+    .join("");
+}
+
+function normalizePersonId(personId) {
+  return String(personId ?? "").trim().toUpperCase();
+}
+
+const noisyVerificationNotePrefixes = [
+  "classroom capture processed successfully",
+  "recognition is restricted to the roster sent with this class session",
+  "a single classroom image was provided",
+  "classroom recognition used real insightface"
+];
+
+function getRelevantVerificationNotes(notes) {
+  const seenNotes = new Set();
+
+  return (notes ?? [])
+    .map((note) => String(note ?? "").trim())
+    .filter(Boolean)
+    .filter((note) => {
+      const normalizedNote = note.toLowerCase();
+
+      return !noisyVerificationNotePrefixes.some((prefix) =>
+        normalizedNote.startsWith(prefix)
+      );
+    })
+    .filter((note) => {
+      if (seenNotes.has(note)) {
+        return false;
+      }
+
+      seenNotes.add(note);
+      return true;
+    });
+}
+
+function getLocalDateKey(value = new Date()) {
+  const date = new Date(value);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function buildManualStatuses(roster, forcedStatus = "") {
+  const todayKey = getLocalDateKey();
+
+  return Object.fromEntries(
+    roster.map((student) => {
+      const todayRecord = (student.attendanceCalendar ?? [])
+        .filter((record) => record.date === todayKey)
+        .at(-1);
+      const resolvedStatus =
+        forcedStatus ||
+        (todayRecord?.status === "present" || todayRecord?.status === "late"
+          ? "present"
+          : "absent");
+
+      return [normalizePersonId(student.studentUserId), resolvedStatus];
+    })
+  );
+}
+
+function buildTodayDraftStatuses(draft) {
+  return Object.fromEntries(
+    (draft?.records ?? []).map((record) => [
+      normalizePersonId(record.studentId),
+      record.status === "late" ? "late" : record.status === "present" ? "present" : "absent"
+    ])
+  );
+}
+
+function summarizeAbsenteeNotifications(notifications) {
+  if (
+    notifications &&
+    !Array.isArray(notifications) &&
+    notifications.status === "failed"
+  ) {
+    return `Absentee email workflow failed: ${notifications.reason || "unknown error"}.`;
+  }
+
+  if (!Array.isArray(notifications) || notifications.length === 0) {
+    return "No absentee email was needed for this run.";
+  }
+
+  const sentCount = notifications.filter((item) => item.status === "sent").length;
+  const failedCount = notifications.filter((item) => item.status === "failed").length;
+  const skippedCount = notifications.filter((item) => item.status === "skipped").length;
+  const duplicateCount = notifications.filter(
+    (item) => item.reason === "duplicate"
+  ).length;
+  const smtpSkippedCount = notifications.filter((item) =>
+    ["smtp-not-configured", "email-disabled"].includes(item.reason)
+  ).length;
+  const missingEmailCount = notifications.filter((item) =>
+    ["missing-email", "missing-student-email"].includes(item.reason)
+  ).length;
+
+  if (failedCount) {
+    return `${sentCount} absentee email(s) sent, ${failedCount} failed, and ${skippedCount} skipped.`;
+  }
+
+  if (sentCount) {
+    return `${sentCount} absentee email(s) sent.`;
+  }
+
+  if (duplicateCount === skippedCount) {
+    return "Absentees were already notified earlier today.";
+  }
+
+  if (smtpSkippedCount === skippedCount) {
+    return "Absentee emails were logged but skipped because email delivery is not configured.";
+  }
+
+  if (missingEmailCount === skippedCount) {
+    return "Absentee email notices were skipped because student email addresses are missing.";
+  }
+
+  return `${skippedCount} absentee email notice(s) were skipped.`;
+}
+
+function StudentReviewSummary({
+  student,
+  rosterStudent,
+  statusLabel,
+  statusTone,
+  confidence,
+  metaLabel = "Roll No",
+  metaValue,
+  children
+}) {
+  const displayName =
+    student?.fullName || student?.studentName || rosterStudent?.studentName || "Unknown student";
+  const resolvedMetaValue =
+    metaValue || rosterStudent?.rollNumber || student?.rollNumber || student?.personId;
+  const profilePhotoUrl =
+    student?.profilePhotoUrl ||
+    student?.avatarUrl ||
+    student?.photoUrl ||
+    rosterStudent?.profilePhotoUrl ||
+    rosterStudent?.avatarUrl ||
+    rosterStudent?.photoUrl ||
+    "";
+
+  return (
+    <div className="teacher-review-student">
+      <div className="teacher-review-avatar" aria-hidden="true">
+        {profilePhotoUrl ? (
+          <img src={profilePhotoUrl} alt="" />
+        ) : (
+          <span>{getInitials(displayName)}</span>
+        )}
+      </div>
+
+      <div className="teacher-review-student-main">
+        <div className="teacher-review-student-header">
+          <div className="teacher-review-student-name">
+            <strong>{displayName}</strong>
+            <span>
+              {resolvedMetaValue ? `${metaLabel}: ${resolvedMetaValue}` : "Roll No: Not available"}
+            </span>
+          </div>
+          <span className={`teacher-review-status-pill ${statusTone}`}>
+            {statusLabel}
+          </span>
+        </div>
+
+        <div className="teacher-review-student-facts">
+          <span
+            className={`teacher-confidence-pill ${getConfidenceTone(confidence)}`}
+          >
+            Confidence {formatConfidenceLabel(confidence)}
+          </span>
+          {student?.personId ? <span>ID: {student.personId}</span> : null}
+        </div>
+
+        {children ? (
+          <div className="teacher-review-student-note">{children}</div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 const initialAttendanceDraft = {
   acceptedSuggestedTrackIds: [],
   confirmedReviewPersonIds: [],
   manuallyAddedPresentIds: [],
   notes: ""
 };
+const initialManualAttendance = {
+  statuses: {},
+  notes: "",
+  pending: false,
+  tone: "",
+  message: ""
+};
+const initialTodayDraftUi = {
+  statuses: {},
+  notes: "",
+  pending: false,
+  tone: "",
+  message: ""
+};
+const initialAttendanceExport = {
+  fromDate: "",
+  toDate: "",
+  message: ""
+};
+const initialQrAttendance = {
+  pending: false,
+  message: "",
+  session: null,
+  imageDataUrl: "",
+  scanUrl: ""
+};
 const MAX_CLASSROOM_CAPTURE_IMAGES = 4;
 const CAPTURE_IMAGE_MAX_DIMENSION = 1600;
 const CAPTURE_IMAGE_JPEG_QUALITY = 0.8;
 
-export function TeacherClassroomPage() {
+export function TeacherClassroomPage({ attendanceOnly = false }) {
   const session = useMemo(() => getSession(), []);
   const user = session?.user ?? null;
   const classId = getHashSearchParam("classId");
@@ -76,6 +363,10 @@ export function TeacherClassroomPage() {
   });
   const [attendanceSession, setAttendanceSession] = useState(null);
   const [attendanceDraft, setAttendanceDraft] = useState(initialAttendanceDraft);
+  const [todayDraftUi, setTodayDraftUi] = useState(initialTodayDraftUi);
+  const [manualAttendance, setManualAttendance] = useState(initialManualAttendance);
+  const [attendanceExport, setAttendanceExport] = useState(initialAttendanceExport);
+  const [qrAttendance, setQrAttendance] = useState(initialQrAttendance);
   const [finalizedAttendance, setFinalizedAttendance] = useState(null);
   const inputRef = useRef(null);
   const videoRef = useRef(null);
@@ -112,6 +403,10 @@ export function TeacherClassroomPage() {
       try {
         const response = await fetchTeacherClassroom(user.userId, classId);
         setClassroomData(response);
+        setManualAttendance((currentAttendance) => ({
+          ...currentAttendance,
+          statuses: buildManualStatuses(response.roster ?? [])
+        }));
         setPageStatus({
           loading: false,
           message: ""
@@ -129,6 +424,24 @@ export function TeacherClassroomPage() {
 
     void loadClassroom();
   }, [classId, user]);
+
+  useEffect(() => {
+    const draft = classroomData?.todayAttendanceDraft;
+
+    if (!draft) {
+      setTodayDraftUi(initialTodayDraftUi);
+      return;
+    }
+
+    setTodayDraftUi((currentDraftUi) => ({
+      ...currentDraftUi,
+      statuses: buildTodayDraftStatuses(draft),
+      notes: draft.notes ?? "",
+      pending: false,
+      tone: "",
+      message: currentDraftUi.message
+    }));
+  }, [classroomData?.todayAttendanceDraft?.id]);
 
   function handleLogout() {
     clearSession();
@@ -251,12 +564,66 @@ export function TeacherClassroomPage() {
   }
 
   function updateArrayToggle(key, value) {
+    if (!value) {
+      return;
+    }
+
     setAttendanceDraft((currentDraft) => ({
       ...currentDraft,
       [key]: currentDraft[key].includes(value)
         ? currentDraft[key].filter((currentValue) => currentValue !== value)
         : [...currentDraft[key], value]
     }));
+  }
+
+  function toggleConfirmedReviewPerson(personId) {
+    if (!personId) {
+      return;
+    }
+
+    setAttendanceDraft((currentDraft) => {
+      const isCurrentlyConfirmed =
+        currentDraft.confirmedReviewPersonIds.includes(personId);
+
+      return {
+        ...currentDraft,
+        confirmedReviewPersonIds: isCurrentlyConfirmed
+          ? currentDraft.confirmedReviewPersonIds.filter(
+              (currentPersonId) => currentPersonId !== personId
+            )
+          : [...currentDraft.confirmedReviewPersonIds, personId],
+        manuallyAddedPresentIds: isCurrentlyConfirmed
+          ? currentDraft.manuallyAddedPresentIds
+          : currentDraft.manuallyAddedPresentIds.filter(
+              (currentPersonId) => currentPersonId !== personId
+            )
+      };
+    });
+  }
+
+  function toggleManualPresentPerson(personId) {
+    if (!personId) {
+      return;
+    }
+
+    setAttendanceDraft((currentDraft) => {
+      const isCurrentlyManual =
+        currentDraft.manuallyAddedPresentIds.includes(personId);
+
+      return {
+        ...currentDraft,
+        manuallyAddedPresentIds: isCurrentlyManual
+          ? currentDraft.manuallyAddedPresentIds.filter(
+              (currentPersonId) => currentPersonId !== personId
+            )
+          : [...currentDraft.manuallyAddedPresentIds, personId],
+        confirmedReviewPersonIds: isCurrentlyManual
+          ? currentDraft.confirmedReviewPersonIds
+          : currentDraft.confirmedReviewPersonIds.filter(
+              (currentPersonId) => currentPersonId !== personId
+            )
+      };
+    });
   }
 
   function handleFileChange(event) {
@@ -400,13 +767,16 @@ export function TeacherClassroomPage() {
         images
       });
 
+      if (response.classroomDetails) {
+        setClassroomData(response.classroomDetails);
+      }
       setAttendanceSession(response.session);
       resetAttendanceDraft(response.session);
       setFinalizedAttendance(null);
       setCaptureStatus({
         pending: false,
         tone: "success",
-        message: `${response.message} ${response.captureImageCount} capture image(s) were analyzed.`
+        message: `${response.message} ${response.captureImageCount} capture image(s) were analyzed. Today Attendance Data is ready. ${summarizeAbsenteeNotifications(response.emailStatus?.absenteeNotifications)}`
       });
     } catch (error) {
       setCaptureStatus({
@@ -443,8 +813,8 @@ export function TeacherClassroomPage() {
         .map((student) => student.trackId);
       const response = await finalizeTeacherAttendance(user.userId, classId, {
         sessionId: attendanceSession.sessionId,
-        confirmedPresentIds: attendanceDraft.confirmedReviewPersonIds,
-        manuallyAddedPresentIds: attendanceDraft.manuallyAddedPresentIds,
+        confirmedPresentIds: attendanceDraft.confirmedReviewPersonIds.filter(Boolean),
+        manuallyAddedPresentIds: attendanceDraft.manuallyAddedPresentIds.filter(Boolean),
         rejectedTrackIds,
         notes: attendanceDraft.notes
       });
@@ -468,6 +838,298 @@ export function TeacherClassroomPage() {
           error instanceof Error
             ? error.message
             : "Unable to submit attendance."
+      });
+    }
+  }
+
+  function updateManualStudentStatus(studentId, status) {
+    setManualAttendance((currentAttendance) => ({
+      ...currentAttendance,
+      statuses: {
+        ...currentAttendance.statuses,
+        [normalizePersonId(studentId)]: status
+      },
+      message: ""
+    }));
+  }
+
+  function markAllManual(status) {
+    setManualAttendance((currentAttendance) => ({
+      ...currentAttendance,
+      statuses: buildManualStatuses(classroomData?.roster ?? [], status),
+      message: ""
+    }));
+  }
+
+  function updateManualNotes(notes) {
+    setManualAttendance((currentAttendance) => ({
+      ...currentAttendance,
+      notes,
+      message: ""
+    }));
+  }
+
+  function updateAttendanceExport(field, value) {
+    setAttendanceExport((currentExport) => ({
+      ...currentExport,
+      [field]: value,
+      message: ""
+    }));
+  }
+
+  async function handleSubmitManualAttendance(event) {
+    event.preventDefault();
+
+    if (!classroomData?.roster?.length) {
+      setManualAttendance((currentAttendance) => ({
+        ...currentAttendance,
+        tone: "warning",
+        message: "Add students before submitting manual attendance."
+      }));
+      return;
+    }
+
+    setManualAttendance((currentAttendance) => ({
+      ...currentAttendance,
+      pending: true,
+      tone: "",
+      message: ""
+    }));
+
+    try {
+      const response = await submitManualAttendance(user.userId, classId, {
+        statuses: manualAttendance.statuses,
+        notes: manualAttendance.notes
+      });
+
+      setClassroomData(response.classroomDetails);
+      setFinalizedAttendance(response.finalizedAttendance);
+      setManualAttendance({
+        ...initialManualAttendance,
+        statuses: buildManualStatuses(response.classroomDetails?.roster ?? []),
+        tone: "success",
+        message: response.message
+      });
+    } catch (error) {
+      setManualAttendance((currentAttendance) => ({
+        ...currentAttendance,
+        pending: false,
+        tone: "warning",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to submit manual attendance."
+      }));
+    }
+  }
+
+  function updateTodayDraftStudentStatus(studentId, status) {
+    setTodayDraftUi((currentDraftUi) => ({
+      ...currentDraftUi,
+      statuses: {
+        ...currentDraftUi.statuses,
+        [normalizePersonId(studentId)]: status
+      },
+      message: ""
+    }));
+  }
+
+  function updateTodayDraftNotes(notes) {
+    setTodayDraftUi((currentDraftUi) => ({
+      ...currentDraftUi,
+      notes,
+      message: ""
+    }));
+  }
+
+  async function handleSaveTodayDraft() {
+    const draft = classroomData?.todayAttendanceDraft;
+
+    if (!draft) {
+      return;
+    }
+
+    setTodayDraftUi((currentDraftUi) => ({
+      ...currentDraftUi,
+      pending: true,
+      tone: "",
+      message: ""
+    }));
+
+    try {
+      const response = await updateTodayAttendanceDraft(
+        user.userId,
+        classId,
+        draft.id,
+        {
+          statuses: todayDraftUi.statuses,
+          notes: todayDraftUi.notes
+        }
+      );
+
+      setClassroomData(response.classroomDetails);
+      setTodayDraftUi((currentDraftUi) => ({
+        ...currentDraftUi,
+        pending: false,
+        tone: "success",
+        message: response.message
+      }));
+    } catch (error) {
+      setTodayDraftUi((currentDraftUi) => ({
+        ...currentDraftUi,
+        pending: false,
+        tone: "warning",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to save today attendance data."
+      }));
+    }
+  }
+
+  async function handleFinalizeTodayDraft() {
+    const draft = classroomData?.todayAttendanceDraft;
+
+    if (!draft) {
+      return;
+    }
+
+    setTodayDraftUi((currentDraftUi) => ({
+      ...currentDraftUi,
+      pending: true,
+      tone: "",
+      message: ""
+    }));
+
+    try {
+      const response = await finalizeTodayAttendanceDraft(
+        user.userId,
+        classId,
+        draft.id,
+        {
+          statuses: todayDraftUi.statuses,
+          notes: todayDraftUi.notes
+        }
+      );
+
+      setClassroomData(response.classroomDetails);
+      setFinalizedAttendance(response.finalizedAttendance);
+      setAttendanceSession(null);
+      setAttendanceDraft(initialAttendanceDraft);
+      resetCaptureSelection();
+      closeCamera();
+      setTodayDraftUi({
+        ...initialTodayDraftUi,
+        tone: "success",
+        message: response.message
+      });
+      setCaptureStatus({
+        pending: false,
+        tone: "success",
+        message: response.message
+      });
+    } catch (error) {
+      setTodayDraftUi((currentDraftUi) => ({
+        ...currentDraftUi,
+        pending: false,
+        tone: "warning",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to finalize today attendance."
+      }));
+    }
+  }
+
+  async function handleCancelTodayClass() {
+    if (!classroomData?.roster?.length) {
+      setManualAttendance((currentAttendance) => ({
+        ...currentAttendance,
+        tone: "warning",
+        message: "Add students before cancelling today's class."
+      }));
+      return;
+    }
+
+    const reason = window.prompt(
+      "Reason for cancelling today's class",
+      "Class cancelled by teacher."
+    );
+
+    if (reason === null) {
+      return;
+    }
+
+    setManualAttendance((currentAttendance) => ({
+      ...currentAttendance,
+      pending: true,
+      tone: "",
+      message: ""
+    }));
+
+    try {
+      const response = await cancelTodayClass(user.userId, classId, {
+        reason
+      });
+
+      setClassroomData(response.classroomDetails);
+      setFinalizedAttendance(null);
+      setManualAttendance({
+        ...initialManualAttendance,
+        statuses: buildManualStatuses(response.classroomDetails?.roster ?? []),
+        tone: "success",
+        message: response.message
+      });
+    } catch (error) {
+      setManualAttendance((currentAttendance) => ({
+        ...currentAttendance,
+        pending: false,
+        tone: "warning",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to cancel today's class."
+      }));
+    }
+  }
+
+  async function handleGenerateQrAttendance() {
+    if (!classroomData?.roster?.length) {
+      setQrAttendance({
+        ...initialQrAttendance,
+        message: "Add students before generating a QR attendance code."
+      });
+      return;
+    }
+
+    setQrAttendance((currentQrAttendance) => ({
+      ...currentQrAttendance,
+      pending: true,
+      message: ""
+    }));
+
+    try {
+      const response = await createQrAttendanceSession(user.userId, classId);
+      const scanUrl = `${window.location.origin}${window.location.pathname}#/qr-attendance?token=${encodeURIComponent(response.qrSession.token)}`;
+      const imageDataUrl = await QRCode.toDataURL(scanUrl, {
+        margin: 1,
+        width: 240
+      });
+
+      setQrAttendance({
+        pending: false,
+        message: response.message,
+        session: response.qrSession,
+        imageDataUrl,
+        scanUrl
+      });
+    } catch (error) {
+      setQrAttendance({
+        ...initialQrAttendance,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to generate QR attendance code."
       });
     }
   }
@@ -530,7 +1192,37 @@ export function TeacherClassroomPage() {
     );
   }
 
-  const { classroom, overview, roster } = classroomData;
+  const { classroom, overview, roster, todayAttendance } = classroomData;
+  const sortedRoster = roster.slice().sort(compareStudentsByRollNumber);
+  const todayAttendanceDraft = classroomData.todayAttendanceDraft;
+  const todayDraftRecords = (todayAttendanceDraft?.records ?? [])
+    .map((record) => ({
+      ...record,
+      studentUserId: record.studentId,
+      status:
+        todayDraftUi.statuses[normalizePersonId(record.studentId)] ??
+        record.status ??
+        "absent"
+    }))
+    .sort(compareStudentsByRollNumber);
+  const todayDraftPresentCount = todayDraftRecords.filter(
+    (record) => record.status === "present" || record.status === "late"
+  ).length;
+  const todayDraftAbsentCount = Math.max(
+    0,
+    todayDraftRecords.length - todayDraftPresentCount
+  );
+  const todayDraftLateCount = todayDraftRecords.filter(
+    (record) => record.status === "late"
+  ).length;
+  const rosterByPersonId = new Map(
+    roster.map((student) => [normalizePersonId(student.studentUserId), student])
+  );
+  const manualPresentCount = roster.filter(
+    (student) =>
+      manualAttendance.statuses[normalizePersonId(student.studentUserId)] === "present"
+  ).length;
+  const manualAbsentCount = Math.max(0, roster.length - manualPresentCount);
   const totalCaptureImages = captureFiles.length + capturedImages.length;
   const hasReadyFaceProfiles = overview.readyFaceProfiles > 0;
   const pendingFaceProfiles = Math.max(
@@ -561,6 +1253,15 @@ export function TeacherClassroomPage() {
         attendanceDraft.acceptedSuggestedTrackIds.includes(student.trackId)
     )
     .map((student) => student.personId) ?? [];
+  const acceptedSuggestedPersonIdSet = new Set(acceptedSuggestedPersonIds);
+  const activeReviewPersonIdSet = new Set(
+    attendanceSession?.reviewQueue
+      .map((student) => student.personId)
+      .filter(Boolean) ?? []
+  );
+  const manualCorrectionStudents = attendanceSession?.absentStudents.filter(
+    (student) => !activeReviewPersonIdSet.has(student.personId)
+  ) ?? [];
   const currentPresentIds = new Set([
     ...acceptedSuggestedPersonIds,
     ...attendanceDraft.confirmedReviewPersonIds,
@@ -568,6 +1269,14 @@ export function TeacherClassroomPage() {
   ]);
   const currentAbsentCount = attendanceSession
     ? Math.max(0, roster.length - currentPresentIds.size)
+    : 0;
+  const unresolvedReviewCount = attendanceSession
+    ? attendanceSession.reviewQueue.filter(
+        (student) =>
+          student.personId &&
+          !acceptedSuggestedPersonIdSet.has(student.personId) &&
+          !attendanceDraft.confirmedReviewPersonIds.includes(student.personId)
+      ).length
     : 0;
   const attendanceReviewMetrics = attendanceSession
     ? [
@@ -593,27 +1302,91 @@ export function TeacherClassroomPage() {
         }
       ]
     : [];
+  const verificationNotes = getRelevantVerificationNotes(attendanceSession?.notes);
+  const headerSubtitle = attendanceOnly
+    ? "Teacher Attendance Workspace"
+    : "Teacher Classroom Workspace";
+  const activeNavLabel = attendanceOnly ? "Take Attendance" : "Class Workspace";
+  const backRoute = attendanceOnly
+    ? `/teacher-classroom?classId=${encodeURIComponent(classId)}`
+    : "/teacher-dashboard";
+  const backLabel = attendanceOnly ? "Back to Class" : "Back to Dashboard";
+  const exportRangeInvalid =
+    Boolean(attendanceExport.fromDate && attendanceExport.toDate) &&
+    attendanceExport.fromDate > attendanceExport.toDate;
+  const exportRecordsInRange = roster.flatMap((student) =>
+    (student.attendanceCalendar ?? [])
+      .filter(
+        (record) =>
+          attendanceExport.fromDate &&
+          attendanceExport.toDate &&
+          record.date >= attendanceExport.fromDate &&
+          record.date <= attendanceExport.toDate
+      )
+      .map((record) => ({
+        ...record,
+        student
+      }))
+  );
+  function getRosterStudent(personId) {
+    return rosterByPersonId.get(normalizePersonId(personId));
+  }
 
   function handleExportAttendanceCsv() {
+    if (!attendanceExport.fromDate || !attendanceExport.toDate) {
+      setAttendanceExport((currentExport) => ({
+        ...currentExport,
+        message: "Select both from and to dates before downloading."
+      }));
+      return;
+    }
+
+    if (exportRangeInvalid) {
+      setAttendanceExport((currentExport) => ({
+        ...currentExport,
+        message: "From date must be before or equal to to date."
+      }));
+      return;
+    }
+
+    if (!exportRecordsInRange.length) {
+      setAttendanceExport((currentExport) => ({
+        ...currentExport,
+        message: "No attendance records found in this date range."
+      }));
+      return;
+    }
+
     const csvRows = [
       ["Class Name", classroom.subjectName],
       ["Class Code", classroom.subjectCode],
       ["Section", classroom.section],
       ["Room", classroom.room || "Room pending"],
-      ["Average Attendance", `${overview.averageAttendance}%`],
+      ["From Date", attendanceExport.fromDate],
+      ["To Date", attendanceExport.toDate],
+      ["Records", exportRecordsInRange.length],
       [],
-      ["Roll No", "Name", "Attended Classes", "Attendance Percentage"]
+      ["Date", "Roll No", "Student ID", "Name", "Status", "Method", "Notes"]
     ];
 
-    roster
+    exportRecordsInRange
       .slice()
-      .sort((left, right) => right.attendancePercentage - left.attendancePercentage)
-      .forEach((student) => {
+      .sort((left, right) => {
+        if (left.date !== right.date) {
+          return left.date.localeCompare(right.date);
+        }
+
+        return compareStudentsByRollNumber(left.student, right.student);
+      })
+      .forEach((record) => {
         csvRows.push([
-          student.studentUserId,
-          student.studentName,
-          `${student.sessionsAttended}/${student.sessionsHeld || 0}`,
-          `${student.attendancePercentage}%`
+          record.date,
+          record.student.rollNumber || record.student.studentUserId,
+          record.student.studentUserId,
+          record.student.studentName,
+          record.statusLabel || record.status,
+          record.verificationMethod || "manual",
+          record.notes || ""
         ]);
       });
 
@@ -627,9 +1400,13 @@ export function TeacherClassroomPage() {
 
     downloadFile(
       csvContent,
-      `${fileName}-attendance.csv`,
+      `${fileName}-attendance-${attendanceExport.fromDate}-to-${attendanceExport.toDate}.csv`,
       "text/csv;charset=utf-8"
     );
+    setAttendanceExport((currentExport) => ({
+      ...currentExport,
+      message: `${exportRecordsInRange.length} attendance records downloaded.`
+    }));
   }
 
   return (
@@ -637,7 +1414,7 @@ export function TeacherClassroomPage() {
       <PageBackground />
 
       <header className="dashboard-topbar glass-card">
-        <AppBrand href="#/" subtitle="Teacher Classroom Workspace" />
+        <AppBrand href="#/" subtitle={headerSubtitle} />
 
         <nav className="dashboard-nav">
           <button
@@ -648,7 +1425,7 @@ export function TeacherClassroomPage() {
             Dashboard
           </button>
           <button className="dashboard-nav-button active-teacher-nav" type="button">
-            Class Workspace
+            {activeNavLabel}
           </button>
         </nav>
 
@@ -656,9 +1433,9 @@ export function TeacherClassroomPage() {
           <button
             className="ghost-button"
             type="button"
-            onClick={() => goToRoute("/teacher-dashboard")}
+            onClick={() => goToRoute(backRoute)}
           >
-            Back to Dashboard
+            {backLabel}
           </button>
           <button className="primary-button" type="button" onClick={handleLogout}>
             Logout
@@ -667,6 +1444,7 @@ export function TeacherClassroomPage() {
       </header>
 
       <main className="dashboard-shell">
+        {!attendanceOnly ? (
         <section className="teacher-classroom-hero">
           <article className="glass-card teacher-classroom-intro">
             <div className="dashboard-kicker-row">
@@ -681,9 +1459,7 @@ export function TeacherClassroomPage() {
             </div>
 
             <h1>{classroom.subjectName}</h1>
-            <p>
-              {classroom.subjectCode} • {classroom.section} • {classroom.room || "Room pending"}
-            </p>
+            <p>{classroom.subjectCode}</p>
             <p className="teacher-classroom-description">
               {classroom.description ||
                 "Use this page to monitor roster readiness, verify classroom captures, and finalize attendance with review-first controls."}
@@ -708,6 +1484,25 @@ export function TeacherClassroomPage() {
               </div>
             </div>
 
+            <div className="dashboard-profile-strip teacher-classroom-strip today-attendance-strip">
+              <div>
+                <span>Today's Attendance</span>
+                <strong>{todayAttendance?.presentCount ?? 0}</strong>
+              </div>
+              <div>
+                <span>Total Students</span>
+                <strong>{todayAttendance?.totalStudents ?? overview.studentsCount}</strong>
+              </div>
+              <div>
+                <span>Absentees</span>
+                <strong>{todayAttendance?.absentees ?? 0}</strong>
+              </div>
+              <div>
+                <span>Attendance %</span>
+                <strong>{todayAttendance?.attendancePercentage ?? 0}%</strong>
+              </div>
+            </div>
+
             <div className="teacher-class-actions" style={{ marginTop: "20px" }}>
               <button
                 className="ghost-button"
@@ -721,18 +1516,6 @@ export function TeacherClassroomPage() {
               >
                 Copy Join Code
               </button>
-              <button
-                className="ghost-button"
-                type="button"
-                onClick={() =>
-                  copyValue(
-                    classroom.joinLink,
-                    `Join link for ${classroom.subjectCode} copied to clipboard.`
-                  )
-                }
-              >
-                Copy Join Link
-              </button>
             </div>
           </article>
 
@@ -742,6 +1525,17 @@ export function TeacherClassroomPage() {
 
               <div className="teacher-classroom-tools">
                 <button
+                  className="classroom-tool-button classroom-tool-button-attendance"
+                  type="button"
+                  onClick={() =>
+                    goToRoute(
+                      `/teacher-classroom-attendance?classId=${encodeURIComponent(classId)}`
+                    )
+                  }
+                >
+                  Take Attendance
+                </button>
+                <button
                   className="classroom-tool-button classroom-tool-button-notes"
                   type="button"
                   onClick={() =>
@@ -749,6 +1543,28 @@ export function TeacherClassroomPage() {
                   }
                 >
                   Notes
+                </button>
+                <button
+                  className="classroom-tool-button classroom-tool-button-assignments"
+                  type="button"
+                  onClick={() =>
+                    goToRoute(
+                      `/class-assignments?classId=${encodeURIComponent(classId)}`
+                    )
+                  }
+                >
+                  Assignments
+                </button>
+                <button
+                  className="classroom-tool-button classroom-tool-button-discussion"
+                  type="button"
+                  onClick={() =>
+                    goToRoute(
+                      `/class-discussion?classId=${encodeURIComponent(classId)}`
+                    )
+                  }
+                >
+                  Discussion
                 </button>
                 <button
                   className="classroom-tool-button classroom-tool-button-students"
@@ -762,13 +1578,6 @@ export function TeacherClassroomPage() {
                   Student Details
                 </button>
                 <button
-                  className="classroom-tool-button classroom-tool-button-download"
-                  type="button"
-                  onClick={handleExportAttendanceCsv}
-                >
-                  Download Attendance
-                </button>
-                <button
                   className="classroom-tool-button classroom-tool-button-sessions"
                   type="button"
                   onClick={() =>
@@ -780,10 +1589,133 @@ export function TeacherClassroomPage() {
                   Recent Sessions
                 </button>
               </div>
+
+              <section className="attendance-download-panel">
+                <div>
+                  <span className="pill">Download Attendance</span>
+                  <h3>Select date range</h3>
+                </div>
+
+                <div className="attendance-download-grid">
+                  <label className="field">
+                    <span>From date</span>
+                    <input
+                      type="date"
+                      value={attendanceExport.fromDate}
+                      onChange={(event) =>
+                        updateAttendanceExport("fromDate", event.target.value)
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span>To date</span>
+                    <input
+                      type="date"
+                      value={attendanceExport.toDate}
+                      onChange={(event) =>
+                        updateAttendanceExport("toDate", event.target.value)
+                      }
+                    />
+                  </label>
+                </div>
+
+                <div className="attendance-download-actions">
+                  <button
+                    className="primary-button"
+                    type="button"
+                    disabled={
+                      !attendanceExport.fromDate ||
+                      !attendanceExport.toDate ||
+                      exportRangeInvalid
+                    }
+                    onClick={handleExportAttendanceCsv}
+                  >
+                    Download CSV
+                  </button>
+                  <span className="panel-meta">
+                    {attendanceExport.fromDate && attendanceExport.toDate && !exportRangeInvalid
+                      ? `${exportRecordsInRange.length} record${exportRecordsInRange.length === 1 ? "" : "s"} selected`
+                      : "Choose from and to dates from the calendar fields."}
+                  </span>
+                </div>
+
+              {attendanceExport.message ? (
+                <span className="panel-meta attendance-download-message">
+                  {attendanceExport.message}
+                </span>
+              ) : null}
+              </section>
+
+              <section className="qr-attendance-panel">
+                <div>
+                  <span className="pill">QR Code Attendance</span>
+                  <h3>Students scan to mark present</h3>
+                  <p>
+                    Generate a fresh QR code for this class. The code expires in 10 minutes.
+                  </p>
+                </div>
+
+                <button
+                  className="primary-button"
+                  type="button"
+                  disabled={qrAttendance.pending}
+                  onClick={handleGenerateQrAttendance}
+                >
+                  {qrAttendance.pending ? "Generating..." : "Generate QR Code"}
+                </button>
+
+                {qrAttendance.imageDataUrl ? (
+                  <div className="qr-attendance-card">
+                    <img src={qrAttendance.imageDataUrl} alt="QR attendance code" />
+                    <div>
+                      <strong>{qrAttendance.session?.subjectCode}</strong>
+                      <span>
+                        Expires {formatDateTime(qrAttendance.session?.expiresAt)}
+                      </span>
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        onClick={() =>
+                          copyValue(
+                            qrAttendance.scanUrl,
+                            "QR attendance link copied to clipboard."
+                          )
+                        }
+                      >
+                        Copy Link
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {qrAttendance.message ? (
+                  <span className="panel-meta">{qrAttendance.message}</span>
+                ) : null}
+              </section>
             </div>
           </article>
         </section>
+        ) : (
+          <section className="teacher-classroom-hero teacher-attendance-hero">
+            <article className="glass-card teacher-classroom-intro">
+              <div className="dashboard-kicker-row">
+                <span className="pill">Take Attendance</span>
+                <span
+                  className={`teacher-status-pill ${
+                    classroom.attendanceSubmitted ? "submitted" : "pending"
+                  }`}
+                >
+                  {classroom.attendanceSubmitted ? "Attendance Active" : "No Attendance Yet"}
+                </span>
+              </div>
 
+              <h1>{classroom.subjectName}</h1>
+              <p>{classroom.subjectCode}</p>
+            </article>
+          </section>
+        )}
+
+        {attendanceOnly ? (
         <section className="teacher-classroom-main">
           <article className="glass-card dashboard-panel">
             <div className="dashboard-panel-header">
@@ -812,6 +1744,126 @@ export function TeacherClassroomPage() {
                   : "Students must complete current face enrollment before AI attendance can run."}
               </span>
             </div>
+
+            <form className="manual-attendance-panel" onSubmit={handleSubmitManualAttendance}>
+              <div className="manual-attendance-head">
+                <div>
+                  <span className="pill">Manual Attendance</span>
+                  <h3>Mark today&apos;s class without camera capture.</h3>
+                  <p>
+                    Use one-click controls for every student, then adjust individual rows before submitting.
+                  </p>
+                </div>
+                <div className="manual-attendance-summary">
+                  <strong>{manualPresentCount}</strong>
+                  <span>present</span>
+                  <strong>{manualAbsentCount}</strong>
+                  <span>absent</span>
+                </div>
+              </div>
+
+              <div className="teacher-class-actions">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={manualAttendance.pending || !roster.length}
+                  onClick={() => markAllManual("present")}
+                >
+                  Mark All Present
+                </button>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={manualAttendance.pending || !roster.length}
+                  onClick={() => markAllManual("absent")}
+                >
+                  Mark All Absent
+                </button>
+                <button
+                  className="ghost-button danger-action"
+                  type="button"
+                  disabled={manualAttendance.pending || !roster.length}
+                  onClick={handleCancelTodayClass}
+                >
+                  Cancel Today&apos;s Class
+                </button>
+              </div>
+
+              <div className="manual-attendance-list">
+                {sortedRoster.length ? (
+                  sortedRoster.map((student) => {
+                    const studentId = normalizePersonId(student.studentUserId);
+                    const status = manualAttendance.statuses[studentId] ?? "absent";
+
+                    return (
+                      <article key={student.studentUserId} className="manual-attendance-row">
+                        <div className="teacher-review-student">
+                          <div className="teacher-review-avatar" aria-hidden="true">
+                            {student.profilePhotoUrl ? (
+                              <img src={student.profilePhotoUrl} alt="" />
+                            ) : (
+                              <span>{getInitials(student.studentName)}</span>
+                            )}
+                          </div>
+                          <div className="teacher-review-student-main">
+                            <div className="teacher-review-student-name">
+                              <strong>{student.studentName}</strong>
+                              <span>Roll No: {student.rollNumber || student.studentUserId}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="manual-status-toggle" aria-label={`${student.studentName} attendance status`}>
+                          <button
+                            className={status === "present" ? "manual-status-button present active" : "manual-status-button present"}
+                            type="button"
+                            onClick={() => updateManualStudentStatus(studentId, "present")}
+                          >
+                            Present
+                          </button>
+                          <button
+                            className={status === "absent" ? "manual-status-button absent active" : "manual-status-button absent"}
+                            type="button"
+                            onClick={() => updateManualStudentStatus(studentId, "absent")}
+                          >
+                            Absent
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })
+                ) : (
+                  <p className="panel-fallback">
+                    Add students to this class before marking manual attendance.
+                  </p>
+                )}
+              </div>
+
+              <label className="field">
+                <span>Manual attendance note</span>
+                <textarea
+                  value={manualAttendance.notes}
+                  onChange={(event) => updateManualNotes(event.target.value)}
+                  rows="2"
+                  placeholder="Optional note for this manual attendance session."
+                />
+              </label>
+
+              <div className="teacher-class-actions">
+                <button
+                  className="primary-button"
+                  type="submit"
+                  disabled={manualAttendance.pending || !roster.length}
+                >
+                  {manualAttendance.pending ? "Submitting..." : "Submit Manual Attendance"}
+                </button>
+                {manualAttendance.message ? (
+                  <span className={`teacher-status-copy ${manualAttendance.tone}`}>
+                    {manualAttendance.message}
+                  </span>
+                ) : null}
+              </div>
+            </form>
 
             <form className="face-enrollment-form" onSubmit={handleRunAttendance}>
               <label className="field">
@@ -901,7 +1953,191 @@ export function TeacherClassroomPage() {
               </div>
             ) : null}
 
-            {attendanceSession ? (
+            {todayAttendanceDraft ? (
+              <section className="today-attendance-draft-panel">
+                <div className="today-draft-head">
+                  <div>
+                    <span className="pill">Today Attendance Data</span>
+                    <h3>Review the preliminary attendance before final submission.</h3>
+                    <p>
+                      Absentees were notified when this draft was created. Use this
+                      list to add or remove students from today&apos;s present list
+                      before the 12-hour auto-finalize window closes.
+                    </p>
+                  </div>
+
+                  <div className="today-draft-summary-grid">
+                    <article>
+                      <strong>{todayDraftPresentCount}</strong>
+                      <span>present</span>
+                    </article>
+                    <article>
+                      <strong>{todayDraftAbsentCount}</strong>
+                      <span>absent</span>
+                    </article>
+                    <article>
+                      <strong>{todayDraftLateCount}</strong>
+                      <span>late</span>
+                    </article>
+                  </div>
+                </div>
+
+                <div className="today-draft-meta-grid">
+                  <span>
+                    <strong>Auto finalizes</strong>
+                    {formatDateTime(todayAttendanceDraft.expiresAt)}
+                  </span>
+                  <span>
+                    <strong>Absentee email</strong>
+                    {todayAttendanceDraft.absenteeEmailSentAt
+                      ? `Processed ${formatDateTime(todayAttendanceDraft.absenteeEmailSentAt)}`
+                      : "Pending or skipped by email settings"}
+                  </span>
+                  <span>
+                    <strong>Source</strong>
+                    {todayAttendanceDraft.sourceSessionId
+                      ? `AI scan ${todayAttendanceDraft.sourceSessionId.slice(0, 8)}`
+                      : "Teacher draft"}
+                  </span>
+                </div>
+
+                <div className="today-draft-list">
+                  {todayDraftRecords.length ? (
+                    todayDraftRecords.map((record) => {
+                      const studentId = normalizePersonId(record.studentId);
+                      const rosterStudent = getRosterStudent(studentId);
+                      const statusLabel =
+                        record.status === "late"
+                          ? "Late"
+                          : record.status === "present"
+                            ? "Present"
+                            : "Absent";
+
+                      return (
+                        <article key={studentId} className="today-draft-row">
+                          <StudentReviewSummary
+                            student={{
+                              studentName: record.studentName,
+                              personId: studentId,
+                              rollNumber: record.rollNumber
+                            }}
+                            rosterStudent={rosterStudent}
+                            statusLabel={statusLabel}
+                            statusTone={record.status === "absent" ? "absent" : "present"}
+                            confidence={record.confidence}
+                          >
+                            {record.notes ? <span>{record.notes}</span> : null}
+                            {record.aiStatus ? (
+                              <span>
+                                {record.aiStatus === "present-suggested"
+                                  ? "AI suggested present"
+                                  : record.aiStatus === "needs-review"
+                                    ? "AI needs teacher review"
+                                    : "Not detected by AI"}
+                              </span>
+                            ) : null}
+                          </StudentReviewSummary>
+
+                          <div
+                            className="manual-status-toggle today-draft-toggle"
+                            aria-label={`${record.studentName} today attendance status`}
+                          >
+                            <button
+                              className={
+                                record.status === "present"
+                                  ? "manual-status-button present active"
+                                  : "manual-status-button present"
+                              }
+                              type="button"
+                              disabled={todayDraftUi.pending}
+                              onClick={() =>
+                                updateTodayDraftStudentStatus(studentId, "present")
+                              }
+                            >
+                              Present
+                            </button>
+                            <button
+                              className={
+                                record.status === "absent"
+                                  ? "manual-status-button absent active"
+                                  : "manual-status-button absent"
+                              }
+                              type="button"
+                              disabled={todayDraftUi.pending}
+                              onClick={() =>
+                                updateTodayDraftStudentStatus(studentId, "absent")
+                              }
+                            >
+                              Absent
+                            </button>
+                            <button
+                              className={
+                                record.status === "late"
+                                  ? "manual-status-button late active"
+                                  : "manual-status-button late"
+                              }
+                              type="button"
+                              disabled={todayDraftUi.pending}
+                              onClick={() =>
+                                updateTodayDraftStudentStatus(studentId, "late")
+                              }
+                            >
+                              Late
+                            </button>
+                          </div>
+                        </article>
+                      );
+                    })
+                  ) : (
+                    <p className="panel-fallback">
+                      No draft records are available for today yet. Run attendance
+                      verification to create the review list.
+                    </p>
+                  )}
+                </div>
+
+                <label className="field">
+                  <span>Today attendance note</span>
+                  <textarea
+                    value={todayDraftUi.notes}
+                    onChange={(event) => updateTodayDraftNotes(event.target.value)}
+                    rows="3"
+                    placeholder="Add correction context before final submission."
+                  />
+                </label>
+
+                <div className="teacher-class-actions today-draft-actions">
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={todayDraftUi.pending || !todayDraftRecords.length}
+                    onClick={handleSaveTodayDraft}
+                  >
+                    {todayDraftUi.pending ? "Saving..." : "Save Changes"}
+                  </button>
+                  <button
+                    className="primary-button"
+                    type="button"
+                    disabled={todayDraftUi.pending || !todayDraftRecords.length}
+                    onClick={handleFinalizeTodayDraft}
+                  >
+                    {todayDraftUi.pending ? "Finalizing..." : "Final Submission"}
+                  </button>
+                  <span className="panel-meta">
+                    Final submission writes {todayDraftPresentCount} present and{" "}
+                    {todayDraftAbsentCount} absent records to dashboards.
+                  </span>
+                </div>
+
+                {todayDraftUi.message ? (
+                  <p className={`teacher-status-copy ${todayDraftUi.tone}`}>
+                    {todayDraftUi.message}
+                  </p>
+                ) : null}
+              </section>
+            ) : null}
+
+            {attendanceSession && !todayAttendanceDraft ? (
               <form className="teacher-attendance-review" onSubmit={handleFinalizeAttendance}>
                 <div className="teacher-session-summary-grid">
                   {attendanceReviewMetrics.map((metric) => (
@@ -912,10 +2148,10 @@ export function TeacherClassroomPage() {
                   ))}
                 </div>
 
-                {attendanceSession.notes.length ? (
+                {verificationNotes.length ? (
                   <div className="simple-list teacher-session-notes">
-                    {attendanceSession.notes.map((note) => (
-                      <div key={note} className="simple-list-item">
+                    {verificationNotes.map((note, index) => (
+                      <div key={`${note}-${index}`} className="simple-list-item">
                         <strong>Verification Note</strong>
                         <span>{note}</span>
                       </div>
@@ -923,31 +2159,52 @@ export function TeacherClassroomPage() {
                   </div>
                 ) : null}
 
+                <div
+                  className={`teacher-review-readiness ${
+                    unresolvedReviewCount ? "warning" : "ready"
+                  }`}
+                >
+                  <strong>
+                    {currentPresentIds.size} present now • {currentAbsentCount} absent if submitted
+                  </strong>
+                  <span>
+                    {unresolvedReviewCount
+                      ? `${unresolvedReviewCount} low-confidence roster match(es) are still unchecked and will be treated absent unless confirmed.`
+                      : "All roster review decisions are resolved. Unknown detections remain informational unless you manually mark a student present."}
+                  </span>
+                </div>
+
                 <div className="teacher-review-group">
                   <h3>Suggested Present</h3>
                   {suggestedStudents.length ? (
-                    suggestedStudents.map((student) => (
-                      <label key={student.trackId} className="teacher-review-card">
-                        <input
-                          type="checkbox"
-                          checked={attendanceDraft.acceptedSuggestedTrackIds.includes(
-                            student.trackId
-                          )}
-                          onChange={() =>
-                            updateArrayToggle(
-                              "acceptedSuggestedTrackIds",
-                              student.trackId
-                            )
-                          }
-                        />
-                        <div>
-                          <strong>{student.fullName}</strong>
-                          <span>
-                            {student.personId} • Confidence {Math.round(student.confidence * 100)}%
-                          </span>
-                        </div>
-                      </label>
-                    ))
+                    suggestedStudents.map((student) => {
+                      const isAccepted =
+                        attendanceDraft.acceptedSuggestedTrackIds.includes(
+                          student.trackId
+                        );
+
+                      return (
+                        <label key={student.trackId} className="teacher-review-card">
+                          <input
+                            type="checkbox"
+                            checked={isAccepted}
+                            onChange={() =>
+                              updateArrayToggle(
+                                "acceptedSuggestedTrackIds",
+                                student.trackId
+                              )
+                            }
+                          />
+                          <StudentReviewSummary
+                            student={student}
+                            rosterStudent={getRosterStudent(student.personId)}
+                            statusLabel={isAccepted ? "Present" : "Not Present"}
+                            statusTone={isAccepted ? "present" : "absent"}
+                            confidence={student.confidence}
+                          />
+                        </label>
+                      );
+                    })
                   ) : (
                     <p className="panel-fallback">
                       No automatic present matches were suggested from this capture.
@@ -958,31 +2215,51 @@ export function TeacherClassroomPage() {
                 <div className="teacher-review-group">
                   <h3>Low-Confidence Review</h3>
                   {attendanceSession.reviewQueue.length ? (
-                    attendanceSession.reviewQueue.map((student) => (
-                      <label key={student.trackId} className="teacher-review-card">
-                        <input
-                          type="checkbox"
-                          disabled={!student.personId}
-                          checked={attendanceDraft.confirmedReviewPersonIds.includes(
-                            student.personId
-                          )}
-                          onChange={() =>
-                            updateArrayToggle(
-                              "confirmedReviewPersonIds",
-                              student.personId
-                            )
-                          }
-                        />
-                        <div>
-                          <strong>{student.fullName ?? "Unknown roster match"}</strong>
-                          <span>
-                            {student.personId ?? "No roster ID"} • Confidence{" "}
-                            {Math.round(student.confidence * 100)}%
-                          </span>
-                          <span>{student.reasons.join(" • ")}</span>
-                        </div>
-                      </label>
-                    ))
+                    attendanceSession.reviewQueue.map((student) => {
+                      const alreadyAcceptedBySuggestion =
+                        student.personId &&
+                        acceptedSuggestedPersonIdSet.has(student.personId);
+                      const isConfirmed =
+                        !alreadyAcceptedBySuggestion &&
+                        attendanceDraft.confirmedReviewPersonIds.includes(
+                          student.personId
+                        );
+
+                      return (
+                        <label key={student.trackId} className="teacher-review-card">
+                          <input
+                            type="checkbox"
+                            disabled={!student.personId || alreadyAcceptedBySuggestion}
+                            checked={isConfirmed}
+                            onChange={() => toggleConfirmedReviewPerson(student.personId)}
+                          />
+                          <StudentReviewSummary
+                            student={student}
+                            rosterStudent={getRosterStudent(student.personId)}
+                            statusLabel={
+                              alreadyAcceptedBySuggestion || isConfirmed
+                                ? "Present"
+                                : "Not Present"
+                            }
+                            statusTone={
+                              alreadyAcceptedBySuggestion || isConfirmed
+                                ? "present"
+                                : "absent"
+                            }
+                            confidence={student.confidence}
+                          >
+                            {alreadyAcceptedBySuggestion ? (
+                              <span className="teacher-review-inline-note">
+                                Already counted from a stronger accepted match.
+                              </span>
+                            ) : null}
+                            {student.reasons.length ? (
+                              <span>{student.reasons.join(" • ")}</span>
+                            ) : null}
+                          </StudentReviewSummary>
+                        </label>
+                      );
+                    })
                   ) : (
                     <p className="panel-fallback">
                       No low-confidence roster matches require review for this session.
@@ -992,31 +2269,35 @@ export function TeacherClassroomPage() {
 
                 <div className="teacher-review-group">
                   <h3>Absent or Manual Corrections</h3>
-                  {attendanceSession.absentStudents.length ? (
-                    attendanceSession.absentStudents.map((student) => (
-                      <label key={student.personId} className="teacher-review-card">
-                        <input
-                          type="checkbox"
-                          checked={attendanceDraft.manuallyAddedPresentIds.includes(
-                            student.personId
-                          )}
-                          onChange={() =>
-                            updateArrayToggle(
-                              "manuallyAddedPresentIds",
-                              student.personId
-                            )
-                          }
-                        />
-                        <div>
-                          <strong>{student.fullName}</strong>
-                          <span>{student.personId}</span>
-                          <span>{student.reason}</span>
-                        </div>
-                      </label>
-                    ))
+                  {manualCorrectionStudents.length ? (
+                    manualCorrectionStudents.map((student) => {
+                      const isManuallyPresent =
+                        attendanceDraft.manuallyAddedPresentIds.includes(
+                          student.personId
+                        );
+
+                      return (
+                        <label key={student.personId} className="teacher-review-card">
+                          <input
+                            type="checkbox"
+                            checked={isManuallyPresent}
+                            onChange={() => toggleManualPresentPerson(student.personId)}
+                          />
+                          <StudentReviewSummary
+                            student={student}
+                            rosterStudent={getRosterStudent(student.personId)}
+                            statusLabel={isManuallyPresent ? "Present" : "Absent"}
+                            statusTone={isManuallyPresent ? "present" : "absent"}
+                            confidence={null}
+                          >
+                            <span>{student.reason}</span>
+                          </StudentReviewSummary>
+                        </label>
+                      );
+                    })
                   ) : (
                     <p className="panel-fallback">
-                      No absentees were produced from this verification session.
+                      No additional absent students need manual correction for this session.
                     </p>
                   )}
                 </div>
@@ -1029,13 +2310,18 @@ export function TeacherClassroomPage() {
                         key={detection.trackId}
                         className="teacher-review-card unknown-review-card"
                       >
-                        <div>
-                          <strong>{detection.trackId}</strong>
-                          <span>
-                            Confidence {Math.round(detection.confidence * 100)}%
-                          </span>
-                          <span>{detection.reasons.join(" • ")}</span>
-                        </div>
+                        <StudentReviewSummary
+                          student={{ fullName: "Unknown detection" }}
+                          statusLabel="Unknown"
+                          statusTone="unknown"
+                          confidence={detection.confidence}
+                          metaLabel="Track ID"
+                          metaValue={detection.trackId}
+                        >
+                          {detection.reasons.length ? (
+                            <span>{detection.reasons.join(" • ")}</span>
+                          ) : null}
+                        </StudentReviewSummary>
                       </article>
                     ))
                   ) : (
@@ -1088,6 +2374,7 @@ export function TeacherClassroomPage() {
             ) : null}
           </article>
         </section>
+        ) : null}
       </main>
     </div>
   );

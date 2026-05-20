@@ -22,6 +22,7 @@ function sanitizeFaceProfile(faceProfile) {
       faceModel: env.aiFaceRecognitionModel,
       executionMode: env.aiExecutionMode,
       referenceImageNames: [],
+      profilePhotoUrl: "",
       notes: [
         "Upload 6 to 10 clear face images so your face profile can be enrolled once and reused across classes."
       ],
@@ -37,6 +38,7 @@ function sanitizeFaceProfile(faceProfile) {
     faceModel: faceProfile.faceModel,
     executionMode: faceProfile.executionMode,
     referenceImageNames: faceProfile.referenceImageNames,
+    profilePhotoUrl: faceProfile.profilePhotoUrl ?? "",
     notes: faceProfile.notes,
     lastEnrolledAt: faceProfile.lastEnrolledAt
   };
@@ -107,6 +109,7 @@ export async function enrollStudentFaceProfile({ studentUserId, images }) {
       faceModel: aiResult.faceModel,
       executionMode: aiResult.executionMode,
       referenceImageNames: validImages.map((image) => image.fileName),
+      profilePhotoUrl: validImages[0]?.dataUrl ?? "",
       notes: aiResult.notes,
       lastEnrolledAt: aiResult.storedAt
     },

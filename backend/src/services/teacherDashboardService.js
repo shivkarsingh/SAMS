@@ -1,10 +1,19 @@
 import { ClassMembership } from "../models/ClassMembership.js";
+import { ClassExam } from "../models/ClassExam.js";
 import { User } from "../models/User.js";
 import {
   getAttendanceSummariesByClass,
   summarizeAttendanceRecords
 } from "./attendanceAnalyticsService.js";
 import { getTeacherManagedClasses } from "./classroomService.js";
+import {
+  buildTeacherExamSummary,
+  sortUpcomingExams
+} from "./examScheduleService.js";
+import {
+  getCurrentScheduleDayId,
+  scheduleDays
+} from "../utils/schedule.js";
 
 function clampPercentage(value) {
   return Math.max(0, Math.min(100, Math.round(value)));
@@ -65,9 +74,12 @@ async function buildClassesManaged(managedClasses) {
       attendanceSubmitted: attendanceSummary.totalSessions > 0,
       flaggedStudents: attendanceSummary.flaggedStudents,
       nextClass: classroom.scheduleSummary || "Schedule to be announced",
+      scheduleSlots: classroom.scheduleSlots ?? [],
       room: classroom.room || "Room update pending",
       joinCode: classroom.joinCode,
-      joinLink: classroom.joinLink,
+      status: classroom.status,
+      endedAt: classroom.endedAt ?? null,
+      archiveSummary: classroom.archiveSummary ?? null,
       semesterLabel: classroom.semesterLabel,
       batch: classroom.batch,
       totalSessions: attendanceSummary.totalSessions,
@@ -138,39 +150,89 @@ function buildFlaggedStudentSet(memberships, summariesByClass) {
 }
 
 function buildTeacherSchedule(classesManaged) {
-  return classesManaged.slice(0, 3).map((course) => ({
-    title: course.title,
-    section: course.section,
-    time: course.nextClass,
-    room: course.room,
-    attendanceStatus: course.attendanceSubmitted
-      ? "History Active"
-      : "First Session Due",
-    focus: course.attendanceSubmitted
-      ? `Open the class workspace and verify the next attendance session for ${course.code}.`
-      : `Share join code ${course.joinCode} and start the first attendance session once the roster is ready.`
-  }));
+  const todayId = getCurrentScheduleDayId();
+
+  return classesManaged
+    .filter((course) => course.status !== "archived")
+    .flatMap((course) =>
+      (course.scheduleSlots ?? [])
+        .filter((slot) => slot.day === todayId)
+        .map((slot) => ({
+          id: `${course.id}-${slot.day}-${slot.startTime}`,
+          title: course.title,
+          code: course.code,
+          section: course.section || "Section TBD",
+          time: slot.timeLabel,
+          startTime: slot.startTime,
+          room: course.room,
+          attendanceStatus: course.attendanceSubmitted
+            ? "History Active"
+            : "First Session Due",
+          focus: course.attendanceSubmitted
+            ? `Open the class workspace and verify the next attendance session for ${course.code}.`
+            : `Share join code ${course.joinCode} before this class starts.`
+        }))
+    )
+    .sort((left, right) => left.startTime.localeCompare(right.startTime));
 }
 
 function buildTeacherWeeklySchedule(classesManaged) {
-  const dayBuckets = [
-    { day: "Mon", items: [] },
-    { day: "Tue", items: [] },
-    { day: "Wed", items: [] },
-    { day: "Thu", items: [] },
-    { day: "Fri", items: [] }
-  ];
+  return scheduleDays.map((day) => {
+    const items = classesManaged
+      .filter((course) => course.status !== "archived")
+      .flatMap((course) =>
+        (course.scheduleSlots ?? [])
+          .filter((slot) => slot.day === day.id)
+          .map((slot) => ({
+            id: `${course.id}-${slot.day}-${slot.startTime}`,
+            title: course.title,
+            code: course.code,
+            section: course.section || "Section TBD",
+            time: slot.timeLabel,
+            startTime: slot.startTime,
+            room: course.room
+          }))
+      )
+      .sort((left, right) => left.startTime.localeCompare(right.startTime));
 
-  classesManaged.forEach((course, index) => {
-    dayBuckets[index % dayBuckets.length].items.push(
-      `${course.code} ${course.section} ${course.nextClass}`
-    );
+    return {
+      day: day.shortLabel,
+      dayLabel: day.label,
+      items
+    };
   });
+}
 
-  return dayBuckets.map((bucket) => ({
-    ...bucket,
-    items: bucket.items.length ? bucket.items : ["No classes scheduled"]
-  }));
+function buildTeacherUpcomingExams(
+  classesManaged,
+  examRecords,
+  rosterIdsByClass,
+  summariesByClass
+) {
+  const classById = new Map(
+    classesManaged.map((course) => [String(course.id), course])
+  );
+
+  return examRecords
+    .map((exam) => {
+      const classId = String(exam.classId);
+      const classroom = classById.get(classId);
+
+      if (!classroom) {
+        return null;
+      }
+
+      return buildTeacherExamSummary({
+        exam,
+        classroom,
+        attendanceSummary:
+          summariesByClass.get(classId) ??
+          summarizeAttendanceRecords([], rosterIdsByClass.get(classId) ?? []),
+        studentIds: rosterIdsByClass.get(classId) ?? []
+      });
+    })
+    .filter(Boolean)
+    .sort(sortUpcomingExams);
 }
 
 export async function getTeacherDashboard(userId) {
@@ -185,8 +247,11 @@ export async function getTeacherDashboard(userId) {
   }
 
   const managedClasses = await getTeacherManagedClasses(normalizedUserId);
-  const classesManaged = await buildClassesManaged(managedClasses);
+  let classesManaged = await buildClassesManaged(managedClasses);
   const classIds = managedClasses.map((classroom) => String(classroom.id));
+  const activeClassIds = managedClasses
+    .filter((classroom) => classroom.status !== "archived")
+    .map((classroom) => String(classroom.id));
   const memberships = await ClassMembership.find({
     classId: { $in: classIds }
   }).lean();
@@ -203,6 +268,30 @@ export async function getTeacherDashboard(userId) {
     classIds,
     rosterIdsByClass
   );
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const examRecords = activeClassIds.length
+    ? await ClassExam.find({
+        classId: { $in: activeClassIds },
+        status: "active",
+        examDate: { $gte: today }
+      })
+        .sort({ examDate: 1 })
+        .lean()
+    : [];
+  const upcomingExams = buildTeacherUpcomingExams(
+    classesManaged,
+    examRecords,
+    rosterIdsByClass,
+    summariesByClass
+  );
+  const upcomingExamByClassId = new Map(
+    upcomingExams.map((exam) => [String(exam.classId), exam])
+  );
+  classesManaged = classesManaged.map((course) => ({
+    ...course,
+    upcomingExam: upcomingExamByClassId.get(String(course.id)) ?? null
+  }));
   const uniqueStudentIds = new Set(
     memberships.map((membership) => normalizeUserId(membership.studentUserId))
   );
@@ -214,6 +303,15 @@ export async function getTeacherDashboard(userId) {
           0
         ) / classesManaged.length
       : 0
+  );
+  const todaysSchedule = buildTeacherSchedule(classesManaged);
+  const weeklySchedule = buildTeacherWeeklySchedule(classesManaged);
+  const scheduledSlotCount = classesManaged.reduce(
+    (total, currentClass) =>
+      currentClass.status === "archived"
+        ? total
+        : total + (currentClass.scheduleSlots?.length ?? 0),
+    0
   );
 
   return {
@@ -229,16 +327,24 @@ export async function getTeacherDashboard(userId) {
       email: teacher.email
     },
     overview: {
-      classesToday: classesManaged.length,
+      classesToday: todaysSchedule.length,
       pendingAttendance: classesManaged.filter(
-        (classroom) => !classroom.attendanceSubmitted
+        (classroom) =>
+          classroom.status !== "archived" && !classroom.attendanceSubmitted
       ).length,
       totalStudents: uniqueStudentIds.size,
       averageAttendance,
-      sectionsHandled: classesManaged.length,
-      flaggedStudents: flaggedStudentIds.size
+      sectionsHandled: activeClassIds.length,
+      flaggedStudents: flaggedStudentIds.size,
+      scheduledSlotCount,
+      upcomingExams: upcomingExams.length,
+      atRiskExamStudents: upcomingExams.reduce(
+        (total, exam) => total + (exam.eligibility?.atRiskStudents ?? 0),
+        0
+      )
     },
     classesManaged,
+    upcomingExams,
     attendanceTrend: buildTeacherAttendanceTrend(classesManaged.length ? averageAttendance : 20),
     sectionComparison: [
       {
@@ -262,24 +368,40 @@ export async function getTeacherDashboard(userId) {
           : 0
       }
     ],
-    todaysSchedule: buildTeacherSchedule(classesManaged),
-    weeklySchedule: buildTeacherWeeklySchedule(classesManaged),
+    todaysSchedule,
+    weeklySchedule,
     studentWatchlist: classesManaged.length
       ? buildStudentWatchlist(classesManaged, memberships, summariesByClass)
       : [],
     quickInsights: classesManaged.length
       ? [
           {
-            tone: "warning",
-            title: "Share join links as soon as classes are created",
+            tone: upcomingExams.some((exam) => exam.eligibility?.atRiskStudents)
+              ? "warning"
+              : "positive",
+            title: upcomingExams.length
+              ? "Upcoming exams have attendance eligibility ready"
+              : "Set exam dates for eligibility planning",
             message:
-              "Students can only be matched during attendance after they join the class roster."
+              upcomingExams.length
+                ? `${upcomingExams.length} exam${upcomingExams.length === 1 ? "" : "s"} are scheduled. Review at-risk students before exam week.`
+                : "Add exam date and required percentage for each class so students can see eligibility early."
+          },
+          {
+            tone: "warning",
+            title: todaysSchedule.length
+              ? "Use today's schedule to start attendance on time"
+              : "No class is scheduled for today",
+            message:
+              todaysSchedule.length
+                ? "Open the class workspace from each scheduled class and finalize attendance while the roster is fresh."
+                : "Your weekly timetable is still available below for planning the next teaching day."
           },
           {
             tone: "positive",
-            title: "Your class setup is ready for face-based attendance",
+            title: "Your class setup is ready for roster-based attendance",
             message:
-              "Each new class already has a join code and link, so you can bring students into the roster quickly."
+              "Each class has schedule, join code, and attendance history tied together in one workspace."
           }
         ]
       : [
@@ -287,7 +409,7 @@ export async function getTeacherDashboard(userId) {
             tone: "warning",
             title: "Create your first class to begin attendance",
             message:
-              "Add subject details, generate a join link, and start building the roster before live attendance sessions."
+              "Add subject details, share the join code, and start building the roster before live attendance sessions."
           }
         ],
     recentActivity: classesManaged.length
@@ -301,8 +423,10 @@ export async function getTeacherDashboard(userId) {
     priorities: classesManaged.length
       ? [
           {
-            title: "Share invite details with enrolled students",
-            target: "Send the join link or code for every active class."
+            title: "Keep schedules complete",
+            target: scheduledSlotCount
+              ? `${scheduledSlotCount} weekly teaching slots are mapped for timetable views.`
+              : "Add weekly slots while creating your next class."
           },
           {
             title: "Keep class rosters clean before attendance",
@@ -312,7 +436,7 @@ export async function getTeacherDashboard(userId) {
       : [
           {
             title: "Create your first class",
-            target: "Add subject details and generate a join link from the dashboard."
+            target: "Add subject details and share the join code from the dashboard."
           },
           {
             title: "Prepare students for enrollment",

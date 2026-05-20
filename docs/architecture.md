@@ -39,7 +39,5 @@ Frontend -> Backend REST API -> AI Service REST API
 
 ## Best model recommendations by capability
 
-- Face recognition: FaceNet or ArcFace-style embeddings, chosen after dataset quality review
-- Liveness detection: lightweight CNN or dedicated anti-spoofing model before production rollout
-- Attendance risk prediction: XGBoost first for tabular data, then sequence models if temporal behavior matters
+- Face recognition: ArcFace-style embeddings with teacher-reviewed attendance decisions
 - Anomaly detection: Isolation Forest or autoencoder depending on feature richness and labeling

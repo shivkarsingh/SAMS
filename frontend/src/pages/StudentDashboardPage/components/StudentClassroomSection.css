@@ -102,6 +102,23 @@
   color: #8ea0bd;
 }
 
+.joined-classroom-quickline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.joined-classroom-quickline span {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #a8b8d4;
+  font-size: 0.86rem;
+}
+
 .face-profile-card {
   margin-top: 22px;
   padding: 22px;

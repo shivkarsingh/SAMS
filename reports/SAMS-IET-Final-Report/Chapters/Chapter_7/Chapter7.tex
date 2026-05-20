@@ -1,0 +1,190 @@
+\chapter{Testing and Results}
+\label{chap:testing}
+
+Testing verifies that the system works as expected and that important academic workflows do not silently fail. For SAMS, testing is especially important because attendance data affects students directly. The project therefore uses a combination of unit tests, service checks, manual workflow tests and document-level validation.
+
+\section{Testing Strategy}
+
+The testing strategy is based on risk. Features that can affect attendance records, email delivery or eligibility warnings require more careful checking. UI-only improvements can be checked through browser interaction and visual review. AI recognition pipelines need separate tests because they depend on model readiness, image input and stored face profiles.
+
+\begin{table}[H]
+\centering
+\caption{Testing levels used for the project}
+\label{tab:testing-levels}
+\begin{tabularx}{\textwidth}{p{3cm} X X}
+\toprule
+\textbf{Level} & \textbf{Purpose} & \textbf{Examples}\\
+\midrule
+Unit testing & Verify a small service or function. & AI face recognition service tests and attendance calculation logic.\\
+Integration testing & Verify that multiple modules work together. & Backend creates attendance draft after AI result; email service records delivery state.\\
+API testing & Verify request and response behaviour. & Dashboard routes, signup verification, leave request submission and draft finalization.\\
+UI testing & Verify pages and workflows in the browser. & Student dashboard, notification page, teacher class page and leave proof preview.\\
+Operational testing & Verify service readiness. & Backend health endpoint, AI readiness endpoint and email status endpoint.\\
+Security review & Verify no sensitive data is exposed. & Report and status endpoints do not reveal database URI or SMTP password.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Backend API Test Scenarios}
+
+Backend API tests focus on data correctness and error handling. Every endpoint should reject incomplete input, return useful messages and not expose internal secrets. Teacher-only operations should be scoped to teacher and class ids.
+
+\begin{longtable}{p{3.3cm} p{4.4cm} p{5.8cm}}
+\caption{Representative backend API test scenarios}
+\label{tab:backend-test-scenarios}\\
+\toprule
+\textbf{Scenario} & \textbf{Test action} & \textbf{Expected result}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Scenario} & \textbf{Test action} & \textbf{Expected result}\\
+\midrule
+\endhead
+Health check & Call backend health endpoint. & Response shows service status and safe dependency state.\\
+Email status & Call email status endpoint. & Response shows enabled and verification information without password.\\
+Signup & Register student or teacher. & User is created in verification-required state and OTP email is queued.\\
+Email verification & Submit valid OTP. & Email is marked verified and welcome email is sent.\\
+Login before verification & Attempt login with unverified account. & Backend prevents full access or asks for verification.\\
+Forgot password & Request reset. & Reset OTP or token email is sent with expiry.\\
+Class creation & Teacher submits valid class data. & Class is created and join code is generated.\\
+Student join class & Student submits valid join code. & Membership is created and appears in dashboard.\\
+Manual attendance & Teacher submits attendance list. & Attendance records are written with correct status.\\
+Photo attendance & Teacher submits classroom image. & AI result becomes Today Attendance Data draft.\\
+Draft update & Teacher adds or removes student in draft. & Draft list changes but final records are not written yet.\\
+Draft finalization & Teacher finalizes draft. & Final attendance records are written and draft becomes finalized.\\
+Leave request & Student uploads reason and proof. & Leave request appears in teacher student detail section.\\
+Leave review & Teacher approves or rejects. & Request status changes and student email is queued.\\
+Exam setup & Teacher sets exam date and required percentage. & Student dashboard shows upcoming exam and eligibility.\\
+Class cancellation & Teacher cancels today's class. & Students receive email and attendance is not counted as absence.\\
+\bottomrule
+\end{longtable}
+
+\section{Frontend Workflow Test Scenarios}
+
+Frontend tests ensure that users can complete workflows without confusion. The student dashboard was reviewed to ensure that key tools open on separate pages. The notification bell should be visible and should lead to a notification view. Class cards should open class details. The teacher workflow should allow attendance review before finalization.
+
+\begin{table}[H]
+\centering
+\caption{Frontend workflow testing}
+\label{tab:frontend-testing}
+\begin{tabularx}{\textwidth}{p{3.5cm} X X}
+\toprule
+\textbf{Page} & \textbf{Check} & \textbf{Expected result}\\
+\midrule
+Landing page & Feature explanation and health state. & New visitor understands capabilities and backend status.\\
+Signup page & OTP verification flow. & User sees verification step and helpful errors.\\
+Student dashboard & Overview metrics and navigation. & Counts, class cards, bell icon and tool links are visible.\\
+Student tools page & Calculator and exam views. & Tool opens as a separate page and computes useful guidance.\\
+Student class detail & Leave proof upload and history. & Student can submit proof and inspect previous attendance.\\
+Teacher dashboard & Class overview and schedule. & Teacher can create classes and open class management.\\
+Teacher class students & Roster, analytics and leave review. & Teacher can filter students and preview proof files online.\\
+Attendance workspace & Draft creation and finalization. & Teacher can review Today Attendance Data before final submission.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{AI Service Testing}
+
+The AI service contains tests for face recognition service behaviour and classroom attendance pipeline behaviour. These tests check that the service can process expected input shapes, return structured results and handle degraded or missing data cases. AI testing is not only about matching faces; it also verifies that the application can continue gracefully when models are unavailable or input quality is poor.
+
+\begin{table}[H]
+\centering
+\caption{AI service test concerns}
+\label{tab:ai-testing}
+\begin{tabularx}{\textwidth}{p{3.3cm} X}
+\toprule
+\textbf{Concern} & \textbf{Expected behaviour}\\
+\midrule
+Model readiness & Health and readiness endpoints distinguish process health from model availability.\\
+Face detection & Service identifies faces from classroom image input when model assets are available.\\
+Face matching & Embeddings are compared with enrolled profiles and confidence notes are returned.\\
+Unmatched faces & Unknown or low-confidence faces are reported without corrupting attendance records.\\
+Missing enrollment & Student without face profile is not falsely assumed present by the AI pipeline.\\
+Gateway timeout & Backend can report AI failure instead of hanging indefinitely.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Email Testing}
+
+Email testing has two parts. The first part checks configuration: SMTP host, port, secure mode, sender identity and credentials. The second part checks notification events. The backend contains safe endpoints for email status, SMTP verification and protected test email sending. Delivery logs help identify whether a message was sent, retried or failed.
+
+\begin{longtable}{p{3.4cm} p{4.6cm} p{5.5cm}}
+\caption{Email notification testing scenarios}
+\label{tab:email-test-scenarios}\\
+\toprule
+\textbf{Email type} & \textbf{Trigger tested} & \textbf{Expected result}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Email type} & \textbf{Trigger tested} & \textbf{Expected result}\\
+\midrule
+\endhead
+Verification OTP & New signup or resend verification. & OTP email is delivered and expires after configured minutes.\\
+Welcome email & Successful verification. & User receives professional account activation message.\\
+Password reset & Reset request from login screen. & Reset OTP or link is sent and cannot be used after expiry.\\
+Profile email OTP & Email update in profile. & New email receives OTP before profile email changes.\\
+Leave approval & Teacher approves request. & Student receives approval email with leave date and class.\\
+Leave rejection & Teacher rejects request. & Student receives rejection email and optional teacher note.\\
+Exam warning & Student below required attendance. & Student receives current and required percentage warning.\\
+Absent notice & Attendance draft marks student absent. & Student and optional parent receive subject, date and timing context.\\
+Cancellation & Teacher cancels or reschedules class. & Roster receives updated class information.\\
+\bottomrule
+\end{longtable}
+
+\section{Attendance Draft Testing}
+
+The Today Attendance Data feature requires special tests because it sits between AI output and final attendance records. The most important result is that an AI session should create a draft, not immediately finalize attendance. The teacher must be able to correct the draft. Final records should only appear after manual finalization or automatic scheduler finalization.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+state/.style={draw, rounded corners, align=center, minimum width=3.3cm, minimum height=0.9cm, fill=blue!6},
+good/.style={draw, rounded corners, align=center, minimum width=3.3cm, minimum height=0.9cm, fill=green!12},
+bad/.style={draw, rounded corners, align=center, minimum width=3.3cm, minimum height=0.9cm, fill=red!8},
+arrow/.style={-Latex, thick}
+]
+\node[state] (ai) {AI result};
+\node[state, right=1.4cm of ai] (draft) {Draft created};
+\node[state, right=1.4cm of draft] (edit) {Teacher edits};
+\node[good, right=1.4cm of edit] (final) {Final records};
+\node[bad, below=1.2cm of draft] (blocked) {No direct final\\write from AI};
+\draw[arrow] (ai) -- (draft);
+\draw[arrow] (draft) -- (edit);
+\draw[arrow] (edit) -- (final);
+\draw[arrow, dashed] (ai) -- (blocked);
+\end{tikzpicture}
+\caption{Attendance draft testing focus}
+\label{fig:draft-testing}
+\end{figure}
+
+The draft tests check the following outcomes:
+
+\begin{itemize}
+\item Draft contains class id, teacher id, present list, absent list and source information.
+\item Absentee emails are triggered when the draft is created.
+\item Teacher can add a student who was missed by AI.
+\item Teacher can remove a student incorrectly marked present.
+\item Finalization creates one final attendance entry per roster student for the session.
+\item Finalized draft cannot be accidentally finalized again.
+\end{itemize}
+
+\section{Security and Privacy Checks}
+
+Security testing for this project focused on preventing accidental exposure. The report, frontend and safe status endpoints must not show MongoDB connection strings, Gmail app passwords or other credentials. OTP values should not appear in production responses. Email delivery logs should store useful metadata and errors without storing secrets.
+
+Document proof also needs careful handling. The teacher should preview files from the application, but the system should avoid encouraging unnecessary downloading. In a production version, file upload should include size limits, type validation and scanning. For this academic implementation, the report documents the expected controls and the application keeps the review workflow inside the class detail context.
+
+\section{Result Analysis}
+
+The implemented project satisfies the core goal of making attendance more transparent and useful. Students can see class-wise attendance and eligibility information rather than only a final percentage. Teachers can run different attendance methods and correct AI results before final submission. Email communication reduces manual reminders. Leave proof connects absence reason to class records.
+
+The main improvement over a traditional register is not only speed; it is feedback. Students receive early absence notifications, exam warnings and leave decision emails. Teachers receive a manageable review workflow. The system also avoids the dangerous assumption that AI output should always be final.
+
+\section{Known Limitations Found During Testing}
+
+Some limitations remain. AI accuracy depends on enrollment quality, lighting, camera angle and image resolution. Email delivery depends on SMTP provider settings and account limits. A real institute deployment would need stronger authentication middleware, role-based authorization on every route, production file storage, stricter upload validation, rate limiting and backups. These limitations do not invalidate the project; they show the difference between a final-year prototype and an institute-wide production rollout.
+
+\section{Testing Conclusion}
+
+Testing shows that the project has a coherent full-stack workflow: registration verifies email, classes can be created and joined, attendance can be captured and reviewed, students can track analytics, teachers can review proof, exams can generate eligibility guidance and emails can notify users. The project is therefore suitable as a final academic project and as a foundation for future production hardening.

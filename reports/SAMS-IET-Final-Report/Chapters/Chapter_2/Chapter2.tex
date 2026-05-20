@@ -1,0 +1,87 @@
+\chapter{Literature Review and Existing Systems}
+\label{ch:related}
+\lhead{Chapter 2. \emph{Literature Review and Existing Systems}}
+
+\section{Background}
+Attendance management has evolved from paper registers to digital portals and biometric systems. The earliest method is the manual register, where the teacher calls student names and marks presence. Later, spreadsheet-based records and ERP portals reduced paper usage but still required manual entry. Biometric devices such as fingerprint scanners improved automation but require fixed hardware and may not be suitable for every classroom. QR-based systems are easy to deploy but can be misused if students share codes.
+
+Recent systems use face recognition to identify students from images or video. This approach can reduce teacher workload, but it must be designed carefully. Classroom photographs may contain partial faces, different angles, low lighting, occlusions and multiple students. An attendance system should therefore avoid blind automatic finalization. The safest approach is assisted intelligence: AI suggests, teacher verifies and the final record is written only after review.
+
+\section{Manual Attendance Systems}
+Manual systems remain common because they are easy to understand and require no technical infrastructure. However, they are time-consuming and error-prone. A teacher may accidentally mark a student absent, and students may not learn about low attendance until exam time. Manual systems also make reporting difficult because the data is scattered across notebooks or spreadsheets.
+
+\begin{table}[H]
+\centering
+\caption{Limitations of manual attendance}
+\label{tab:manual-limitations}
+\begin{tabularx}{\textwidth}{p{4cm}X}
+\toprule
+\textbf{Limitation} & \textbf{Impact}\\
+\midrule
+Time consumption & Classroom teaching time is reduced because attendance must be called manually.\\
+Human error & Wrong marking can occur due to missed names, late entries or register mistakes.\\
+Delayed visibility & Students may not know exact attendance percentage until records are calculated.\\
+Weak reporting & Manual data is difficult to analyze, export or connect with exam eligibility rules.\\
+No automatic notification & Students and parents are not informed immediately about absence or risk.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Digital ERP Attendance Systems}
+Many institutions use ERP portals where teachers enter attendance into a web form. Such systems improve record storage and calculation but often do not reduce the teacher's marking effort. They may also be generic and not optimized for classroom realities such as face enrollment, leave proof, AI review, student-side recovery planning or exam eligibility.
+
+The proposed system keeps the useful parts of ERP systems, such as persistent records and role-based access, but adds attendance-specific workflows. For example, the teacher class workspace includes AI photo attendance, Today Attendance Data, manual attendance, QR attendance, CSV download, student details, leave requests and exam setup.
+
+\section{Biometric Attendance Systems}
+Fingerprint or RFID-based attendance systems are common in offices and some institutions. They can verify presence using hardware devices. However, classroom use may face practical problems: device cost, queues, hygiene concerns, hardware maintenance, and lack of flexibility when classes move between rooms. Face recognition from classroom photos is more flexible because it can use a teacher's phone or uploaded images.
+
+At the same time, face recognition is not perfect. It must be combined with quality checks, confidence scores and teacher review. SAMS therefore treats AI recognition as a decision-support component, not a final authority.
+
+\section{QR Attendance Systems}
+QR attendance is popular because it is simple. A teacher displays a QR code, and students scan it to mark themselves present. The main advantage is speed. The main risk is misuse: a student can share the QR link with someone outside the room unless extra controls are used. In SAMS, QR attendance is included as an alternative attendance method, but AI photo attendance and manual teacher control remain available.
+
+\section{Face Recognition Concepts}
+Face recognition systems generally involve four steps:
+\begin{enumerate}[label=\arabic*.]
+    \item Detect faces in an image.
+    \item Align or normalize detected faces.
+    \item Convert each face into a numerical embedding.
+    \item Compare embeddings with stored face profiles.
+\end{enumerate}
+
+The AI service in this project uses InsightFace model packs. Detection is performed by models such as SCRFD or RetinaFace, and recognition uses ArcFace-style embeddings. A face embedding is a vector representation of a face. If two embeddings are close by cosine similarity, they are likely to belong to the same person. The system also compares against the second-best match to avoid accepting ambiguous results.
+
+\section{Related Technology Stack}
+The project uses a MERN-style web architecture combined with a Python AI service. This split is useful because web business rules and machine learning workloads have different needs. React is suitable for interactive dashboards. Express is suitable for REST APIs and orchestration. MongoDB is suitable for flexible document storage. FastAPI is suitable for model-serving endpoints and Python ML libraries.
+
+\begin{table}[H]
+\centering
+\caption{Technology stack overview}
+\label{tab:stack}
+\begin{tabularx}{\textwidth}{p{3.2cm}p{4cm}X}
+\toprule
+\textbf{Layer} & \textbf{Technology} & \textbf{Reason}\\
+\midrule
+Frontend & React, Parcel, JavaScript & Component-based dashboards, fast development and single-page routing.\\
+Backend & Node.js, Express & REST API, authentication, classroom rules and email orchestration.\\
+Database & MongoDB, Mongoose & Flexible documents for classes, users, records, leave requests and email logs.\\
+AI Service & FastAPI, Python & Model serving, image processing and machine learning workflows.\\
+Face Models & InsightFace, ArcFace, SCRFD & Real face detection and recognition model support.\\
+Email & Nodemailer, Gmail SMTP & OTP, password reset, absence and academic notifications.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Gap in Existing Solutions}
+Most attendance systems focus on marking presence. Fewer systems combine attendance marking with student learning support. The important gap is not just recording who was absent, but helping the student act on it. SAMS addresses this gap with:
+\begin{itemize}
+    \item student analytics and per-class detail pages;
+    \item exam eligibility warnings and calculator;
+    \item leave/medical proof upload;
+    \item email alerts and notification center;
+    \item teacher-controlled AI attendance draft review;
+    \item class notes, assignments and discussion.
+\end{itemize}
+
+\section{Proposed Direction}
+The proposed direction is a review-first smart attendance platform. AI is used to speed up attendance recognition, but the teacher remains responsible for final submission. This balances automation and accountability. The system also turns attendance data into useful academic guidance rather than treating it as a hidden administrative record.

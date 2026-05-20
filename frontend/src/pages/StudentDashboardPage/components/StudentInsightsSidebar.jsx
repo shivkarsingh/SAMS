@@ -20,6 +20,7 @@ export function StudentInsightsSidebar({ attendanceTrend, peerComparison }) {
             <div key={point.label} className="trend-stat-card">
               <span>{point.label}</span>
               <strong>{point.value}%</strong>
+              <small>{point.sessions ?? 0} sessions</small>
             </div>
           ))}
         </div>
@@ -28,7 +29,7 @@ export function StudentInsightsSidebar({ attendanceTrend, peerComparison }) {
       <article className="glass-card dashboard-panel" id="insights">
         <DashboardPanelHeader
           label="Comparison"
-          title="See how you compare."
+          title="Your attendance against class averages."
         />
 
         <div className="comparison-list">
@@ -53,4 +54,3 @@ export function StudentInsightsSidebar({ attendanceTrend, peerComparison }) {
     </aside>
   );
 }
-

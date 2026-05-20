@@ -13,12 +13,9 @@ from app.schemas.attendance import (
     SessionDetailsResponse,
 )
 from app.schemas.legacy import (
-    AttendanceRiskRequest,
-    AttendanceRiskResponse,
     LegacyFaceMatchRequest,
     LegacyFaceMatchResponse,
 )
-from app.services.risk_service import run_attendance_risk
 from app.services.service_registry import service_registry
 
 router = APIRouter(prefix="/api/v1")
@@ -45,7 +42,6 @@ def list_models() -> dict:
             "faceRecognitionModel",
             settings.face_recognition_model,
         ),
-        "attendanceRisk": settings.attendance_risk_model,
         "modelDevice": face_recognition_status.get("device", "unknown"),
         "ready": runtime_status.get("ready", False),
         "faceRecognitionReady": face_recognition_status.get("ready", False),
@@ -109,8 +105,3 @@ def verify_face(
 @router.post("/inference/face-match", response_model=LegacyFaceMatchResponse)
 def legacy_face_match(payload: LegacyFaceMatchRequest) -> LegacyFaceMatchResponse:
     return service_registry.legacy_face_match(payload)
-
-
-@router.post("/inference/attendance-risk", response_model=AttendanceRiskResponse)
-def attendance_risk(payload: AttendanceRiskRequest) -> AttendanceRiskResponse:
-    return run_attendance_risk(payload)

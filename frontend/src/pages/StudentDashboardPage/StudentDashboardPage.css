@@ -1,7 +1,147 @@
 .course-grid,
-.course-bars {
+.course-bars,
+.student-course-status-grid,
+.student-recovery-list,
+.student-notification-list {
   display: grid;
   gap: 18px;
+}
+
+.student-notification-button {
+  position: relative;
+  display: inline-grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid rgba(103, 232, 249, 0.2);
+  border-radius: 999px;
+  background: rgba(103, 232, 249, 0.08);
+  color: #dff7ff;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.student-notification-button:hover {
+  transform: translateY(-2px);
+  border-color: rgba(103, 232, 249, 0.4);
+  background: rgba(103, 232, 249, 0.14);
+  box-shadow: 0 14px 30px rgba(103, 232, 249, 0.14);
+}
+
+.student-notification-bell-icon {
+  width: 21px;
+  height: 21px;
+}
+
+.student-notification-count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: inline-grid;
+  min-width: 20px;
+  height: 20px;
+  place-items: center;
+  padding: 0 5px;
+  border: 2px solid rgba(6, 12, 24, 0.92);
+  border-radius: 999px;
+  background: #f97316;
+  color: #fff7ed;
+  font-size: 0.7rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.active-student-nav {
+  color: #ffffff;
+  border-color: rgba(103, 232, 249, 0.28);
+  background: rgba(103, 232, 249, 0.09);
+}
+
+.student-tool-page-hero {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.student-tool-page-hero h1,
+.student-tool-page-hero p {
+  margin: 0;
+}
+
+.student-tool-page-hero h1 {
+  max-width: 16ch;
+  font-size: 3rem;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.student-tool-page-hero p {
+  max-width: 70ch;
+  color: #9caecc;
+  line-height: 1.65;
+}
+
+.student-notifications-page-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.student-notifications-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.student-notification-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.student-notification-card.warning {
+  border-color: rgba(245, 158, 11, 0.2);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.student-notification-card.danger {
+  border-color: rgba(248, 113, 113, 0.22);
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.student-notification-card.positive {
+  border-color: rgba(34, 197, 94, 0.18);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.student-notification-main {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.student-notification-main span {
+  color: #67e8f9;
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.student-notification-main strong {
+  color: #f8fafc;
+}
+
+.student-notification-main p {
+  margin: 0;
+  color: #9caecc;
+  line-height: 1.55;
 }
 
 .course-grid {
@@ -46,15 +186,393 @@
   font-size: 0.92rem;
 }
 
+.course-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+.course-status-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #dce8fb;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.course-status-badge.positive,
+.joined-classroom-pill.positive {
+  border-color: rgba(34, 197, 94, 0.2);
+  background: rgba(34, 197, 94, 0.1);
+  color: #86efac;
+}
+
+.course-status-badge.warning,
+.joined-classroom-pill.warning {
+  border-color: rgba(245, 158, 11, 0.22);
+  background: rgba(245, 158, 11, 0.1);
+  color: #fcd34d;
+}
+
+.course-status-badge.danger,
+.joined-classroom-pill.danger {
+  border-color: rgba(248, 113, 113, 0.22);
+  background: rgba(248, 113, 113, 0.1);
+  color: #fca5a5;
+}
+
+.student-class-exam-note {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.student-class-exam-note strong {
+  color: #f8fafc;
+}
+
+.student-class-exam-note span {
+  color: #9caecc;
+  font-size: 0.9rem;
+}
+
+.student-class-exam-note.positive {
+  border-color: rgba(34, 197, 94, 0.18);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.student-class-exam-note.warning {
+  border-color: rgba(245, 158, 11, 0.2);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.student-class-exam-note.danger {
+  border-color: rgba(248, 113, 113, 0.22);
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.student-course-status-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.student-course-status-grid div {
+  min-width: 0;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.student-course-status-grid span {
+  display: block;
+  margin-bottom: 5px;
+  color: #8ea0bd;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.student-course-status-grid strong {
+  color: #f8fafc;
+}
+
+.trend-stat-card small {
+  display: block;
+  margin-top: 4px;
+  color: #8ea0bd;
+}
+
+.student-ai-coach-card {
+  display: grid;
+  gap: 10px;
+  padding: 22px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.student-ai-coach-card.warning {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.18);
+}
+
+.student-ai-coach-card.positive {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.16);
+}
+
+.student-ai-coach-card h3,
+.student-ai-coach-card p {
+  margin: 0;
+}
+
+.student-ai-coach-card p,
+.student-recovery-item p {
+  color: #9caecc;
+}
+
+.student-recovery-list {
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.student-recovery-item {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.6fr) minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.student-recovery-item span {
+  display: block;
+  color: #67e8f9;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.student-recovery-item strong,
+.student-recovery-item p {
+  margin: 0;
+}
+
+.student-recovery-item b {
+  color: #f8fafc;
+}
+
+.alert-list.compact {
+  margin-bottom: 18px;
+}
+
+.student-exam-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.student-exam-alert,
+.student-exam-card {
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+}
+
+.student-exam-alert {
+  display: grid;
+  gap: 8px;
+}
+
+.student-exam-alert span,
+.student-exam-card-header span {
+  color: #67e8f9;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.student-exam-alert h3,
+.student-exam-alert p,
+.student-exam-card h3,
+.student-exam-card p {
+  margin: 0;
+}
+
+.student-exam-alert p,
+.student-exam-card p {
+  color: #9caecc;
+}
+
+.student-exam-alert.positive,
+.student-exam-card.positive {
+  border-color: rgba(34, 197, 94, 0.18);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.student-exam-alert.warning,
+.student-exam-card.warning {
+  border-color: rgba(245, 158, 11, 0.2);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.student-exam-alert.danger,
+.student-exam-card.danger {
+  border-color: rgba(248, 113, 113, 0.22);
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.student-exam-card {
+  display: grid;
+  gap: 16px;
+}
+
+.student-exam-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.student-exam-card-header strong {
+  color: #f8fafc;
+  text-align: right;
+}
+
+.student-exam-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.student-exam-metrics div {
+  min-width: 0;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.student-exam-metrics span {
+  display: block;
+  margin-bottom: 4px;
+  color: #8ea0bd;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.student-exam-metrics strong {
+  color: #f8fafc;
+}
+
+.student-attendance-calculator {
+  grid-column: 1 / -1;
+}
+
+.student-calculator-form,
+.student-calculator-metrics {
+  display: grid;
+  gap: 12px;
+}
+
+.student-calculator-form {
+  grid-template-columns: 1.25fr repeat(3, minmax(0, 1fr));
+}
+
+.student-calculator-result {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.student-calculator-result div {
+  display: grid;
+  gap: 4px;
+}
+
+.student-calculator-result span,
+.student-calculator-metrics span {
+  color: #8ea0bd;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.student-calculator-result strong {
+  color: #f8fafc;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.student-calculator-result p {
+  margin: 0;
+  color: #dce8fb;
+}
+
+.student-calculator-result.positive {
+  border-color: rgba(34, 197, 94, 0.2);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.student-calculator-result.warning {
+  border-color: rgba(245, 158, 11, 0.22);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.student-calculator-result.danger {
+  border-color: rgba(248, 113, 113, 0.24);
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.student-calculator-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+.student-calculator-metrics div {
+  min-width: 0;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.student-calculator-metrics strong {
+  display: block;
+  margin-top: 5px;
+  color: #f8fafc;
+  font-size: 1.2rem;
+}
+
 @media (max-width: 980px) {
   .course-grid {
     grid-template-columns: 1fr;
   }
-}
 
-@media (max-width: 720px) {
-  .metric-bar-row {
-    grid-template-columns: 1fr;
+  .student-calculator-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
+@media (max-width: 720px) {
+  .metric-bar-row,
+  .student-course-status-grid,
+  .student-recovery-item,
+  .student-exam-card-header,
+  .student-exam-metrics,
+  .student-calculator-form,
+  .student-calculator-result,
+  .student-calculator-metrics,
+  .student-notification-card {
+    grid-template-columns: 1fr;
+  }
+
+  .student-exam-card-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .student-tool-page-hero h1 {
+    font-size: 2.25rem;
+  }
+
+  .student-notification-card .secondary-button {
+    width: fit-content;
+  }
+}

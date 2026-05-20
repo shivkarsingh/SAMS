@@ -1,0 +1,228 @@
+\chapter{Implementation Details}
+\label{chap:implementation}
+
+This chapter explains how the design is converted into working software. The project is implemented as a monorepo with three application services. The frontend handles browser pages, the backend handles API and business rules, and the AI service handles face recognition pipelines. The implementation is intentionally modular so that one part can be improved without rewriting the entire application.
+
+\section{Project Structure}
+
+The top-level project structure keeps related code together. A beginner reading the repository can first identify the service and then inspect the pages, controllers, services or models inside it.
+
+\begin{verbatim}
+SAMS/
+  frontend/      React and Parcel user interface
+  backend/       Express REST API, Mongoose models and services
+  ai-service/    FastAPI face recognition service
+  docs/          Architecture, roadmap and email notes
+  reports/       Generated LaTeX report workspace
+  docker-compose.yml
+\end{verbatim}
+
+The backend also contains a service-oriented structure:
+
+\begin{verbatim}
+backend/src/
+  controllers/   Request handlers for API routes
+  models/        Mongoose schemas
+  routes/        Central API router
+  services/      Business logic and integrations
+  config/        Environment and database setup
+\end{verbatim}
+
+\section{Technology Stack}
+
+The chosen technologies are common enough for student developers to understand and powerful enough to support the required features. Table~\ref{tab:tech-stack-implementation} summarizes the stack.
+
+\begin{table}[H]
+\centering
+\caption{Technology stack used in implementation}
+\label{tab:tech-stack-implementation}
+\begin{tabularx}{\textwidth}{p{3.2cm} p{4cm} X}
+\toprule
+\textbf{Layer} & \textbf{Technology} & \textbf{Reason for use}\\
+\midrule
+Frontend & React, JavaScript, Parcel & Component-based UI with fast local development and reusable dashboard sections.\\
+Backend & Node.js, Express & Simple REST API framework suitable for authentication, dashboards and attendance workflows.\\
+Database & MongoDB, Mongoose & Flexible document storage with schemas for users, classes, records, leave requests and drafts.\\
+AI service & Python, FastAPI & Clean API layer for face recognition pipelines and model readiness endpoints.\\
+Face recognition & InsightFace model packs & Provides practical face detection and embedding-based recognition capability.\\
+Email & Nodemailer, SMTP & Supports Gmail app passwords or free SMTP sandbox services.\\
+Development & npm workspaces, Docker & Allows local multi-service development and container-based deployment.\\
+Documentation & LaTeX & Produces a formal, editable and printable academic report.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Backend Implementation}
+
+The backend starts with configuration, database connection and route registration. API routes are grouped inside \texttt{backend/src/routes/index.js}. This single router maps paths to controllers. Controllers then call services. For example, authentication routes call authentication and OTP services, while teacher classroom routes call attendance, classroom, leave and exam services.
+
+The service layer is the most important backend implementation decision. It prevents controllers from becoming too large. For example, \texttt{studentDashboardService.js} prepares student dashboard data, \texttt{attendanceAnalyticsService.js} summarizes records, \texttt{emailNotificationService.js} chooses notification templates, and \texttt{attendanceDraftScheduler.js} handles automatic draft finalization.
+
+\subsection{Authentication and Email Verification}
+
+During signup, the backend creates the user in a verification-required state and sends an OTP email. The user becomes active only after the OTP is verified. This prevents invalid or mistyped email addresses from receiving future academic alerts. Password reset also uses a secure temporary OTP flow. Profile email update uses a separate OTP purpose so that changing an email address cannot happen silently.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+flowstep/.style={draw, rounded corners, align=center, minimum width=3cm, minimum height=1cm, fill=blue!6},
+ok/.style={draw, rounded corners, align=center, minimum width=3cm, minimum height=1cm, fill=green!12},
+arrow/.style={-Latex, thick}
+]
+\node[flowstep] (signup) {User submits\\signup form};
+\node[flowstep, right=1.3cm of signup] (otp) {Backend creates\\email OTP};
+\node[flowstep, right=1.3cm of otp] (mail) {Verification\\email sent};
+\node[flowstep, below=1.2cm of mail] (verify) {User enters\\OTP};
+\node[ok, left=1.3cm of verify] (active) {Email verified\\account active};
+\node[ok, left=1.3cm of active] (welcome) {Welcome email\\sent};
+\draw[arrow] (signup) -- (otp);
+\draw[arrow] (otp) -- (mail);
+\draw[arrow] (mail) -- (verify);
+\draw[arrow] (verify) -- (active);
+\draw[arrow] (active) -- (welcome);
+\end{tikzpicture}
+\caption{Email verified registration implementation flow}
+\label{fig:registration-flow}
+\end{figure}
+
+\subsection{Classroom and Membership Implementation}
+
+The classroom module stores the teacher id, class details, schedule slots and join code. A class schedule slot includes weekday and time information. When a student joins a class, the backend creates a membership document. Attendance analytics later use the membership list to know which students belong to a class and which students must appear in class-level calculations.
+
+The join-code design is simple and practical. A teacher can share a code or link. A student can join without the teacher manually typing every name. At the same time, the teacher can still add, update or remove students from the roster page, which is important when data is incomplete.
+
+\subsection{Attendance Implementation}
+
+The attendance implementation supports several sources. Manual attendance is direct. QR attendance uses a teacher-created session and a student scan endpoint. AI photo attendance sends image data to the AI service and produces a draft. All final records are stored in the attendance record collection with status and source fields.
+
+\begin{table}[H]
+\centering
+\caption{Attendance status and meaning}
+\label{tab:attendance-status}
+\begin{tabularx}{\textwidth}{p{3cm} X X}
+\toprule
+\textbf{Status} & \textbf{Meaning} & \textbf{Typical source}\\
+\midrule
+Present & Student attended the class. & Manual, QR or AI-assisted session.\\
+Absent & Student did not attend or was not confirmed present. & Draft finalization or manual entry.\\
+Late & Student attended after expected time. & Manual teacher decision.\\
+Excused & Student's absence is accepted through proof or teacher decision. & Leave review or manual decision.\\
+Class cancelled & Class did not happen and should not harm attendance. & Teacher cancellation workflow.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Today Attendance Draft Implementation}
+
+When AI-assisted attendance is run, the backend does not immediately create final attendance records. It creates an \texttt{AttendanceDraft}. The draft includes class id, teacher id, recognized records, suggested present list, suggested absent list, verification notes and a finalization time. The teacher can update this draft using the draft update endpoint. Finalization converts the draft to attendance records.
+
+This design supports a useful human-in-the-loop workflow. Suppose a student was present but hidden behind another student in the photo. The AI result might mark that student absent. The absent email gives the student a chance to tell the teacher. The teacher can then add the student in Today Attendance Data before final submission. This keeps the system useful without pretending that computer vision is perfect.
+
+\section{Student Dashboard Implementation}
+
+The student dashboard is implemented as a summary page supported by separate pages for tools and class details. The dashboard service computes totals, percentages, attendance trend, joined classes, upcoming exams and warnings. The frontend uses that data to show helpful cards and links.
+
+\begin{table}[H]
+\centering
+\caption{Student dashboard data shown to users}
+\label{tab:student-dashboard-data}
+\begin{tabularx}{\textwidth}{p{3.5cm} X}
+\toprule
+\textbf{Data item} & \textbf{Student value}\\
+\midrule
+Classes joined & Shows how many active academic classes the student belongs to.\\
+Total sessions held & Shows total attendance opportunities already recorded.\\
+Present and absent counts & Converts percentage into understandable numbers.\\
+Attendance percentage & Helps student know current standing.\\
+Class-wise cards & Allows student to open a separate detail page for every class.\\
+Upcoming exams & Connects attendance percentage to exam eligibility.\\
+Minimum classes to attend & Shows a clear action target rather than only a warning.\\
+Notification count & Alerts the student about risky classes, exams and leave decisions.\\
+Face enrollment status & Reminds student to complete enrollment for photo attendance.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Teacher Dashboard Implementation}
+
+The teacher dashboard focuses on action. A teacher can create classes, see schedule, open class management, run attendance, create assignments, set exam rules and review leave requests. The teacher class students page provides roster analytics, low-attendance filters and a detailed student section. This is where teachers can preview leave proof files such as PDF or images online and approve or reject them.
+
+Teacher actions are scoped by teacher id and class id. This makes it possible for the backend to verify that a teacher is operating on their own class before changing attendance, roster or exam data.
+
+\section{Leave and Medical Proof Implementation}
+
+The leave request feature is implemented in the student class detail page and teacher classroom students page. A student selects a request type, absence date, reason and attachment files. Files are converted to safe attachment metadata that the backend stores with the request. The teacher can open the student detail section and preview attachments. Images are shown inline and PDFs are shown in a browser preview area. The teacher can approve or reject with an optional note.
+
+When the decision is saved, the email notification module sends a leave review email. The email contains the class, absence date and approval status. This helps students know the decision without repeatedly checking the dashboard.
+
+\section{Exam Schedule and Eligibility Implementation}
+
+The teacher can set an exam date and required attendance percentage for a class. The backend stores this in the class exam model. The student dashboard reads upcoming exams and calculates eligibility using current attendance and scheduled classes before the exam. The calculation can explain whether the student is currently safe, close to risk or below requirement.
+
+The attendance calculator allows the student to enter an exam date and required percentage. The system can use the class schedule to estimate how many classes may be held before that exam date. The output is the minimum number of classes the student should attend to be safe. The general formula is:
+
+\[
+\text{required presents} = \left\lceil \frac{p}{100} \times \text{projected total classes} \right\rceil
+\]
+
+\[
+\text{minimum future attendance} = \max(0, \text{required presents} - \text{current presents})
+\]
+
+Here \(p\) is the required attendance percentage. If the minimum future attendance is greater than the number of classes expected before the exam, then the student cannot mathematically reach the required percentage by only attending future classes. The dashboard can then show a stronger warning.
+
+\section{Email Service Implementation}
+
+The email system is implemented as a modular notification layer. It contains template builders, a sending service, OTP service and notification service. The environment controls whether email is enabled, which SMTP host is used, how many retries are allowed and whether OTPs can be exposed during development. In real operation, OTPs are not returned in API responses.
+
+\begin{longtable}{p{3.2cm} p{4.2cm} p{6cm}}
+\caption{Email notification events implemented in the backend}
+\label{tab:email-events-implementation}\\
+\toprule
+\textbf{Event} & \textbf{Trigger} & \textbf{Email content}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Event} & \textbf{Trigger} & \textbf{Email content}\\
+\midrule
+\endhead
+Signup verification & New student or teacher registration & OTP, expiry and verification instructions.\\
+Welcome message & Successful email verification & Student or teacher name, login email and account activation confirmation.\\
+Password reset & User requests recovery & OTP or secure reset instructions and expiry warning.\\
+Profile email OTP & User updates profile email & OTP for confirming the new email address.\\
+Leave decision & Teacher approves or rejects a request & Class, leave date, status and teacher note when available.\\
+Exam warning & Attendance below exam criterion & Current percentage, required percentage and action needed.\\
+Absent notice & Student marked absent in draft or record & Class, date, subject and timing context.\\
+Class cancellation & Teacher cancels or reschedules & Updated class information and schedule note.\\
+\bottomrule
+\end{longtable}
+
+\section{AI Attendance Implementation}
+
+The AI service contains three main pipeline areas: enrollment, live verification and classroom attendance. During enrollment, the student's face profile is captured and stored. During classroom attendance, the service detects faces in the submitted image, creates embeddings and compares them with enrolled profiles. The output is a list of matched students and useful notes.
+
+The backend treats the AI service as a dependency that may be healthy, ready or degraded. Health endpoints help show whether MongoDB and AI runtime are available. If the AI model pack is missing or the service is still starting, the app can show degraded state instead of silently failing.
+
+\section{Frontend Navigation Implementation}
+
+The frontend uses hash-based routing. This makes the app easy to run in local development without server-side route rewriting. Pages are organized around real user tasks:
+
+\begin{itemize}
+\item Student dashboard for overview.
+\item Student class detail page for a single class.
+\item Student tools pages for exams, notifications and calculator.
+\item Teacher dashboard for class and schedule overview.
+\item Teacher classroom students page for roster, attendance and leave review.
+\item QR attendance page for scan-based attendance.
+\item Face enrollment page for preparing AI attendance.
+\end{itemize}
+
+\section{Error Handling}
+
+The backend returns clear error messages when required fields are missing or operations fail. Email delivery uses retry settings and delivery logs. The frontend shows user-facing failure text when dashboard loading, leave submission, attendance processing or email tests fail. The AI service exposes health and readiness endpoints so infrastructure issues can be separated from application logic errors.
+
+\section{Configuration Management}
+
+Configuration values are stored in environment files and should be different for development and production. The report intentionally does not include actual database URLs, SMTP passwords or model secrets. A safe configuration example is included in the appendix using placeholders. This is important because academic documentation is often shared, printed or uploaded, and it must not expose real credentials.
+
+This chapter covered the implementation approach. The next chapter explains the working of the main features from the user's point of view.

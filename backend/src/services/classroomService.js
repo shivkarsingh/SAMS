@@ -2,7 +2,11 @@ import crypto from "crypto";
 import { Classroom } from "../models/Classroom.js";
 import { ClassMembership } from "../models/ClassMembership.js";
 import { User } from "../models/User.js";
-import { env } from "../config/env.js";
+import {
+  normalizeScheduleSlots,
+  sanitizeScheduleSlots,
+  summarizeScheduleSlots
+} from "../utils/schedule.js";
 
 function normalizeUserId(userId) {
   return String(userId).trim().toUpperCase();
@@ -12,13 +16,9 @@ function formatFullName(person) {
   return `${person.firstName} ${person.lastName}`.trim();
 }
 
-function buildJoinLink(joinCode) {
-  return `${env.frontendAppUrl.replace(/\/$/, "")}/#/join-class?code=${encodeURIComponent(
-    joinCode
-  )}`;
-}
-
 function sanitizeClassroom(classroom, membersCount = 0) {
+  const scheduleSlots = sanitizeScheduleSlots(classroom.scheduleSlots);
+
   return {
     id: String(classroom._id),
     teacherUserId: classroom.teacherUserId,
@@ -31,10 +31,13 @@ function sanitizeClassroom(classroom, membersCount = 0) {
     semesterLabel: classroom.semesterLabel,
     academicYear: classroom.academicYear,
     batch: classroom.batch,
-    scheduleSummary: classroom.scheduleSummary,
+    scheduleSummary: summarizeScheduleSlots(scheduleSlots, classroom.scheduleSummary),
+    scheduleSlots,
     joinCode: classroom.joinCode,
-    joinLink: classroom.joinLink,
     status: classroom.status,
+    endedAt: classroom.endedAt ?? null,
+    endedBy: classroom.endedBy ?? "",
+    archiveSummary: classroom.archiveSummary ?? null,
     studentsCount: membersCount,
     createdAt: classroom.createdAt
   };
@@ -108,7 +111,7 @@ export async function createClassroom(payload) {
   }
 
   const joinCode = await generateUniqueJoinCode();
-  const joinLink = buildJoinLink(joinCode);
+  const scheduleSlots = normalizeScheduleSlots(payload.scheduleSlots);
 
   const classroom = await Classroom.create({
     teacherUserId: normalizedTeacherUserId,
@@ -121,9 +124,9 @@ export async function createClassroom(payload) {
     semesterLabel: payload.semesterLabel,
     academicYear: payload.academicYear,
     batch: payload.batch,
-    scheduleSummary: payload.scheduleSummary,
-    joinCode,
-    joinLink
+    scheduleSlots,
+    scheduleSummary: summarizeScheduleSlots(scheduleSlots, payload.scheduleSummary),
+    joinCode
   });
 
   return sanitizeClassroom(classroom, 0);
@@ -165,7 +168,8 @@ export async function joinClassroom(payload) {
   await ClassMembership.create({
     classId: classroom._id,
     studentUserId: normalizedStudentUserId,
-    studentName: formatFullName(student)
+    studentName: formatFullName(student),
+    rollNumber: student.rollNumber || normalizedStudentUserId
   });
 
   return {

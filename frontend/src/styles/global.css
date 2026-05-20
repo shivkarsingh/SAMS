@@ -132,30 +132,94 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
 
 .brand-mark {
+  position: relative;
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #34d399, #38bdf8);
-  color: #04111f;
-  font-weight: 800;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid rgba(134, 239, 172, 0.45);
+  border-radius: 16px;
+  background:
+    linear-gradient(145deg, rgba(187, 247, 208, 0.28), rgba(16, 185, 129, 0.06) 38%, rgba(5, 150, 105, 0.18)),
+    radial-gradient(circle at 32% 24%, rgba(240, 253, 244, 0.42), transparent 0 30%),
+    #052014;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -16px 30px rgba(2, 44, 34, 0.34),
+    0 14px 34px rgba(16, 185, 129, 0.28),
+    0 0 0 6px rgba(34, 197, 94, 0.06);
+}
+
+.brand-mark::before {
+  position: absolute;
+  inset: 6px;
+  border: 1px solid rgba(187, 247, 208, 0.24);
+  border-radius: 12px;
+  content: "";
+}
+
+.brand-mark::after {
+  position: absolute;
+  top: -36%;
+  left: -42%;
+  width: 42%;
+  height: 170%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.34),
+    transparent
+  );
+  content: "";
+  transform: rotate(28deg);
+}
+
+.brand-mark svg {
+  position: relative;
+  z-index: 1;
+  width: 34px;
+  height: 34px;
+  overflow: visible;
+}
+
+.brand-check,
+.brand-check-shadow {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.brand-check-shadow {
+  stroke: rgba(2, 44, 34, 0.55);
+  stroke-width: 7.8;
+}
+
+.brand-check {
+  stroke: #bbf7d0;
+  stroke-width: 5.6;
+  filter: drop-shadow(0 4px 8px rgba(16, 185, 129, 0.5));
 }
 
 .brand-copy {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .brand-copy strong {
-  font-size: 1rem;
+  font-size: 1.06rem;
+  letter-spacing: 0.02em;
 }
 
 .brand-copy small {
   color: #93a4c2;
+  line-height: 1.2;
 }
 
 .nav,
@@ -283,9 +347,9 @@ button {
 
 .section-heading h2 {
   margin: 0 0 14px;
-  font-size: clamp(2rem, 4vw, 3.5rem);
+  font-size: 3.1rem;
   line-height: 1.02;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
 }
 
 .section-heading p,
@@ -416,9 +480,9 @@ button {
 
 .loading-card h1 {
   margin: 0;
-  font-size: clamp(2rem, 4vw, 3rem);
+  font-size: 2.65rem;
   line-height: 1.02;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
 }
 
 .dashboard-hero,
@@ -466,9 +530,9 @@ button {
 
 .dashboard-intro h1 {
   margin: 0;
-  font-size: clamp(3rem, 6vw, 5.4rem);
+  font-size: 4.8rem;
   line-height: 0.94;
-  letter-spacing: -0.05em;
+  letter-spacing: 0;
 }
 
 .dashboard-intro p,
@@ -606,7 +670,7 @@ button {
 .dashboard-panel-header h2 {
   font-size: 1.6rem;
   line-height: 1.05;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
 }
 
 .sparkline {
@@ -682,7 +746,7 @@ button {
 }
 
 .schedule-grid {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
 .schedule-day-card {
@@ -712,6 +776,105 @@ button {
   border: 1px solid rgba(103, 232, 249, 0.12);
 }
 
+.schedule-pill-detail {
+  display: inline-grid;
+  gap: 2px;
+  align-items: start;
+  min-width: 132px;
+  border-radius: 14px;
+}
+
+.schedule-pill-detail strong {
+  color: #f8fafc;
+  font-size: 0.92rem;
+}
+
+.schedule-pill-detail span,
+.schedule-pill-detail small {
+  color: #9caecc;
+  font-size: 0.78rem;
+}
+
+.schedule-pill.muted {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: #74829a;
+}
+
+.exam-calendar {
+  display: grid;
+  gap: 14px;
+}
+
+.exam-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.exam-calendar-header strong {
+  color: #f8fafc;
+  font-size: 1.05rem;
+}
+
+.exam-calendar-header span {
+  color: #8ea0bd;
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+}
+
+.exam-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.exam-calendar-weekday {
+  color: #8ea0bd;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.exam-calendar-day {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  min-height: 72px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.exam-calendar-day strong {
+  color: #f8fafc;
+  font-size: 0.86rem;
+}
+
+.exam-calendar-day span {
+  overflow: hidden;
+  color: #67e8f9;
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.exam-calendar-day.has-exam {
+  border-color: rgba(52, 211, 153, 0.28);
+  background: rgba(52, 211, 153, 0.1);
+}
+
+.exam-calendar-day.empty {
+  border-color: transparent;
+  background: transparent;
+}
+
 .alert-card {
   padding: 20px;
   border-radius: 22px;
@@ -739,7 +902,8 @@ button {
 }
 
 .field input,
-.field select {
+.field select,
+.field textarea {
   width: 100%;
   padding: 14px 16px;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -754,9 +918,21 @@ button {
 }
 
 .field input:focus,
-.field select:focus {
+.field select:focus,
+.field textarea:focus {
   border-color: rgba(103, 232, 249, 0.45);
   box-shadow: 0 0 0 4px rgba(103, 232, 249, 0.08);
+}
+
+.field input.input-error,
+.field input.input-error:focus {
+  border-color: rgba(251, 113, 133, 0.66);
+  box-shadow: 0 0 0 4px rgba(251, 113, 133, 0.1);
+}
+
+.field textarea {
+  min-height: 96px;
+  resize: vertical;
 }
 
 .footer {
@@ -854,5 +1030,17 @@ button {
 
   .section-block {
     padding-top: 72px;
+  }
+
+  .section-heading h2 {
+    font-size: 2.25rem;
+  }
+
+  .loading-card h1 {
+    font-size: 2.2rem;
+  }
+
+  .dashboard-intro h1 {
+    font-size: 3rem;
   }
 }

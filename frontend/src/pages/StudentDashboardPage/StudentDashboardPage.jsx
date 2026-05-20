@@ -11,11 +11,14 @@ import { StudentAttentionSection } from "./components/StudentAttentionSection";
 import { StudentClassroomSection } from "./components/StudentClassroomSection";
 import { StudentClassesPanel } from "./components/StudentClassesPanel";
 import { StudentDashboardHeader } from "./components/StudentDashboardHeader";
+import { StudentExamSection } from "./components/StudentExamSection";
 import { StudentFaceEnrollmentPreviewCard } from "./components/StudentFaceEnrollmentPreviewCard";
 import { StudentHeroSection } from "./components/StudentHeroSection";
 import { StudentInsightsSidebar } from "./components/StudentInsightsSidebar";
 import { StudentScheduleSection } from "./components/StudentScheduleSection";
 import { StudentSummaryGrid } from "./components/StudentSummaryGrid";
+import { getStudentNotificationCount } from "./studentNotifications";
+import { readStoredStudentProfile } from "./studentProfileStore";
 import "./StudentDashboardPage.css";
 
 export function StudentDashboardPage() {
@@ -35,7 +38,14 @@ export function StudentDashboardPage() {
 
     try {
       const response = await fetchStudentDashboard(activeUser.userId);
-      setDashboard(response);
+      setDashboard({
+        ...response,
+        profile: {
+          ...activeUser,
+          ...response.profile,
+          ...(readStoredStudentProfile(activeUser.userId) ?? {})
+        }
+      });
       setStatus({
         loading: false,
         message: ""
@@ -63,17 +73,6 @@ export function StudentDashboardPage() {
   function handleLogout() {
     clearSession();
     goToRoute("/login");
-  }
-
-  function scrollToSection(sectionId) {
-    const section = document.getElementById(sectionId);
-
-    if (section) {
-      section.scrollIntoView({
-        behavior: "smooth",
-        block: "start"
-      });
-    }
   }
 
   async function handleJoinClass(joinInput) {
@@ -122,9 +121,17 @@ export function StudentDashboardPage() {
     );
   }
 
-  const performanceLeader = [...dashboard.classPerformance].sort(
-    (left, right) => right.studentPercentage - left.studentPercentage
-  )[0];
+  const performanceLeader = dashboard.classPerformance
+    .filter((course) => course.total > 0)
+    .sort((left, right) => right.studentPercentage - left.studentPercentage)[0];
+  const performanceByClassId = new Map(
+    dashboard.classPerformance.map((course) => [course.id, course])
+  );
+  const joinedClassCards = dashboard.joinedClasses.map((joinedClass) => ({
+    ...joinedClass,
+    analytics: performanceByClassId.get(joinedClass.id)
+  }));
+  const notificationCount = getStudentNotificationCount(dashboard);
 
   return (
     <div className="page-shell">
@@ -132,8 +139,8 @@ export function StudentDashboardPage() {
 
       <StudentDashboardHeader
         onLogout={handleLogout}
-        onNavigate={scrollToSection}
         onOpenFaceEnrollment={() => goToRoute("/student-face-enrollment")}
+        notificationCount={notificationCount}
       />
 
       <main className="dashboard-shell">
@@ -141,10 +148,11 @@ export function StudentDashboardPage() {
           profile={dashboard.profile}
           overview={dashboard.overview}
           faceProfile={dashboard.faceProfile}
-          onOpenClassrooms={() => scrollToSection("classrooms")}
-          onReviewPerformance={() => scrollToSection("performance")}
-          onOpenSchedule={() => scrollToSection("schedule")}
+          onOpenClassrooms={() => goToRoute("/student-classes")}
+          onReviewPerformance={() => goToRoute("/student-performance")}
+          onOpenSchedule={() => goToRoute("/student-schedule")}
           onOpenFaceEnrollment={() => goToRoute("/student-face-enrollment")}
+          onOpenNotifications={() => goToRoute("/student-notifications")}
         />
 
         <StudentSummaryGrid
@@ -154,7 +162,7 @@ export function StudentDashboardPage() {
 
         <section className="dashboard-lower-grid">
           <StudentClassroomSection
-            joinedClasses={dashboard.joinedClasses}
+            joinedClasses={joinedClassCards}
             onJoinClass={handleJoinClass}
           />
           <StudentFaceEnrollmentPreviewCard
@@ -176,10 +184,17 @@ export function StudentDashboardPage() {
           weeklySchedule={dashboard.weeklySchedule}
         />
 
+        <StudentExamSection
+          upcomingExams={dashboard.upcomingExams ?? []}
+          classes={dashboard.classPerformance}
+        />
+
         <StudentAttentionSection
           alerts={dashboard.alerts}
           goals={dashboard.goals}
           achievements={dashboard.achievements}
+          aiCoach={dashboard.aiCoach}
+          recoveryPlan={dashboard.recoveryPlan}
         />
       </main>
     </div>

@@ -49,6 +49,10 @@ const faceProfileSchema = new mongoose.Schema(
       type: [String],
       default: []
     },
+    profilePhotoUrl: {
+      type: String,
+      default: ""
+    },
     notes: {
       type: [String],
       default: []

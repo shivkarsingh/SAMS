@@ -1,0 +1,145 @@
+\chapter{Deployment, Limitations and Future Scope}
+\label{chap:deployment}
+
+This chapter explains how the project can be run, deployed and improved. SAMS is implemented as a multi-service application, so deployment means making the frontend, backend, AI service, database and email provider work together reliably.
+
+\section{Local Development Deployment}
+
+In local development, the project can be started from the repository root. The frontend runs as a React development server, the backend runs as an Express server and the AI service runs with Uvicorn. MongoDB can be provided locally or through Docker.
+
+\begin{table}[H]
+\centering
+\caption{Local service deployment summary}
+\label{tab:local-deployment}
+\begin{tabularx}{\textwidth}{p{3cm} p{4cm} X}
+\toprule
+\textbf{Service} & \textbf{Typical command} & \textbf{Purpose}\\
+\midrule
+Frontend & \texttt{npm run dev:frontend} & Starts the React interface for browser use.\\
+Backend & \texttt{npm run dev:backend} & Starts the REST API and connects to MongoDB.\\
+AI service & \texttt{npm run dev:ai} or Uvicorn & Starts FastAPI face recognition endpoints.\\
+MongoDB & Docker Compose or local MongoDB & Stores users, classes, attendance and logs.\\
+Email SMTP & Configured through backend environment & Sends OTPs and academic notifications.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+For a development machine, it is common to run the backend and frontend first, then start the AI service when testing face enrollment or photo attendance. This reduces setup time when working only on dashboards or email templates.
+
+\section{Environment Configuration}
+
+The backend uses environment variables for database, email and AI settings. Sensitive values must never be committed or printed in reports. A safe example is provided in Appendix~\ref{appendix:setup}. In production, values such as database URI and SMTP password should be set through the hosting provider's secret manager.
+
+\begin{table}[H]
+\centering
+\caption{Important environment categories}
+\label{tab:env-categories}
+\begin{tabularx}{\textwidth}{p{3.5cm} X}
+\toprule
+\textbf{Category} & \textbf{Examples of values}\\
+\midrule
+Server & Port, frontend origin and API base URL.\\
+Database & MongoDB connection string and database name.\\
+AI gateway & AI service base URL and timeout values.\\
+Email & SMTP host, port, sender, username, password and retry settings.\\
+OTP & Expiry time and development exposure flag.\\
+Model runtime & Face model pack, provider and asset directory.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Production Deployment View}
+
+A production deployment can place the frontend on a static hosting platform, the backend on a Node.js hosting platform, the AI service on a Python-capable host and MongoDB on a managed database service. The backend should be the only service exposed to the frontend. The AI service should be accessible to the backend and protected from direct public misuse when possible.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+box/.style={draw, rounded corners, align=center, minimum width=3.2cm, minimum height=1cm, fill=blue!6},
+secure/.style={draw, rounded corners, align=center, minimum width=3.2cm, minimum height=1cm, fill=green!12},
+arrow/.style={-Latex, thick}
+]
+\node[box] (user) {Browser};
+\node[box, right=1.5cm of user] (front) {Static frontend\\hosting};
+\node[secure, right=1.5cm of front] (back) {Backend API\\hosting};
+\node[secure, below=1.3cm of back] (db) {Managed\\MongoDB};
+\node[secure, right=1.5cm of back] (ai) {AI service\\hosting};
+\node[secure, below=1.3cm of ai] (mail) {SMTP\\provider};
+\draw[arrow] (user) -- (front);
+\draw[arrow] (front) -- (back);
+\draw[arrow] (back) -- (db);
+\draw[arrow] (back) -- (ai);
+\draw[arrow] (back) -- (mail);
+\end{tikzpicture}
+\caption{Production deployment view}
+\label{fig:production-deployment}
+\end{figure}
+
+\section{Operational Monitoring}
+
+The project includes health and status concepts that are important for operations. The backend health endpoint can show whether the backend is running and whether dependencies are degraded. The AI service has a readiness endpoint so model loading can be checked separately from process uptime. The email status endpoint can verify SMTP connectivity without revealing credentials.
+
+In a future production system, operational monitoring should include request logs, attendance finalization logs, email bounce tracking, uptime monitoring, database backups and alerts for repeated AI or SMTP failures.
+
+\section{Limitations}
+
+Every project has limitations. Understanding them is important because it prevents unrealistic expectations.
+
+\begin{longtable}{p{3.6cm} p{9.5cm}}
+\caption{Current limitations}
+\label{tab:limitations}\\
+\toprule
+\textbf{Area} & \textbf{Limitation}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Area} & \textbf{Limitation}\\
+\midrule
+\endhead
+AI recognition & Face matching can fail due to poor lighting, blur, occlusion, side angle or incomplete enrollment.\\
+Manual review & Teacher review improves reliability but still depends on teacher attention before final submission.\\
+Email delivery & Free SMTP or Gmail app passwords may have sending limits and provider-specific security rules.\\
+File uploads & A production deployment should add stronger file type validation, file size limits and malware scanning.\\
+Authorization & A production institute system should add strict middleware checks for every role and route.\\
+Scalability & Large institutes may need queues for AI jobs, background workers and caching.\\
+Privacy & Face embeddings and proof documents require formal data retention and consent policies.\\
+Network dependency & Real-time email and AI requests depend on network connectivity.\\
+\bottomrule
+\end{longtable}
+
+\section{Future Scope}
+
+The project can be extended in several directions. Some improvements are technical, while others are academic workflow enhancements.
+
+\begin{table}[H]
+\centering
+\caption{Future enhancement roadmap}
+\label{tab:future-roadmap}
+\begin{tabularx}{\textwidth}{p{3cm} p{3cm} X}
+\toprule
+\textbf{Priority} & \textbf{Enhancement} & \textbf{Expected value}\\
+\midrule
+High & Strong RBAC middleware & Ensures every route verifies role, identity and class ownership.\\
+High & Production file storage & Stores leave documents in object storage with signed access.\\
+High & Attendance audit trail & Keeps a history of every draft edit and finalization action.\\
+Medium & Background AI queue & Handles large photo attendance jobs without blocking requests.\\
+Medium & Parent portal & Gives parents controlled visibility into attendance and alerts.\\
+Medium & Reports export & Generates PDF or spreadsheet reports for department records.\\
+Medium & Calendar integration & Syncs class schedule and exam dates with external calendars.\\
+Low & Mobile app & Improves camera capture, QR scanning and push notifications.\\
+Low & Advanced analytics & Predicts future risk patterns and recommends interventions.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Ethical and Privacy Considerations}
+
+Because the project uses face recognition and academic data, ethics must be considered. Students should know why face enrollment is collected and how it is used. The system should store only the data required for attendance. Access to face profiles, attendance data and medical documents should be limited. A production institution should define retention periods and deletion policy.
+
+The human review design is also an ethical choice. AI output is not treated as unquestionable truth. The teacher reviews Today Attendance Data, students receive early absence notices and corrections are possible before final submission. This makes the system more fair than a fully automatic black-box attendance system.
+
+\section{Conclusion}
+
+The \projecttitle{} provides a complete modern attendance workflow. It combines role-based dashboards, class management, AI-assisted attendance, QR and manual attendance, Today Attendance Data, student analytics, leave proof review, exam eligibility planning and email notifications. The project is implemented with a practical full-stack architecture using React, Express, MongoDB and FastAPI.
+
+The most valuable contribution of the project is the combination of automation and review. AI reduces repetitive classroom work, but final attendance remains correctable. Students get useful information instead of only a final number. Teachers get tools to manage attendance, leave and exam eligibility in one place. With stronger production security, file storage and background processing, the system can become a robust institute-level attendance platform.

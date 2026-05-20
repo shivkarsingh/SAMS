@@ -19,6 +19,12 @@ const classMembershipSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true
+    },
+    rollNumber: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      default: ""
     }
   },
   {

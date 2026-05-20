@@ -21,6 +21,10 @@ function getRecordTimestamp(record) {
   return new Date(record.recordedAt ?? record.createdAt ?? Date.now());
 }
 
+function isAttendedStatus(status) {
+  return status === "present" || status === "late";
+}
+
 export function summarizeAttendanceRecords(records, rosterStudentIds = []) {
   const normalizedRosterIds = Array.from(
     new Set(rosterStudentIds.map((studentId) => normalizeUserId(studentId)))
@@ -52,12 +56,15 @@ export function summarizeAttendanceRecords(records, rosterStudentIds = []) {
       sessionId,
       recordedAt: timestamp.toISOString(),
       presentCount: 0,
-      absentCount: 0
+      absentCount: 0,
+      cancelledCount: 0
     };
 
     sessionRecord.recordedAt = timestamp.toISOString();
-    if (record.status === "present") {
+    if (isAttendedStatus(record.status)) {
       sessionRecord.presentCount += 1;
+    } else if (record.status === "cancelled") {
+      sessionRecord.cancelledCount += 1;
     } else {
       sessionRecord.absentCount += 1;
     }
@@ -68,8 +75,14 @@ export function summarizeAttendanceRecords(records, rosterStudentIds = []) {
     }
 
     const currentStats = studentStatsById.get(normalizedStudentId);
+    if (record.status === "cancelled") {
+      currentStats.lastStatus = record.status;
+      currentStats.lastMarkedAt = timestamp.toISOString();
+      return;
+    }
+
     currentStats.totalCount += 1;
-    if (record.status === "present") {
+    if (isAttendedStatus(record.status)) {
       currentStats.presentCount += 1;
     }
     currentStats.attendancePercentage = currentStats.totalCount

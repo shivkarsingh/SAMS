@@ -11,6 +11,34 @@ import { getHashSearchParam, goToRoute } from "../../utils/router";
 import { readClassNotes, saveClassNotes } from "./classNotesStore";
 import "./ClassNotesPage.css";
 
+function RequiredMark() {
+  return (
+    <span className="required-marker" aria-label="required">
+      *
+    </span>
+  );
+}
+
+function createTextNoteEntry(title, description) {
+  const trimmedTitle = title.trim();
+  const trimmedDescription = description.trim();
+  const content = [trimmedTitle, trimmedDescription].filter(Boolean).join("\n\n");
+  const dataUrl = `data:text/plain;charset=utf-8,${encodeURIComponent(content)}`;
+
+  return {
+    id: crypto.randomUUID(),
+    title: trimmedTitle,
+    description: trimmedDescription,
+    fileName: `${
+      trimmedTitle.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "note"
+    }.txt`,
+    fileType: "text/plain",
+    fileSize: new Blob([content]).size,
+    dataUrl,
+    uploadedAt: new Date().toISOString()
+  };
+}
+
 async function convertFilesToNoteEntries(files, title, description) {
   const entries = await Promise.all(
     files.map(
@@ -135,17 +163,19 @@ export function ClassNotesPage() {
   async function handleUpload(event) {
     event.preventDefault();
 
-    if (!form.files.length) {
-      setUploadStatus("Choose at least one file to upload.");
+    if (!form.title.trim()) {
+      setUploadStatus("Add a title before uploading notes.");
       return;
     }
 
     try {
-      const nextEntries = await convertFilesToNoteEntries(
-        form.files,
-        form.title,
-        form.description
-      );
+      const nextEntries = form.files.length
+        ? await convertFilesToNoteEntries(
+            form.files,
+            form.title,
+            form.description
+          )
+        : [createTextNoteEntry(form.title, form.description)];
       const nextNotes = [ ...nextEntries, ...notes ];
       setNotes(nextNotes);
       saveClassNotes(classId, nextNotes);
@@ -234,7 +264,7 @@ export function ClassNotesPage() {
         <section className="class-notes-heading">
           <h1>Class Notes</h1>
           <p className="course-meta">
-            {classroom.subjectName} • {classroom.subjectCode} • {classroom.section}
+            {classroom.subjectName} • {classroom.subjectCode}
           </p>
         </section>
 
@@ -250,7 +280,9 @@ export function ClassNotesPage() {
             <form className="class-notes-form" onSubmit={handleUpload}>
               <div className="class-notes-form-grid">
                 <label className="field">
-                  <span>Title</span>
+                  <span>
+                    Title <RequiredMark />
+                  </span>
                   <input
                     type="text"
                     value={form.title}
@@ -261,6 +293,7 @@ export function ClassNotesPage() {
                       }))
                     }
                     placeholder="Unit 1 Notes"
+                    required
                   />
                 </label>
 
@@ -325,14 +358,6 @@ export function ClassNotesPage() {
                   </div>
 
                   <div className="class-note-actions">
-                    <a
-                      className="secondary-button"
-                      href={note.dataUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Open
-                    </a>
                     <a
                       className="ghost-button"
                       href={note.dataUrl}

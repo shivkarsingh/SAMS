@@ -23,6 +23,13 @@ export function LoginForm({ form, status, onChange, onRoleChange, onSubmit }) {
         >
           Teacher
         </button>
+        <button
+          className={form.role === "admin" ? "role-tab active" : "role-tab"}
+          type="button"
+          onClick={() => onRoleChange("admin")}
+        >
+          Admin
+        </button>
       </div>
 
       <div className="form-grid single-column">
@@ -32,7 +39,13 @@ export function LoginForm({ form, status, onChange, onRoleChange, onSubmit }) {
             name="userId"
             value={form.userId}
             onChange={onChange}
-            placeholder={form.role === "teacher" ? "TCH-1001" : "STU-1001"}
+            placeholder={
+              form.role === "admin"
+                ? "user"
+                : form.role === "teacher"
+                  ? "TCH-1001"
+                  : "STU-1001"
+            }
             required
           />
         </label>
@@ -55,10 +68,16 @@ export function LoginForm({ form, status, onChange, onRoleChange, onSubmit }) {
 
       {status.message ? <p className="form-message">{status.message}</p> : null}
 
-      <p className="auth-switch-copy">
-        Need an account? <a href="#/signup">Create one here</a>
-      </p>
+      {form.role !== "admin" ? (
+        <>
+          <p className="auth-switch-copy">
+            Need an account? <a href="#/signup">Create one here</a>
+          </p>
+          <p className="auth-switch-copy auth-secondary-link">
+            Forgot password? <a href="#/reset-password">Reset it here</a>
+          </p>
+        </>
+      ) : null}
     </form>
   );
 }
-

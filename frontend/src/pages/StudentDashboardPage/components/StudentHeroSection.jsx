@@ -5,9 +5,13 @@ export function StudentHeroSection({
   onReviewPerformance,
   onOpenSchedule,
   onOpenClassrooms,
-  onOpenFaceEnrollment
+  onOpenFaceEnrollment,
+  onOpenNotifications
 }) {
   const hasJoinedClasses = profile.joinedClassesCount > 0;
+  const recordedLabel = overview.totalRecordedSessions
+    ? `${overview.attendedSessions}/${overview.totalRecordedSessions} sessions attended`
+    : "No attendance recorded yet";
 
   return (
     <section className="dashboard-hero" id="overview">
@@ -15,34 +19,34 @@ export function StudentHeroSection({
         <div className="dashboard-kicker-row">
           <span className="pill">Student Dashboard</span>
           <span className="dashboard-status-tag">
-            {overview.overallAttendance}% overall attendance
+            {overview.joinedClasses} class{overview.joinedClasses === 1 ? "" : "es"} joined
           </span>
         </div>
 
         <h1>
           Welcome back, {profile.firstName}.{" "}
           {hasJoinedClasses
-            ? "Your attendance story is taking shape."
-            : "Let&apos;s get your classroom setup ready."}
+            ? "Your class plan is ready."
+            : "Let's get your classroom setup ready."}
         </h1>
         <p>
           {hasJoinedClasses
-            ? "Keep your best classes ahead, protect weaker subjects early, and use this workspace to stay on top of schedule, ranking, and attendance momentum."
+            ? `${recordedLabel}. Check weak subjects first, open each class for history, and use the safe-range projections before the next session.`
             : "Join your classes, then open the dedicated face enrollment page to capture or upload your setup images before attendance begins."}
         </p>
 
         <div className="dashboard-profile-strip">
           <div>
             <span>ID</span>
-            <strong>{profile.userId}</strong>
+            <strong>{profile.rollNumber || profile.userId}</strong>
           </div>
           <div>
             <span>Department</span>
-            <strong>{profile.department}</strong>
+            <strong>{profile.department || "TBD"}</strong>
           </div>
           <div>
             <span>Batch</span>
-            <strong>{profile.batch}</strong>
+            <strong>{profile.batch || profile.yearOfPassing || "TBD"}</strong>
           </div>
           <div>
             <span>Face Profile</span>
@@ -65,6 +69,9 @@ export function StudentHeroSection({
           <button className="secondary-button large" type="button" onClick={onOpenSchedule}>
             See Today's Schedule
           </button>
+          <button className="secondary-button large" type="button" onClick={onOpenNotifications}>
+            Open Notifications
+          </button>
         </div>
       </article>
 
@@ -83,24 +90,20 @@ export function StudentHeroSection({
 
         <div className="spotlight-metrics">
           <div className="spotlight-metric">
-            <span>Class Rank</span>
-            <strong>
-              {overview.classRank
-                ? `#${overview.classRank}/${overview.totalStudentsInCohort}`
-                : "TBD"}
-            </strong>
+            <span>Joined Classes</span>
+            <strong>{overview.joinedClasses}</strong>
           </div>
           <div className="spotlight-metric">
-            <span>Consistency Score</span>
-            <strong>{overview.consistencyScore}/100</strong>
+            <span>Present</span>
+            <strong>{overview.attendedSessions}</strong>
           </div>
           <div className="spotlight-metric">
-            <span>Current Streak</span>
-            <strong>{overview.attendanceStreak} days</strong>
+            <span>Absent</span>
+            <strong>{overview.missedSessions}</strong>
           </div>
           <div className="spotlight-metric">
-            <span>Missed This Month</span>
-            <strong>{overview.missedClassesThisMonth}</strong>
+            <span>Below Range</span>
+            <strong>{overview.belowRangeClasses}</strong>
           </div>
         </div>
       </article>

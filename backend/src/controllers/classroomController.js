@@ -7,12 +7,8 @@ function hasRequiredClassFields(payload) {
   return [
     "subjectName",
     "subjectCode",
-    "section",
-    "room",
-    "semesterLabel",
-    "academicYear",
-    "scheduleSummary"
-  ].every((field) => payload?.[field] !== undefined && payload?.[field] !== "");
+    "semesterLabel"
+  ].every((field) => String(payload?.[field] ?? "").trim() !== "");
 }
 
 export async function createTeacherClass(request, response) {

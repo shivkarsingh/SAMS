@@ -12,7 +12,7 @@ export function StudentScheduleSection({ upcomingClasses, weeklySchedule }) {
         <div className="timeline-list">
           {upcomingClasses.length ? (
             upcomingClasses.map((item) => (
-              <article key={`${item.title}-${item.time}`} className="timeline-card">
+              <article key={item.id ?? `${item.title}-${item.time}`} className="timeline-card">
                 <div className="timeline-time">
                   <strong>{item.time}</strong>
                   <span>{item.status}</span>
@@ -44,11 +44,23 @@ export function StudentScheduleSection({ upcomingClasses, weeklySchedule }) {
             <div key={day.day} className="schedule-day-card">
               <strong>{day.day}</strong>
               <div className="schedule-pill-list">
-                {day.items.map((item) => (
-                  <span key={item} className="schedule-pill">
-                    {item}
-                  </span>
-                ))}
+                {day.items.length ? (
+                  day.items.map((item) => (
+                    <span key={item.id ?? `${day.day}-${item}`} className="schedule-pill schedule-pill-detail">
+                      {typeof item === "string" ? (
+                        item
+                      ) : (
+                        <>
+                          <strong>{item.code}</strong>
+                          <span>{item.time}</span>
+                          <small>{item.room}</small>
+                        </>
+                      )}
+                    </span>
+                  ))
+                ) : (
+                  <span className="schedule-pill muted">No class</span>
+                )}
               </div>
             </div>
           ))}

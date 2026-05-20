@@ -1,0 +1,221 @@
+\chapter{System Design and Architecture}
+\label{chap:architecture}
+
+System design explains how the requirements are divided into cooperating parts. \productname{} follows a three-service architecture: a React frontend for user interaction, an Express backend for business rules and persistence, and a FastAPI AI service for face recognition. MongoDB stores the application data. This separation keeps the browser simple, keeps security-sensitive work inside the backend, and keeps machine learning code independent from normal web application code.
+
+\section{Architectural Principles}
+
+The design follows five practical principles. First, the backend is the source of truth. The frontend can display data and collect input, but it should not decide final attendance rules or directly contact the AI service. Second, AI should assist rather than replace teacher review. Third, every important academic event should be traceable: attendance finalization, leave approval, email delivery and exam eligibility are represented in backend records. Fourth, sensitive configuration must stay in environment variables and must never be included in source reports. Fifth, dashboards should present summarized information because students and teachers need decisions, not only raw tables.
+
+\section{Overall Architecture}
+
+Figure~\ref{fig:repo-architecture} shows the system architecture used by the project. The browser communicates only with the backend REST API. The backend validates requests, reads or writes MongoDB documents, sends email through SMTP and forwards recognition jobs to the AI service. The AI service loads face detection and recognition models and returns structured results.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.96\textwidth]{markin-system-architecture-workflow.png}
+\caption{Overall MarkIn/SAMS architecture and workflow}
+\label{fig:repo-architecture}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+box/.style={draw, rounded corners, align=center, minimum height=1cm, minimum width=3.1cm, fill=blue!6},
+store/.style={draw, cylinder, shape border rotate=90, aspect=0.22, align=center, minimum height=1.2cm, minimum width=2.5cm, fill=green!8},
+svc/.style={draw, rounded corners, align=center, minimum height=1cm, minimum width=3.2cm, fill=orange!10},
+arrow/.style={-Latex, thick}
+]
+\node[box] (ui) {React Frontend\\Dashboards and pages};
+\node[svc, right=2.6cm of ui] (api) {Express Backend\\REST API and rules};
+\node[svc, right=2.6cm of api] (ai) {FastAPI AI Service\\Face detection and recognition};
+\node[store, below=1.7cm of api] (db) {MongoDB\\Application data};
+\node[svc, below=1.7cm of ai] (smtp) {SMTP Email\\OTP and alerts};
+\draw[arrow] (ui) -- node[above]{HTTP JSON} (api);
+\draw[arrow] (api) -- node[above]{Inference job} (ai);
+\draw[arrow] (api) -- node[left]{CRUD} (db);
+\draw[arrow] (api) -- node[right]{Queued mail} (smtp);
+\draw[arrow] (ai) -- node[below]{Recognition result} (api);
+\end{tikzpicture}
+\caption{Service-level communication}
+\label{fig:service-communication}
+\end{figure}
+
+\section{Frontend Design}
+
+The frontend is built with React and JavaScript. It contains separate pages for the home page, authentication, student dashboard, student tools, student class detail, face enrollment, QR attendance, teacher dashboard, teacher class creation, teacher profile and teacher classroom students. The frontend service layer in \texttt{frontend/src/services/api.js} centralizes API calls so that pages do not duplicate endpoint strings and error handling.
+
+The frontend design is role-oriented. After login, a student sees attendance health, classes joined, upcoming exams, notification count and tools such as the attendance calculator. The class detail page gives a separate view for each class, including attendance history, schedule and leave proof form. A teacher sees classes, schedule, student lists, attendance controls, Today Attendance Data and leave reviews.
+
+\section{Backend Design}
+
+The backend is built with Express and Mongoose. It exposes REST endpoints under the API router. Controllers receive requests and services contain reusable business logic. Models define MongoDB schemas. This separation allows the project to grow without placing all logic inside routes.
+
+\begin{table}[H]
+\centering
+\caption{Backend layer responsibilities}
+\label{tab:backend-layers}
+\begin{tabularx}{\textwidth}{p{3.2cm} X X}
+\toprule
+\textbf{Layer} & \textbf{Examples} & \textbf{Responsibility}\\
+\midrule
+Routes & \texttt{backend/src/routes/index.js} & Maps URL paths and HTTP verbs to controllers.\\
+Controllers & Auth, student, teacher, classroom and attendance controllers & Validate request shape, call services and return JSON responses.\\
+Services & Email, attendance, dashboard, leave, exam and AI gateway services & Implement business rules, calculations and integrations.\\
+Models & User, Classroom, AttendanceRecord, AttendanceDraft and others & Define persistent document structure and indexes.\\
+Configuration & Environment and database configuration & Loads safe runtime settings and connects to MongoDB.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{AI Service Design}
+
+The AI service is separated from the backend because face recognition has different dependencies and lifecycle needs. It is written with FastAPI and contains routes, services, pipelines, storage helpers and schemas. The relevant pipelines include enrollment, live verification and classroom attendance. The system can use InsightFace model packs such as Antelopev2 or Buffalo\_L, depending on available local assets.
+
+In the attendance workflow, the backend sends classroom images and enrolled face profiles to the AI service. The AI service detects faces, extracts embeddings, compares them with enrolled student profiles and returns a result with matched students, unmatched faces and confidence notes. The teacher sees useful verification notes rather than every raw internal score.
+
+\section{Database Design}
+
+MongoDB stores the state of the system as collections. A simplified entity relationship view is shown in Figure~\ref{fig:er-diagram}. Although MongoDB is document-oriented, the application still has relationships through ids such as \texttt{classId}, \texttt{studentUserId} and \texttt{teacherUserId}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+entity/.style={draw, rounded corners, align=left, text width=3.6cm, fill=gray!6, inner sep=7pt},
+rel/.style={-Latex, thick}
+]
+\node[entity] (user) {\textbf{User}\\userId\\role\\email\\emailVerified};
+\node[entity, right=2.7cm of user] (class) {\textbf{Classroom}\\classId\\teacherUserId\\subject\\schedule};
+\node[entity, below=1.5cm of user] (member) {\textbf{ClassMembership}\\classId\\studentUserId\\status};
+\node[entity, right=2.7cm of member] (record) {\textbf{AttendanceRecord}\\classId\\studentId\\status\\recordedAt};
+\node[entity, below=1.5cm of member] (leave) {\textbf{LeaveRequest}\\classId\\studentUserId\\attachments\\status};
+\node[entity, right=2.7cm of leave] (exam) {\textbf{ClassExam}\\classId\\examDate\\requiredPercentage};
+\node[entity, below=1.5cm of user] (face) at ($(user)+(0,-4.5)$) {\textbf{FaceProfile}\\studentId\\embedding metadata\\enrollment status};
+\node[entity, below=1.5cm of record] (draft) {\textbf{AttendanceDraft}\\classId\\records\\finalizeAt};
+\node[entity, below=1.5cm of exam] (mail) {\textbf{EmailDeliveryLog}\\templateName\\recipient\\status\\notificationKey};
+\draw[rel] (user) -- node[above]{teacher owns} (class);
+\draw[rel] (user) -- node[left]{student joins} (member);
+\draw[rel] (class) -- node[right]{has roster} (member);
+\draw[rel] (class) -- node[above]{has final records} (record);
+\draw[rel] (member) -- (record);
+\draw[rel] (member) -- (leave);
+\draw[rel] (class) -- (exam);
+\draw[rel] (user) -- (face);
+\draw[rel] (draft) -- (record);
+\draw[rel] (mail) -- (user);
+\end{tikzpicture}
+\caption{Simplified database/entity relationship diagram}
+\label{fig:er-diagram}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\caption{Database collection summary}
+\label{tab:collection-summary}
+\begin{tabularx}{\textwidth}{p{3.6cm} X}
+\toprule
+\textbf{Collection} & \textbf{Purpose}\\
+\midrule
+\texttt{users} & Stores student and teacher accounts, profile details and email verification state.\\
+\texttt{classrooms} & Stores class identity, teacher ownership, schedule, room and join code.\\
+\texttt{classmemberships} & Stores student membership in classes.\\
+\texttt{attendancerecords} & Stores finalized attendance entries used for analytics.\\
+\texttt{attendancedrafts} & Stores Today Attendance Data before final submission.\\
+\texttt{faceprofiles} & Stores face enrollment metadata for student recognition.\\
+\texttt{leaverequests} & Stores medical or leave proof, attachments and teacher review state.\\
+\texttt{classexams} & Stores exam dates and required attendance percentages.\\
+\texttt{emailotps} & Stores temporary OTP entries with expiry and purpose.\\
+\texttt{emaildeliverylogs} & Stores email delivery attempts, status and errors.\\
+\texttt{qrattendancesessions} & Stores QR session windows and class attendance scan state.\\
+\texttt{classassignments} & Stores assignments created by teachers.\\
+\texttt{classassignmentsubmissions} & Stores student assignment submissions.\\
+\texttt{classdiscussionmessages} & Stores class discussion posts, replies and reactions.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Today Attendance Data Design}
+
+The Today Attendance Data feature is one of the most important project workflows. The design avoids a common weakness of automatic attendance systems: immediately writing AI output as final attendance. Instead, the backend creates a draft. The draft has a list of present and absent students, recognition notes, source photos, timestamps and finalization status. The draft remains editable for the teacher. The system can send absence notifications as soon as the draft is created, but final records are written only when the teacher finalizes or the automatic finalization period expires.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+flowstep/.style={draw, rounded corners, align=center, minimum width=3cm, minimum height=1cm, fill=blue!6},
+warn/.style={draw, rounded corners, align=center, minimum width=3cm, minimum height=1cm, fill=yellow!20},
+done/.style={draw, rounded corners, align=center, minimum width=3cm, minimum height=1cm, fill=green!12},
+arrow/.style={-Latex, thick}
+]
+\node[flowstep] (photo) {Teacher captures\\attendance photo};
+\node[flowstep, right=1.5cm of photo] (ai) {AI suggests\\present students};
+\node[warn, right=1.5cm of ai] (draft) {Today Attendance\\Data draft};
+\node[warn, below=1.2cm of draft] (email) {Absentees receive\\early email alert};
+\node[flowstep, left=1.5cm of email] (review) {Teacher adds\\or removes names};
+\node[done, left=1.5cm of review] (final) {Final attendance\\records saved};
+\draw[arrow] (photo) -- (ai);
+\draw[arrow] (ai) -- (draft);
+\draw[arrow] (draft) -- (email);
+\draw[arrow] (draft) -- (review);
+\draw[arrow] (review) -- (final);
+\draw[arrow, dashed] (draft) .. controls +(0,-2.6) and +(1.4,-1.2) .. node[below]{auto after delay} (final);
+\end{tikzpicture}
+\caption{Today Attendance Data draft and finalization flow}
+\label{fig:today-attendance-flow}
+\end{figure}
+
+\section{Email Notification Architecture}
+
+Email is handled by a dedicated backend module using Nodemailer. The service is configurable through environment variables. Email sending is disabled by default in development unless explicitly enabled. When enabled, the service verifies SMTP connectivity, uses professional templates and records delivery status. The email module does not print credentials in status responses.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+box/.style={draw, rounded corners, align=center, minimum width=3.1cm, minimum height=1cm, fill=purple!6},
+queue/.style={draw, rounded corners, align=center, minimum width=3.1cm, minimum height=1cm, fill=orange!10},
+arrow/.style={-Latex, thick}
+]
+\node[box] (event) {Academic event\\OTP, absence, leave};
+\node[box, right=1.4cm of event] (template) {Template builder\\subject and body};
+\node[queue, right=1.4cm of template] (queue) {Email queue\\retry and concurrency};
+\node[box, below=1.2cm of queue] (smtp) {SMTP provider\\Gmail or sandbox};
+\node[box, left=1.4cm of smtp] (log) {Delivery log\\safe status};
+\node[box, left=1.4cm of log] (dashboard) {Status endpoint\\operator check};
+\draw[arrow] (event) -- (template);
+\draw[arrow] (template) -- (queue);
+\draw[arrow] (queue) -- (smtp);
+\draw[arrow] (smtp) -- (log);
+\draw[arrow] (log) -- (dashboard);
+\end{tikzpicture}
+\caption{Email notification flow}
+\label{fig:email-flow}
+\end{figure}
+
+\section{Security Design}
+
+The most important security decisions are simple and practical. Credentials stay in backend environment variables. The frontend never receives SMTP password, database URL or AI model paths. The email status endpoint returns only safe information such as enabled state, host name, sender and verification status. OTP records have an expiry time. Profile email updates require OTP verification. Leave attachments are shown through controlled application data rather than requiring teachers to download files blindly.
+
+For a production version, this design should be extended with stronger session management, role-based middleware, rate limits for OTP requests, file size restrictions, antivirus scanning for uploaded documents and more detailed audit logs. The current design already keeps the main sensitive values away from public pages and report content.
+
+\section{API Design Style}
+
+The REST API uses resource-oriented routes. For example, student dashboard data is requested using a student id, teacher class actions use teacher id and class id, and leave review uses request id. This makes URLs readable and helps map actions to the user role.
+
+\begin{table}[H]
+\centering
+\caption{Representative API design examples}
+\label{tab:api-design-examples}
+\begin{tabularx}{\textwidth}{p{2.3cm} p{5.4cm} X}
+\toprule
+\textbf{Method} & \textbf{Path} & \textbf{Purpose}\\
+\midrule
+GET & \texttt{/api/v1/students/:userId/dashboard} & Load student analytics, classes, notifications and exam information.\\
+POST & \texttt{/api/v1/students/:studentId/classes/join} & Join a class using a teacher-provided join code.\\
+POST & \texttt{/api/v1/teachers/:teacherId/classes/:classId/attendance/session} & Process AI-assisted photo attendance and create a Today Attendance Data draft.\\
+PATCH & \texttt{/api/v1/teachers/:teacherId/classes/:classId/attendance/today-draft/:draftId} & Edit a draft by adding or removing students before final submission.\\
+POST & \texttt{/api/v1/teachers/:teacherId/classes/:classId/attendance/today-draft/:draftId/finalize} & Convert a draft into final attendance records.\\
+PATCH & \texttt{/api/v1/teachers/:teacherId/classes/:classId/exam} & Set or update exam date and required attendance percentage.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+This chapter explained how the system is arranged. The next chapter explains how these designs are implemented in code.

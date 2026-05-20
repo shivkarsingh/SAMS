@@ -169,13 +169,10 @@ class ClassroomAttendancePipeline:
             if student.personId not in auto_present_set
         ]
 
-        notes = [
-            "Classroom capture processed successfully.",
-            "Recognition is restricted to the roster sent with this class session.",
-        ]
-        if len(payload.captureImages) == 1 and payload.minimumTrackFrames > 1:
+        notes: list[str] = []
+        if not tracks:
             notes.append(
-                "A single classroom image was provided, so the track-frame requirement was relaxed to allow still-image multi-face attendance."
+                "No faces were detected. Use a clearer classroom image and run verification again."
             )
 
         missing_enrollments = [
@@ -193,17 +190,16 @@ class ClassroomAttendancePipeline:
         ]
         if missing_enrollments:
             notes.append(
-                "Some roster members do not have enrolled face profiles yet: "
-                + ", ".join(missing_enrollments)
+                "Missing face profiles: "
+                + self._format_student_list(missing_enrollments)
+                + "."
             )
         if incompatible_enrollments:
             notes.append(
-                "Some roster members were enrolled with an older or incompatible embedding model and must be re-enrolled: "
-                + ", ".join(incompatible_enrollments)
+                "Needs face re-enrollment: "
+                + self._format_student_list(incompatible_enrollments)
+                + "."
             )
-        notes.append(
-            "Classroom recognition used real InsightFace multi-face detection and ArcFace matching."
-        )
 
         response = ClassroomRecognitionResponse(
             sessionId=payload.sessionId,
@@ -276,6 +272,17 @@ class ClassroomAttendancePipeline:
         roster_ids = {student["personId"] for student in roster}
         confirmed_present_ids = self._dedupe_ids(payload.confirmedPresentIds)
         manually_added_present_ids = self._dedupe_ids(payload.manuallyAddedPresentIds)
+        review_present_ids = self._review_person_ids(session_record, rejected_track_ids)
+        invalid_confirmed_ids = sorted(set(confirmed_present_ids) - review_present_ids)
+        if invalid_confirmed_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Confirmed review IDs must come from the active low-confidence review queue. "
+                    "Invalid person ID(s): "
+                    + ", ".join(invalid_confirmed_ids)
+                ),
+            )
         out_of_roster_ids = sorted(
             (set(confirmed_present_ids) | set(manually_added_present_ids))
             - roster_ids
@@ -296,8 +303,10 @@ class ClassroomAttendancePipeline:
             if student["status"] == "present-suggested"
             and student["trackId"] not in rejected_track_ids
         }
-        confirmed_present_id_set = set(confirmed_present_ids)
-        manually_added_present_id_set = set(manually_added_present_ids)
+        confirmed_present_id_set = set(confirmed_present_ids) - auto_present_ids
+        manually_added_present_id_set = set(manually_added_present_ids) - (
+            auto_present_ids | confirmed_present_id_set
+        )
         present_ids = sorted(
             auto_present_ids | confirmed_present_id_set | manually_added_present_id_set
         )
@@ -318,7 +327,7 @@ class ClassroomAttendancePipeline:
                         "confidence"
                     ]
 
-        for person_id in confirmed_present_ids:
+        for person_id in confirmed_present_id_set:
             source_by_person_id[person_id] = "teacher-confirmed"
             confidence = self._confidence_for_person(
                 person_id,
@@ -328,7 +337,7 @@ class ClassroomAttendancePipeline:
             if confidence is not None:
                 confidence_by_person_id[person_id] = confidence
 
-        for person_id in manually_added_present_ids:
+        for person_id in manually_added_present_id_set:
             source_by_person_id[person_id] = "manual-add"
 
         records = [
@@ -383,6 +392,16 @@ class ClassroomAttendancePipeline:
             faceRecognition=self.face_recognition_service.active_face_recognition_model(),
         )
 
+    def _format_student_list(self, names: list[str], limit: int = 5) -> str:
+        visible_names = names[:limit]
+        hidden_count = len(names) - len(visible_names)
+        formatted_names = ", ".join(visible_names)
+
+        if hidden_count <= 0:
+            return formatted_names
+
+        return f"{formatted_names}, and {hidden_count} more"
+
     def _select_identity_winners(
         self,
         outcomes: list[RecognitionOutcome],
@@ -423,6 +442,17 @@ class ClassroomAttendancePipeline:
                     track_ids.add(track_id)
 
         return track_ids
+
+    def _review_person_ids(
+        self,
+        session_record: dict,
+        rejected_track_ids: set[str],
+    ) -> set[str]:
+        return {
+            item["personId"]
+            for item in session_record.get("reviewQueue", [])
+            if item.get("personId") and item.get("trackId") not in rejected_track_ids
+        }
 
     def _dedupe_ids(self, person_ids: list[str]) -> list[str]:
         deduped: list[str] = []

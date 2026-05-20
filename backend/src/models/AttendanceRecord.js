@@ -27,6 +27,13 @@ const attendanceRecordSchema = new mongoose.Schema(
       trim: true,
       default: ""
     },
+    rollNumber: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      index: true,
+      default: ""
+    },
     classId: {
       type: String,
       required: true,
@@ -40,7 +47,7 @@ const attendanceRecordSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["present", "absent", "late"],
+      enum: ["present", "absent", "late", "cancelled"],
       default: "present"
     },
     verificationMethod: {
@@ -57,7 +64,14 @@ const attendanceRecordSchema = new mongoose.Schema(
     },
     source: {
       type: String,
-      enum: ["ai-auto", "teacher-confirmed", "manual-add", "system-derived"],
+      enum: [
+        "ai-auto",
+        "teacher-confirmed",
+        "manual-add",
+        "manual",
+        "class-cancelled",
+        "system-derived"
+      ],
       default: "teacher-confirmed"
     },
     confidence: {
@@ -67,6 +81,11 @@ const attendanceRecordSchema = new mongoose.Schema(
     recordedAt: {
       type: Date,
       default: Date.now
+    },
+    notes: {
+      type: String,
+      trim: true,
+      default: ""
     }
   },
   {

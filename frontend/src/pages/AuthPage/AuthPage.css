@@ -26,9 +26,9 @@
 
 .auth-page-intro h1 {
   margin: 0 0 14px;
-  font-size: clamp(2.2rem, 4vw, 4rem);
+  font-size: 3.45rem;
   line-height: 0.98;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
 }
 
 .auth-page-intro p,
@@ -62,6 +62,36 @@
   margin-bottom: 20px;
 }
 
+.role-tab:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+.reset-step-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.reset-step-strip span {
+  min-height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 999px;
+  color: #9caecc;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.reset-step-strip span.active {
+  border-color: rgba(103, 232, 249, 0.44);
+  background: rgba(103, 232, 249, 0.12);
+  color: #f8fafc;
+}
+
 .role-note {
   margin-bottom: 20px;
   padding: 16px 18px;
@@ -92,6 +122,14 @@
   grid-column: span 2;
 }
 
+.field .required-marker {
+  margin-left: 6px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fb7185;
+  line-height: 1;
+}
+
 .submit-button {
   width: 100%;
   margin-top: 20px;
@@ -101,8 +139,87 @@
   margin: 16px 0 0;
 }
 
+.auth-otp-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid rgba(103, 232, 249, 0.18);
+  border-radius: 18px;
+  background: rgba(103, 232, 249, 0.06);
+}
+
+.auth-otp-panel strong {
+  color: #f8fafc;
+}
+
+.auth-email-verify-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(103, 232, 249, 0.18);
+  border-radius: 16px;
+  background: rgba(103, 232, 249, 0.06);
+}
+
+.auth-email-verify-panel.verified {
+  border-color: rgba(134, 239, 172, 0.24);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.email-verified-badge,
+.auth-email-verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #86efac;
+  font-weight: 900;
+}
+
+.field span .email-verified-badge {
+  margin-left: 10px;
+  font-size: 0.82rem;
+}
+
+.auth-email-verified {
+  min-height: 42px;
+}
+
+.email-verified-badge span,
+.auth-email-verified span {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.16);
+  color: #bbf7d0;
+}
+
+.auth-otp-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.reset-otp-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.reset-otp-actions .ghost-button {
+  grid-column: 1 / -1;
+  justify-content: center;
+}
+
 .auth-switch-copy {
   margin: 18px 0 0;
+}
+
+.auth-secondary-link {
+  margin-top: 8px;
 }
 
 .auth-switch-copy a {
@@ -142,6 +259,10 @@
 }
 
 @media (max-width: 720px) {
+  .auth-page-intro h1 {
+    font-size: 2.55rem;
+  }
+
   .form-grid {
     grid-template-columns: 1fr;
   }

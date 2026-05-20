@@ -1,0 +1,349 @@
+.class-discussion-shell {
+  padding-top: 34px;
+}
+
+.class-discussion-heading h1 {
+  margin: 0;
+  font-size: 3.4rem;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.class-discussion-heading .course-meta {
+  margin-top: 12px;
+}
+
+.class-discussion-comments-panel {
+  display: grid;
+  gap: 22px;
+  max-width: 980px;
+  margin: 22px auto 0;
+}
+
+.class-discussion-comments-header,
+.class-discussion-tools,
+.comment-compose-actions,
+.comment-actions,
+.comment-reply-actions {
+  display: flex;
+  align-items: center;
+}
+
+.class-discussion-comments-header {
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.class-discussion-comments-header h2 {
+  margin: 8px 0 0;
+  color: #f8fafc;
+  font-size: 1.14rem;
+  line-height: 1.2;
+}
+
+.class-discussion-tools {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.discussion-role-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.discussion-role-filter button,
+.comment-filter-clear,
+.comment-action {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #9fb0cc;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.discussion-role-filter button {
+  min-height: 34px;
+  padding: 7px 13px;
+  text-transform: capitalize;
+}
+
+.discussion-role-filter button:hover,
+.discussion-role-filter button.active,
+.comment-filter-clear:hover,
+.comment-action:hover,
+.comment-action.active {
+  background: rgba(255, 255, 255, 0.09);
+  color: #f8fafc;
+}
+
+.discussion-name-filter {
+  flex: 1 1 260px;
+  max-width: 420px;
+}
+
+.discussion-name-filter input {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 15px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.045);
+  color: #f4f7fb;
+  outline: none;
+}
+
+.discussion-name-filter input:focus {
+  border-color: rgba(103, 232, 249, 0.45);
+  box-shadow: 0 0 0 4px rgba(103, 232, 249, 0.08);
+}
+
+.comment-filter-clear {
+  min-height: 36px;
+  padding: 7px 12px;
+}
+
+.class-discussion-form,
+.class-discussion-message,
+.comment-reply-form,
+.comment-reply {
+  display: grid;
+  align-items: start;
+}
+
+.class-discussion-form {
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 12px 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.class-discussion-form .field,
+.comment-reply-form .field {
+  gap: 0;
+}
+
+.class-discussion-form textarea,
+.comment-reply-form textarea {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0;
+  background: transparent;
+  color: #f4f7fb;
+  outline: none;
+  resize: vertical;
+}
+
+.class-discussion-form textarea {
+  min-height: 46px;
+  padding: 7px 0 11px;
+}
+
+.comment-reply-form textarea {
+  min-height: 34px;
+  padding: 4px 0 8px;
+}
+
+.class-discussion-form textarea:focus,
+.comment-reply-form textarea:focus {
+  border-color: rgba(244, 247, 251, 0.82);
+  box-shadow: none;
+}
+
+.comment-compose-actions {
+  grid-column: 2;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.comment-post-status {
+  grid-column: 2;
+}
+
+.comment-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #334155;
+  color: #f8fafc;
+  font-size: 0.86rem;
+  font-weight: 900;
+  flex: 0 0 auto;
+}
+
+.own-avatar {
+  background: #0891b2;
+}
+
+.comment-reply-avatar {
+  width: 32px;
+  height: 32px;
+  font-size: 0.72rem;
+}
+
+.class-discussion-list {
+  display: grid;
+  gap: 20px;
+}
+
+.class-discussion-message {
+  grid-template-columns: 42px minmax(0, 1fr);
+  column-gap: 14px;
+  row-gap: 7px;
+  padding: 4px 0 2px;
+}
+
+.class-discussion-message-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.class-discussion-message-head strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #f8fafc;
+  font-size: 0.95rem;
+}
+
+.class-discussion-message-head span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #8ea0bd;
+  font-size: 0.82rem;
+}
+
+.comment-role {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd7ea !important;
+  font-size: 0.72rem !important;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.own-comment-label {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(103, 232, 249, 0.11);
+  color: #bae6fd !important;
+  font-size: 0.72rem !important;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.class-discussion-message p,
+.comment-reply-body p {
+  margin: 0;
+  color: #e5edf8;
+  line-height: 1.58;
+  white-space: pre-wrap;
+}
+
+.class-discussion-message > p,
+.comment-actions,
+.comment-reply-form,
+.comment-replies {
+  grid-column: 2;
+}
+
+.comment-actions {
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.comment-action {
+  min-height: 32px;
+  padding: 6px 10px;
+}
+
+.comment-reply-form {
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 9px 11px;
+  margin-top: 2px;
+  padding: 10px 0 4px;
+}
+
+.comment-reply-actions {
+  grid-column: 2;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.comment-replies {
+  display: grid;
+  gap: 12px;
+  margin-top: 2px;
+  padding: 12px 0 0 14px;
+  border-left: 2px solid rgba(255, 255, 255, 0.08);
+}
+
+.comment-replies-count {
+  color: #7dd3fc;
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.comment-reply {
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.comment-reply-body {
+  display: grid;
+  gap: 6px;
+}
+
+@media (max-width: 720px) {
+  .class-discussion-heading h1 {
+    font-size: 2.5rem;
+  }
+
+  .class-discussion-comments-panel {
+    margin-top: 18px;
+  }
+
+  .class-discussion-comments-header,
+  .class-discussion-tools {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .discussion-role-filter,
+  .discussion-name-filter {
+    width: 100%;
+    max-width: none;
+  }
+
+  .discussion-role-filter {
+    justify-content: space-between;
+  }
+
+  .class-discussion-message-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .comment-compose-actions,
+  .comment-reply-actions {
+    justify-content: flex-start;
+  }
+}
