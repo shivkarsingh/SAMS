@@ -1,35 +1,40 @@
-export function StudentSummaryGrid({ dashboard, performanceLeader }) {
+export function StudentSummaryGrid({ dashboard }) {
   return (
     <section className="dashboard-summary-grid">
       <article className="glass-card summary-card">
         <span className="metric-eyebrow">Classes Joined</span>
         <strong>{dashboard.overview.joinedClasses}</strong>
         <p>
-          {dashboard.overview.recordedClasses} class
-          {dashboard.overview.recordedClasses === 1 ? "" : "es"} have attendance records.
+          {dashboard.overview.noRecordClasses
+            ? `${dashboard.overview.noRecordClasses} waiting for first attendance.`
+            : "All joined classes are active on your dashboard."}
         </p>
       </article>
       <article className="glass-card summary-card">
-        <span className="metric-eyebrow">Overall Attendance</span>
-        <strong>{dashboard.overview.overallAttendance}%</strong>
+        <span className="metric-eyebrow">Below Range</span>
+        <strong>{dashboard.overview.belowRangeClasses}</strong>
         <p>
-          {dashboard.overview.safeClasses} safe, {dashboard.overview.belowRangeClasses} below range.
+          {dashboard.overview.belowRangeClasses
+            ? "Review class performance from tools."
+            : "No recorded class is below range."}
         </p>
       </article>
       <article className="glass-card summary-card">
-        <span className="metric-eyebrow">Present / Total</span>
-        <strong>
-          {dashboard.overview.attendedSessions}/{dashboard.overview.totalRecordedSessions}
-        </strong>
-        <p>{dashboard.overview.missedSessions} absent overall, {dashboard.overview.missedClassesThisMonth} this month.</p>
+        <span className="metric-eyebrow">Safe Range</span>
+        <strong>{dashboard.overview.safeClasses}</strong>
+        <p>
+          {dashboard.overview.recordedClasses
+            ? `${dashboard.overview.recordedClasses} recorded class${dashboard.overview.recordedClasses === 1 ? "" : "es"} checked.`
+            : "Safe-range count appears after attendance starts."}
+        </p>
       </article>
       <article className="glass-card summary-card">
-        <span className="metric-eyebrow">Upcoming Exams</span>
+        <span className="metric-eyebrow">Upcoming Exam Dates</span>
         <strong>{dashboard.overview.upcomingExams ?? 0}</strong>
         <p>
           {dashboard.overview.upcomingExams
-            ? `${dashboard.overview.atRiskExams ?? 0} need attention. Next: ${dashboard.overview.nextExamDate}.`
-            : `Priority: ${dashboard.overview.priorityClassCode || performanceLeader?.code || "TBD"}.`}
+            ? `Next: ${dashboard.overview.nextExamDate}.`
+            : "No exam date has been added yet."}
         </p>
       </article>
     </section>

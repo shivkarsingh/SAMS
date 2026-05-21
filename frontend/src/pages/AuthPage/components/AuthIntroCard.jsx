@@ -16,10 +16,10 @@ export function AuthIntroCard({ mode, activeRole, authenticatedUser }) {
       </h1>
       <p>
         {isSignup
-          ? "Student signups verify email by OTP; teacher signups can log in after account creation."
+          ? "Student and teacher signups verify email by OTP before account creation."
           : isReset
             ? "Choose the matching role, verify the email OTP, then enter the new password twice."
-            : "This page checks your selected role and credentials against the database before access is granted."}
+            : "This page checks role, ID, password, and email verification before access is granted."}
       </p>
 
       <div className="info-list">

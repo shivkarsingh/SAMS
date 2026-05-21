@@ -13,6 +13,10 @@ import {
 function getErrorResponse(error, fallbackMessage) {
   return {
     message: error instanceof Error ? error.message : fallbackMessage,
+    ...(error?.code ? { code: error.code } : {}),
+    ...(error?.verificationRequired
+      ? { verificationRequired: error.verificationRequired }
+      : {}),
     ...(error?.retryAfterSeconds
       ? { retryAfterSeconds: error.retryAfterSeconds }
       : {})
@@ -24,18 +28,16 @@ function hasRequiredSignupFields(payload) {
     "role",
     "firstName",
     "lastName",
-    "userId",
     "email",
     "password",
     "confirmPassword"
   ];
 
-  const studentFields =
-    payload?.role === "student" ? ["rollNumber", "emailOtp"] : [];
+  const studentFields = payload?.role === "student" ? ["rollNumber"] : [];
 
-  const teacherFields = [];
+  const teacherFields = payload?.role === "teacher" ? ["userId"] : [];
 
-  return [...commonFields, ...studentFields, ...teacherFields].every(
+  return [...commonFields, "emailOtp", ...studentFields, ...teacherFields].every(
     (field) => payload?.[field] !== undefined && payload?.[field] !== ""
   );
 }
@@ -191,7 +193,9 @@ export async function login(request, response) {
       user
     });
   } catch (error) {
-    response.status(401).json(getErrorResponse(error, "Unable to login user."));
+    response
+      .status(error?.code === "EMAIL_VERIFICATION_REQUIRED" ? 403 : 401)
+      .json(getErrorResponse(error, "Unable to login user."));
   }
 }
 

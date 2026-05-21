@@ -2,23 +2,22 @@ import { useEffect, useMemo, useState } from "react";
 import { DashboardPanelHeader } from "../../components/common/DashboardPanelHeader";
 import { LoadingCard } from "../../components/common/LoadingCard";
 import { PageBackground } from "../../components/common/PageBackground";
-import {
-  fetchStudentDashboard,
-  joinStudentClass
-} from "../../services/api";
+import { TodoPanel } from "../../components/common/TodoPanel";
+import { fetchStudentDashboard } from "../../services/api";
 import { clearSession, getSession } from "../../services/session";
 import { goToRoute } from "../../utils/router";
-import { StudentAttentionSection } from "./components/StudentAttentionSection";
 import { StudentClassroomSection } from "./components/StudentClassroomSection";
 import { StudentClassesPanel } from "./components/StudentClassesPanel";
 import { StudentDashboardHeader } from "./components/StudentDashboardHeader";
-import { StudentExamSection } from "./components/StudentExamSection";
-import { StudentFaceEnrollmentPreviewCard } from "./components/StudentFaceEnrollmentPreviewCard";
+import {
+  StudentAttendanceCalculator,
+  StudentExamCalendarPanel,
+  StudentUpcomingExamEligibilityPanel
+} from "./components/StudentExamSection";
 import { StudentInsightsSidebar } from "./components/StudentInsightsSidebar";
-import { StudentScheduleSection } from "./components/StudentScheduleSection";
 import {
   buildStudentNotifications,
-  getStudentNotificationCount
+  markStudentNotificationsSeen
 } from "./studentNotifications";
 import { readStoredStudentProfile } from "./studentProfileStore";
 import "./StudentDashboardPage.css";
@@ -26,10 +25,10 @@ import "./StudentDashboardPage.css";
 const toolConfigs = {
   classes: {
     navId: "classrooms",
-    label: "Classrooms",
-    title: "Classrooms and joined class tools",
+    label: "Classes Joined",
+    title: "Joined classes",
     description:
-      "Join a class, open each class page, and use class-specific notes, assignments, and discussion from dedicated pages."
+      "Open each joined class page and use class-specific notes, assignments, and discussion from dedicated pages."
   },
   performance: {
     navId: "performance",
@@ -38,26 +37,26 @@ const toolConfigs = {
     description:
       "Review subject-wise attendance, recovery needs, trend momentum, and class-average comparison."
   },
-  schedule: {
-    navId: "schedule",
-    label: "Schedule",
-    title: "Schedule and timetable",
+  calculator: {
+    navId: "calculator",
+    label: "Calculator",
+    title: "Attendance calculator",
     description:
-      "See today's upcoming classes and your weekly timetable in a focused schedule workspace."
+      "Calculate how many scheduled classes you must attend before a chosen exam date."
+  },
+  calendar: {
+    navId: "calendar",
+    label: "Calendar",
+    title: "Calendar",
+    description:
+      "View teacher-set exam dates and regular class days in one calendar."
   },
   exams: {
     navId: "exams",
-    label: "Exams",
-    title: "Exam eligibility and attendance calculator",
+    label: "Upcoming Exams & Eligibility",
+    title: "Upcoming exams & eligibility",
     description:
-      "Track upcoming exams, eligibility percentage, and minimum classes to attend before the exam date."
-  },
-  insights: {
-    navId: "insights",
-    label: "Insights",
-    title: "Attendance coach and goals",
-    description:
-      "Use alerts, recovery plans, goals, and achievements to decide the next best action."
+      "See upcoming exam dates, required attendance, and how many classes you must attend."
   },
   notifications: {
     navId: "notifications",
@@ -65,25 +64,22 @@ const toolConfigs = {
     title: "Notifications",
     description:
       "Important attendance, exam, leave, and setup updates collected in one student page."
+  },
+  todos: {
+    navId: "todos",
+    label: "To Do",
+    title: "To-do list",
+    description:
+      "Keep personal tasks, due dates, and priorities in one focused student workspace."
   }
 };
 
-function getStudentNavItems(activeId) {
-  return [
-    { id: "overview", label: "Overview", route: "/student-dashboard" },
-    { id: "classrooms", label: "Classrooms", route: "/student-classes" },
-    { id: "performance", label: "Performance", route: "/student-performance" },
-    { id: "schedule", label: "Schedule", route: "/student-schedule" },
-    { id: "exams", label: "Exams", route: "/student-exams" },
-    { id: "insights", label: "Insights", route: "/student-insights" }
-  ].map((item) => ({
-    ...item,
-    active: item.id === activeId
-  }));
-}
-
 function StudentNotificationsPanel({ dashboard }) {
   const notifications = buildStudentNotifications(dashboard);
+
+  useEffect(() => {
+    markStudentNotificationsSeen(dashboard);
+  }, [dashboard]);
 
   return (
     <section className="student-notifications-page-grid">
@@ -174,15 +170,6 @@ export function StudentDashboardToolsPage({ view }) {
     goToRoute("/login");
   }
 
-  async function handleJoinClass(joinInput) {
-    const result = await joinStudentClass(user.userId, {
-      joinInput
-    });
-
-    await loadDashboard();
-    return result;
-  }
-
   if (!user || user.role !== "student") {
     return null;
   }
@@ -228,17 +215,14 @@ export function StudentDashboardToolsPage({ view }) {
     ...joinedClass,
     analytics: performanceByClassId.get(joinedClass.id)
   }));
-  const notificationCount = getStudentNotificationCount(dashboard);
-
   return (
     <div className="page-shell">
       <PageBackground />
 
       <StudentDashboardHeader
         onLogout={handleLogout}
-        onOpenFaceEnrollment={() => goToRoute("/student-face-enrollment")}
-        notificationCount={notificationCount}
-        navItems={getStudentNavItems(config.navId)}
+        showNotificationBell={false}
+        navItems={[]}
         utilityAction={{
           label: "Dashboard",
           onClick: () => goToRoute("/student-dashboard")
@@ -253,19 +237,14 @@ export function StudentDashboardToolsPage({ view }) {
         </section>
 
         {view === "classes" ? (
-          <>
-            <section className="dashboard-lower-grid">
-              <StudentClassroomSection
-                joinedClasses={joinedClassCards}
-                onJoinClass={handleJoinClass}
-              />
-              <StudentFaceEnrollmentPreviewCard
-                faceProfile={dashboard.faceProfile}
-                onOpenFaceEnrollment={() => goToRoute("/student-face-enrollment")}
-              />
-            </section>
-            <StudentClassesPanel classes={dashboard.classPerformance} />
-          </>
+          <StudentClassroomSection
+            joinedClasses={joinedClassCards}
+            onJoinClass={() => Promise.resolve({ message: "" })}
+            showJoinForm={false}
+            label="Classes Joined"
+            title={`${joinedClassCards.length} joined class${joinedClassCards.length === 1 ? "" : "es"}`}
+            description="Open a class workspace first, then use the class tools from there."
+          />
         ) : null}
 
         {view === "performance" ? (
@@ -274,36 +253,34 @@ export function StudentDashboardToolsPage({ view }) {
             <StudentInsightsSidebar
               attendanceTrend={dashboard.attendanceTrend}
               peerComparison={dashboard.peerComparison}
+              classes={dashboard.classPerformance}
             />
           </section>
         ) : null}
 
-        {view === "schedule" ? (
-          <StudentScheduleSection
-            upcomingClasses={dashboard.upcomingClasses}
-            weeklySchedule={dashboard.weeklySchedule}
-          />
+        {view === "calculator" ? (
+          <StudentAttendanceCalculator classes={dashboard.classPerformance} />
         ) : null}
 
-        {view === "exams" ? (
-          <StudentExamSection
+        {view === "calendar" ? (
+          <StudentExamCalendarPanel
             upcomingExams={dashboard.upcomingExams ?? []}
             classes={dashboard.classPerformance}
           />
         ) : null}
 
-        {view === "insights" ? (
-          <StudentAttentionSection
-            alerts={dashboard.alerts}
-            goals={dashboard.goals}
-            achievements={dashboard.achievements}
-            aiCoach={dashboard.aiCoach}
-            recoveryPlan={dashboard.recoveryPlan}
+        {view === "exams" ? (
+          <StudentUpcomingExamEligibilityPanel
+            upcomingExams={dashboard.upcomingExams ?? []}
           />
         ) : null}
 
         {view === "notifications" ? (
           <StudentNotificationsPanel dashboard={dashboard} />
+        ) : null}
+
+        {view === "todos" ? (
+          <TodoPanel role="student" userId={user.userId} />
         ) : null}
       </main>
     </div>

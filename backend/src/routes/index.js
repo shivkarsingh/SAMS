@@ -4,6 +4,7 @@ import {
   deleteUser as deleteAdminUser,
   getDashboard as getAdminDashboard,
   updateClassroomStatus as updateAdminClassroomStatus,
+  updateStudentRollNumber as updateAdminStudentRollNumber,
   updateUserEmailVerification as updateAdminUserEmailVerification
 } from "../controllers/adminController.js";
 import {
@@ -55,22 +56,29 @@ import {
   archiveTeacherClass,
   cancelTodayClass,
   createQrAttendanceSession,
+  deleteTeacherClass,
   deleteTeacherStudent,
+  discardTodayAttendanceDraft,
   finalizeTodayAttendanceDraft,
   finalizeTeacherAttendance,
   getTeacherClassroom,
   markQrAttendance,
   processTeacherAttendance,
   reviewLeaveRequest,
+  sendAttendanceAbsenteeEmails,
+  sendExamAttendanceWarningEmails,
+  sendTodayDraftAbsenteeEmails,
   setClassExam,
   submitManualAttendance,
+  updateSessionAttendanceRecord,
   updateTodayAttendanceDraft,
   updateTeacherStudent
 } from "../controllers/teacherClassroomController.js";
 import { getDashboard as getTeacherDashboard } from "../controllers/teacherController.js";
 import {
   patchUserProfile,
-  sendProfileEmailOtp
+  sendProfileEmailOtp,
+  verifyProfileEmailOtp
 } from "../controllers/userProfileController.js";
 
 export const apiRouter = Router();
@@ -101,8 +109,13 @@ apiRouter.patch(
   "/admins/:adminId/users/:role/:userId/email-verification",
   updateAdminUserEmailVerification
 );
+apiRouter.patch(
+  "/admins/:adminId/students/:userId/roll-number",
+  updateAdminStudentRollNumber
+);
 apiRouter.delete("/admins/:adminId/users/:role/:userId", deleteAdminUser);
 apiRouter.post("/users/:role/:userId/email-otp", sendProfileEmailOtp);
+apiRouter.post("/users/:role/:userId/email-otp/verify", verifyProfileEmailOtp);
 apiRouter.patch("/users/:role/:userId/profile", patchUserProfile);
 apiRouter.get("/classes/:classId/assignments", getClassAssignments);
 apiRouter.get("/classes/:classId/discussion", listClassDiscussion);
@@ -137,11 +150,16 @@ apiRouter.patch(
   "/teachers/:teacherId/classes/:classId/exam",
   setClassExam
 );
+apiRouter.post(
+  "/teachers/:teacherId/classes/:classId/exam/email-warnings",
+  sendExamAttendanceWarningEmails
+);
 apiRouter.get("/teachers/:teacherId/classes/:classId", getTeacherClassroom);
 apiRouter.patch(
   "/teachers/:teacherId/classes/:classId/archive",
   archiveTeacherClass
 );
+apiRouter.delete("/teachers/:teacherId/classes/:classId", deleteTeacherClass);
 apiRouter.post("/teachers/:teacherId/classes/:classId/students", addTeacherStudent);
 apiRouter.patch(
   "/teachers/:teacherId/classes/:classId/students/:studentId",
@@ -176,9 +194,42 @@ apiRouter.post(
   "/teachers/:teacherId/classes/:classId/attendance/today-draft/:draftId/finalize",
   finalizeTodayAttendanceDraft
 );
+apiRouter.delete(
+  "/teachers/:teacherId/classes/:classId/attendance/today-draft/:draftId",
+  discardTodayAttendanceDraft
+);
+apiRouter.post(
+  "/teachers/:teacherId/classes/:classId/attendance/today-draft/:draftId/absentee-email",
+  sendTodayDraftAbsenteeEmails
+);
 apiRouter.post(
   "/teachers/:teacherId/classes/:classId/attendance/finalize",
   finalizeTeacherAttendance
+);
+apiRouter.post(
+  "/teachers/:teacherId/classes/:classId/attendance/absentee-email",
+  sendAttendanceAbsenteeEmails
+);
+apiRouter.patch(
+  "/teachers/:teacherId/classes/:classId/attendance/sessions/:sessionId/students/:studentId",
+  updateSessionAttendanceRecord
+);
+apiRouter.patch(
+  /^\/teachers\/([^/]+)\/classes\/([^/]+)\/attendance\/sessions\/([^/]+)\/students\/([^/]+)$/,
+  (request, response) => {
+    const [teacherId, classId, sessionId, studentId] = Object.values(
+      request.params
+    );
+
+    request.params = {
+      teacherId,
+      classId,
+      sessionId,
+      studentId
+    };
+
+    return updateSessionAttendanceRecord(request, response);
+  }
 );
 apiRouter.patch(
   "/teachers/:teacherId/classes/:classId/leave-requests/:requestId",

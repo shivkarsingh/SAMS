@@ -3,21 +3,62 @@ import { ClassAssignment } from "../models/ClassAssignment.js";
 import { ClassAssignmentSubmission } from "../models/ClassAssignmentSubmission.js";
 import { ClassMembership } from "../models/ClassMembership.js";
 import { Classroom } from "../models/Classroom.js";
+import { FaceProfile } from "../models/FaceProfile.js";
 import { User } from "../models/User.js";
 import {
   sanitizeScheduleSlots,
   summarizeScheduleSlots
 } from "../utils/schedule.js";
+import { resolveStudentDisplayPhotoUrl } from "../utils/studentDisplayPhoto.js";
 
 const MAX_ASSIGNMENT_ATTACHMENTS = 6;
 const MAX_ASSIGNMENT_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 
 function normalizeUserId(userId) {
-  return String(userId).trim().toUpperCase();
+  return String(userId ?? "").trim().toUpperCase();
 }
 
 function formatFullName(person) {
   return `${person.firstName} ${person.lastName}`.trim();
+}
+
+function getStudentPhotoPayload(user, faceProfile) {
+  return {
+    avatarDataUrl: user?.avatarDataUrl ?? "",
+    faceProfilePhotoUrl: faceProfile?.profilePhotoUrl ?? "",
+    profilePhotoUrl: resolveStudentDisplayPhotoUrl(user, faceProfile)
+  };
+}
+
+async function getStudentPhotosById(studentIds = []) {
+  const normalizedStudentIds = Array.from(
+    new Set(studentIds.map((studentId) => normalizeUserId(studentId)).filter(Boolean))
+  );
+
+  if (!normalizedStudentIds.length) {
+    return new Map();
+  }
+
+  const [users, faceProfiles] = await Promise.all([
+    User.find({
+      userId: { $in: normalizedStudentIds },
+      role: "student"
+    }).lean(),
+    FaceProfile.find({
+      studentUserId: { $in: normalizedStudentIds }
+    }).lean()
+  ]);
+  const usersById = new Map(users.map((user) => [normalizeUserId(user.userId), user]));
+  const faceProfilesById = new Map(
+    faceProfiles.map((profile) => [normalizeUserId(profile.studentUserId), profile])
+  );
+
+  return new Map(
+    normalizedStudentIds.map((studentId) => [
+      studentId,
+      getStudentPhotoPayload(usersById.get(studentId), faceProfilesById.get(studentId))
+    ])
+  );
 }
 
 function assertObjectId(value, label) {
@@ -100,10 +141,13 @@ function sanitizeClassroom(classroom) {
   };
 }
 
-function sanitizeSubmission(submission) {
+function sanitizeSubmission(submission, studentPhotosById = new Map()) {
   if (!submission) {
     return null;
   }
+
+  const studentPhoto =
+    studentPhotosById.get(normalizeUserId(submission.studentUserId)) ?? {};
 
   return {
     id: String(submission._id),
@@ -112,6 +156,9 @@ function sanitizeSubmission(submission) {
     studentUserId: submission.studentUserId,
     studentName: submission.studentName,
     rollNumber: submission.rollNumber,
+    avatarDataUrl: studentPhoto.avatarDataUrl ?? "",
+    faceProfilePhotoUrl: studentPhoto.faceProfilePhotoUrl ?? "",
+    profilePhotoUrl: studentPhoto.profilePhotoUrl ?? "",
     comment: submission.comment,
     attachments: submission.attachments,
     status: submission.status,
@@ -120,11 +167,17 @@ function sanitizeSubmission(submission) {
   };
 }
 
-function sanitizeMissingStudent(membership) {
+function sanitizeMissingStudent(membership, studentPhotosById = new Map()) {
+  const studentPhoto =
+    studentPhotosById.get(normalizeUserId(membership.studentUserId)) ?? {};
+
   return {
     studentUserId: membership.studentUserId,
     studentName: membership.studentName,
-    rollNumber: membership.rollNumber
+    rollNumber: membership.rollNumber,
+    avatarDataUrl: studentPhoto.avatarDataUrl ?? "",
+    faceProfilePhotoUrl: studentPhoto.faceProfilePhotoUrl ?? "",
+    profilePhotoUrl: studentPhoto.profilePhotoUrl ?? ""
   };
 }
 
@@ -132,7 +185,8 @@ function sanitizeAssignment(
   assignment,
   submissions = [],
   mySubmission = null,
-  summary = {}
+  summary = {},
+  studentPhotosById = new Map()
 ) {
   const assignedStudentCount = Number(summary.assignedStudentCount ?? 0);
   const lateSubmissionCount =
@@ -157,9 +211,13 @@ function sanitizeAssignment(
       Number(summary.missingSubmissionCount ?? missingSubmissions.length),
       0
     ),
-    missingSubmissions: missingSubmissions.map(sanitizeMissingStudent),
-    submissions: submissions.map(sanitizeSubmission),
-    mySubmission: sanitizeSubmission(mySubmission)
+    missingSubmissions: missingSubmissions.map((membership) =>
+      sanitizeMissingStudent(membership, studentPhotosById)
+    ),
+    submissions: submissions.map((submission) =>
+      sanitizeSubmission(submission, studentPhotosById)
+    ),
+    mySubmission: sanitizeSubmission(mySubmission, studentPhotosById)
   };
 }
 
@@ -256,6 +314,11 @@ export async function listClassAssignments({ classId, userId, role }) {
           .sort({ rollNumber: 1, studentName: 1 })
           .lean()
       : [];
+  const studentPhotosById = await getStudentPhotosById([
+    ...roster.map((membership) => membership.studentUserId),
+    ...submissions.map((submission) => submission.studentUserId),
+    ...(normalizedRole === "student" ? [userId] : [])
+  ]);
 
   submissions.forEach((submission) => {
     const assignmentKey = String(submission.assignmentId);
@@ -292,7 +355,8 @@ export async function listClassAssignments({ classId, userId, role }) {
               missingSubmissionCount: missingSubmissions.length,
               missingSubmissions
             }
-          : {}
+          : {},
+        studentPhotosById
       );
     })
   };
@@ -352,10 +416,15 @@ export async function submitClassAssignment({
     throw new Error("Assignment not found for this class.");
   }
 
-  const student = await User.findOne({
-    userId: normalizeUserId(studentUserId),
-    role: "student"
-  }).lean();
+  const [student, faceProfile] = await Promise.all([
+    User.findOne({
+      userId: normalizeUserId(studentUserId),
+      role: "student"
+    }).lean(),
+    FaceProfile.findOne({
+      studentUserId: normalizeUserId(studentUserId)
+    }).lean()
+  ]);
   const normalizedAttachments = normalizeAttachments(attachments);
   const trimmedComment = String(comment ?? "").trim();
 
@@ -388,5 +457,10 @@ export async function submitClassAssignment({
     }
   ).lean();
 
-  return sanitizeSubmission(submission);
+  return sanitizeSubmission(
+    submission,
+    new Map([
+      [normalizeUserId(studentUserId), getStudentPhotoPayload(student, faceProfile)]
+    ])
+  );
 }

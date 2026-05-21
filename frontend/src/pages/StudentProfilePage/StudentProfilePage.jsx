@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { LoadingCard } from "../../components/common/LoadingCard";
 import { PageBackground } from "../../components/common/PageBackground";
 import {
   fetchStudentDashboard,
   requestProfileEmailOtp,
-  updateUserProfile
+  updateUserProfile,
+  verifyProfileEmailOtp
 } from "../../services/api";
-import { clearSession, getSession, saveSession } from "../../services/session";
+import { clearSession, getSession } from "../../services/session";
 import { goToRoute } from "../../utils/router";
 import { StudentDashboardHeader } from "../StudentDashboardPage/components/StudentDashboardHeader";
 import { StudentProfileSection } from "../StudentDashboardPage/components/StudentProfileSection";
@@ -22,9 +23,8 @@ export function StudentProfilePage() {
     loading: true,
     message: ""
   });
-
-  const session = useMemo(() => getSession(), []);
-  const user = session?.user ?? null;
+  const [sessionUser, setSessionUser] = useState(() => getSession()?.user ?? null);
+  const user = sessionUser;
 
   useEffect(() => {
     async function loadProfile() {
@@ -38,7 +38,11 @@ export function StudentProfilePage() {
         setProfile({
           ...user,
           ...response.profile,
-          ...(readStoredStudentProfile(user.userId) ?? {})
+          ...(readStoredStudentProfile(user.userId) ?? {}),
+          faceProfilePhotoUrl:
+            response.faceProfile?.profilePhotoUrl ??
+            response.profile?.faceProfilePhotoUrl ??
+            ""
         });
         setStatus({
           loading: false,
@@ -76,10 +80,14 @@ export function StudentProfilePage() {
       ...nextProfile,
       ...response.user
     };
+    const nextSessionUser = {
+      ...response.user,
+      avatarDataUrl: mergedProfile.avatarDataUrl ?? response.user.avatarDataUrl
+    };
 
     setProfile(mergedProfile);
-    saveStudentProfile(response.user, mergedProfile);
-    saveSession(response.user);
+    saveStudentProfile(nextSessionUser, mergedProfile);
+    setSessionUser(nextSessionUser);
     return response;
   }
 
@@ -89,6 +97,14 @@ export function StudentProfilePage() {
     }
 
     return requestProfileEmailOtp(user.role, user.userId, { email });
+  }
+
+  async function handleVerifyEmailOtp(email, otp) {
+    if (!user) {
+      return null;
+    }
+
+    return verifyProfileEmailOtp(user.role, user.userId, { email, otp });
   }
 
   if (!user || user.role !== "student") {
@@ -136,7 +152,7 @@ export function StudentProfilePage() {
       <StudentDashboardHeader
         onLogout={handleLogout}
         onNavigate={() => {}}
-        onOpenFaceEnrollment={() => goToRoute("/student-face-enrollment")}
+        showNotificationBell={false}
         navItems={[]}
         utilityAction={{
           label: "Dashboard",
@@ -154,6 +170,7 @@ export function StudentProfilePage() {
           profile={profile}
           onSaveProfile={handleSaveProfile}
           onRequestEmailOtp={handleRequestEmailOtp}
+          onVerifyEmailOtp={handleVerifyEmailOtp}
         />
       </main>
     </div>

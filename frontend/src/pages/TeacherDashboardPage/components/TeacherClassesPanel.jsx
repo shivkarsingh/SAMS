@@ -2,16 +2,10 @@ import { useState } from "react";
 
 export function TeacherClassesPanel({
   classesManaged,
-  onOpenClassroom,
-  onOpenAttendance,
-  onArchiveClass
+  onOpenClassroom
 }) {
   const classCount = classesManaged.length;
   const [copiedClassId, setCopiedClassId] = useState("");
-  const [archiveStatus, setArchiveStatus] = useState({
-    pendingId: "",
-    message: ""
-  });
 
   async function copyJoinCode(course) {
     try {
@@ -20,32 +14,6 @@ export function TeacherClassesPanel({
       window.setTimeout(() => setCopiedClassId(""), 1600);
     } catch {
       setCopiedClassId("");
-    }
-  }
-
-  async function handleArchiveClass(course) {
-    const confirmed = window.confirm(
-      `End ${course.code} - ${course.title}? The class will become inactive, but the attendance and student data will stay saved.`
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    setArchiveStatus({ pendingId: course.id, message: "" });
-
-    try {
-      const result = await onArchiveClass(course.id);
-      setArchiveStatus({
-        pendingId: "",
-        message: result.message ?? "Class ended and saved."
-      });
-    } catch (error) {
-      setArchiveStatus({
-        pendingId: "",
-        message:
-          error instanceof Error ? error.message : "Unable to end this class."
-      });
     }
   }
 
@@ -63,10 +31,6 @@ export function TeacherClassesPanel({
       </div>
 
       <div className="teacher-class-grid">
-        {archiveStatus.message ? (
-          <p className="teacher-status-copy success">{archiveStatus.message}</p>
-        ) : null}
-
         {classesManaged.length ? (
           classesManaged.map((course) => (
             <article key={course.id} className="teacher-class-card">
@@ -75,21 +39,15 @@ export function TeacherClassesPanel({
                   <span className="course-code">{course.code}</span>
                   <h3>{course.title}</h3>
                 </div>
-                <span
-                  className={`teacher-status-pill ${
-                    course.status === "archived"
-                      ? "archived"
-                      : course.attendanceSubmitted
-                        ? "submitted"
-                        : "pending"
-                  }`}
-                >
-                  {course.status === "archived"
-                    ? "Inactive"
-                    : course.attendanceSubmitted
-                      ? "Sessions Recorded"
-                      : "No Sessions Yet"}
-                </span>
+                {course.status === "archived" || !course.attendanceSubmitted ? (
+                  <span
+                    className={`teacher-status-pill ${
+                      course.status === "archived" ? "archived" : "pending"
+                    }`}
+                  >
+                    {course.status === "archived" ? "Inactive" : "No Sessions Yet"}
+                  </span>
+                ) : null}
               </div>
 
               <p className="course-meta">
@@ -143,29 +101,11 @@ export function TeacherClassesPanel({
                 >
                   Open Class
                 </button>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  disabled={course.status === "archived"}
-                  onClick={() => onOpenAttendance(course.id)}
-                >
-                  {course.status === "archived" ? "Inactive" : "Take Attendance"}
-                </button>
-                {course.status !== "archived" ? (
-                  <button
-                    className="danger-button"
-                    type="button"
-                    disabled={archiveStatus.pendingId === course.id}
-                    onClick={() => handleArchiveClass(course)}
-                  >
-                    {archiveStatus.pendingId === course.id ? "Ending..." : "End Class"}
-                  </button>
+                {course.status === "archived" ? (
+                  <span className="panel-meta">
+                    This class is inactive. Its overall data remains saved for records.
+                  </span>
                 ) : null}
-                <span className="panel-meta">
-                  {course.status === "archived"
-                    ? "This class is inactive. Its overall data remains saved for records."
-                    : "Open the class or jump straight to manual and camera attendance."}
-                </span>
               </div>
             </article>
           ))

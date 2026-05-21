@@ -1,5 +1,17 @@
 import { DashboardPanelHeader } from "../../../components/common/DashboardPanelHeader";
 
+function getScheduleStatusTone(item) {
+  if (item?.attendanceTakenToday || item?.attendanceStatus === "Taken") {
+    return "taken";
+  }
+
+  if (item?.cancelledToday || item?.attendanceStatus === "Cancelled") {
+    return "cancelled";
+  }
+
+  return "pending";
+}
+
 export function TeacherScheduleSection({ todaysSchedule, weeklySchedule }) {
   return (
     <section className="dashboard-lower-grid" id="schedule">
@@ -15,15 +27,15 @@ export function TeacherScheduleSection({ todaysSchedule, weeklySchedule }) {
               <article key={item.id ?? `${item.title}-${item.time}`} className="timeline-card">
                 <div className="timeline-time">
                   <strong>{item.time}</strong>
-                  <span>{item.attendanceStatus}</span>
+                  <span className={`timeline-status-pill ${getScheduleStatusTone(item)}`}>
+                    {item.attendanceTakenToday ? "Taken" : item.attendanceStatus}
+                  </span>
                 </div>
                 <div className="timeline-content">
                   <h3>
                     {item.title} • {item.section}
                   </h3>
-                  <p>
-                    {item.room} • {item.focus}
-                  </p>
+                  <p>{item.room}</p>
                 </div>
               </article>
             ))

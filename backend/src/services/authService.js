@@ -13,13 +13,13 @@ import {
   sendPasswordResetOtp,
   sendWelcomeEmail
 } from "./emailNotificationService.js";
+import {
+  findStudentRollConflict,
+  normalizeRollNumber
+} from "../utils/studentRollNumberScope.js";
 
 function normalizeUserId(userId) {
-  return String(userId).trim().toUpperCase();
-}
-
-function normalizeRollNumber(rollNumber) {
-  return String(rollNumber ?? "").trim().toUpperCase();
+  return String(userId ?? "").trim().toUpperCase();
 }
 
 function optionalString(value) {
@@ -27,8 +27,24 @@ function optionalString(value) {
   return normalizedValue || undefined;
 }
 
+function buildStudentUserId(firstName, rollNumber) {
+  const namePart = String(firstName ?? "").trim().replace(/\s+/g, "");
+  const rollPart = normalizeRollNumber(rollNumber);
+
+  return namePart && rollPart ? normalizeUserId(`${namePart}#${rollPart}`) : "";
+}
+
 function normalizeEmail(email) {
   return String(email ?? "").trim().toLowerCase();
+}
+
+async function findExistingStudentRollConflict(candidate) {
+  const studentsWithRollNumber = await User.find({
+    role: "student",
+    rollNumber: candidate.rollNumber
+  }).lean();
+
+  return findStudentRollConflict(studentsWithRollNumber, candidate);
 }
 
 function getSignupEmailOtpUserId(email) {
@@ -68,13 +84,12 @@ function assertValidSignupPayload(payload, normalizedUserId, normalizedRollNumbe
     throw new Error("Password and confirm password must match.");
   }
 
-  if (
-    payload.role === "student" &&
-    !/^[A-Z0-9][A-Z0-9._/-]{1,}$/i.test(normalizedRollNumber)
-  ) {
-    throw new Error(
-      "Roll number must use letters, numbers, dots, slashes, underscores, or hyphens."
-    );
+  if (payload.role === "student" && !normalizedRollNumber) {
+    throw new Error("Roll number is required.");
+  }
+
+  if (payload.role === "student" && !/^\d+$/.test(normalizedRollNumber)) {
+    throw new Error("Roll number must contain numbers only.");
   }
 
   const email = optionalString(payload.email);
@@ -82,8 +97,8 @@ function assertValidSignupPayload(payload, normalizedUserId, normalizedRollNumbe
     throw new Error("Enter a valid email address.");
   }
 
-  if (payload.role === "student" && !String(payload.emailOtp ?? "").trim()) {
-    throw new Error("Verify student email with OTP before creating the account.");
+  if (!String(payload.emailOtp ?? "").trim()) {
+    throw new Error("Verify email with OTP before creating the account.");
   }
 
   const phoneNumber = optionalString(payload.phoneNumber);
@@ -97,9 +112,13 @@ export async function registerUser(payload) {
     throw new Error("Choose student or teacher for signup.");
   }
 
-  const normalizedUserId = normalizeUserId(payload.userId);
   const normalizedRollNumber =
     payload.role === "student" ? normalizeRollNumber(payload.rollNumber) : "";
+  const normalizedUserId =
+    payload.role === "student"
+      ? normalizeUserId(payload.userId) ||
+        buildStudentUserId(payload.firstName, normalizedRollNumber)
+      : normalizeUserId(payload.userId);
   assertValidSignupPayload(payload, normalizedUserId, normalizedRollNumber);
 
   const existingUser = await User.findOne({ userId: normalizedUserId });
@@ -109,29 +128,27 @@ export async function registerUser(payload) {
   }
 
   if (payload.role === "student") {
-    const existingRollNumber = await User.findOne({
-      role: "student",
-      rollNumber: normalizedRollNumber
+    const existingRollNumber = await findExistingStudentRollConflict({
+      rollNumber: normalizedRollNumber,
+      department: payload.department,
+      semesterLabel: payload.semesterLabel
     });
 
     if (existingRollNumber) {
-      throw new Error("A student with this roll number already exists.");
+      throw new Error(
+        "A student with this roll number already exists in the same branch and semester."
+      );
     }
   }
 
-  let emailVerifiedAt = new Date();
-
-  if (payload.role === "student") {
-    const verification = await verifyEmailOtp({
-      role: "student",
-      userId: getSignupEmailOtpUserId(payload.email),
-      email: payload.email,
-      purpose: "email-verification",
-      otp: payload.emailOtp
-    });
-
-    emailVerifiedAt = verification.verifiedAt;
-  }
+  const verification = await verifyEmailOtp({
+    role: payload.role,
+    userId: getSignupEmailOtpUserId(payload.email),
+    email: payload.email,
+    purpose: "email-verification",
+    otp: payload.emailOtp
+  });
+  const emailVerifiedAt = verification.verifiedAt;
 
   const passwordHash = await bcrypt.hash(payload.password, 10);
 
@@ -147,6 +164,7 @@ export async function registerUser(payload) {
     batch: optionalString(payload.batch),
     yearOfPassing: optionalNumber(payload.yearOfPassing),
     department: optionalString(payload.department),
+    semesterLabel: optionalString(payload.semesterLabel),
     email: normalizeEmail(payload.email),
     emailVerified: true,
     emailVerifiedAt,
@@ -174,8 +192,8 @@ export async function requestSignupEmailVerification({
   const normalizedRole = String(role ?? "").trim().toLowerCase();
   const normalizedEmail = normalizeEmail(email);
 
-  if (normalizedRole !== "student") {
-    throw new Error("Email OTP verification is required only for student signup.");
+  if (!["student", "teacher"].includes(normalizedRole)) {
+    throw new Error("Choose student or teacher for signup.");
   }
 
   if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
@@ -183,16 +201,18 @@ export async function requestSignupEmailVerification({
   }
 
   const otpDetails = await createEmailOtp({
-    role: "student",
+    role: normalizedRole,
     userId: getSignupEmailOtpUserId(normalizedEmail),
     email: normalizedEmail,
     purpose: "email-verification"
   });
   const emailStatus = await sendEmailVerificationOtp({
     user: {
-      role: "student",
+      role: normalizedRole,
       userId: optionalString(userId) ?? "Pending signup",
-      firstName: optionalString(firstName) ?? "Student",
+      firstName:
+        optionalString(firstName) ??
+        (normalizedRole === "teacher" ? "Teacher" : "Student"),
       lastName: optionalString(lastName) ?? "",
       email: normalizedEmail
     },
@@ -213,8 +233,8 @@ export async function verifySignupEmailVerification({ role, email, otp }) {
   const normalizedRole = String(role ?? "").trim().toLowerCase();
   const normalizedEmail = normalizeEmail(email);
 
-  if (normalizedRole !== "student") {
-    throw new Error("Email OTP verification is required only for student signup.");
+  if (!["student", "teacher"].includes(normalizedRole)) {
+    throw new Error("Choose student or teacher for signup.");
   }
 
   if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
@@ -222,7 +242,7 @@ export async function verifySignupEmailVerification({ role, email, otp }) {
   }
 
   const verification = await verifyEmailOtp({
-    role: "student",
+    role: normalizedRole,
     userId: getSignupEmailOtpUserId(normalizedEmail),
     email: normalizedEmail,
     purpose: "email-verification",
@@ -244,14 +264,19 @@ export async function loginUser({ role, userId, password }) {
     throw new Error("Invalid role, ID, or password.");
   }
 
-  if (user.email && user.emailVerificationRequired && !user.emailVerified) {
-    throw new Error("Verify your email with the OTP sent to your mailbox before logging in.");
-  }
-
   const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
   if (!isPasswordValid) {
     throw new Error("Invalid role, ID, or password.");
+  }
+
+  if (user.email && !user.emailVerified) {
+    const error = new Error(
+      "Verify your email with OTP before logging in."
+    );
+    error.code = "EMAIL_VERIFICATION_REQUIRED";
+    error.verificationRequired = true;
+    throw error;
   }
 
   return sanitizeUser(user);
@@ -394,6 +419,7 @@ export async function verifyUserEmail({ role, userId, otp }) {
 
   user.emailVerified = true;
   user.emailVerifiedAt = new Date();
+  user.emailVerificationRequired = false;
   await user.save();
 
   const welcomeEmailStatus = await sendWelcomeEmail({ user });
@@ -637,11 +663,13 @@ function sanitizeUser(userDocument) {
     batch: userDocument.batch,
     yearOfPassing: userDocument.yearOfPassing,
     department: userDocument.department,
+    semesterLabel: userDocument.semesterLabel,
     email: userDocument.email,
     emailVerified: Boolean(userDocument.emailVerified),
     emailVerifiedAt: userDocument.emailVerifiedAt,
     emailVerificationRequired: Boolean(userDocument.emailVerificationRequired),
     phoneNumber: userDocument.phoneNumber,
+    avatarDataUrl: userDocument.avatarDataUrl ?? "",
     designation: userDocument.designation,
     specialization: userDocument.specialization,
     experienceYears: userDocument.experienceYears,

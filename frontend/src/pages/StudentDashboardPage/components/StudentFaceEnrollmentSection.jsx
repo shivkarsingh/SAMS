@@ -11,7 +11,7 @@ export function StudentFaceEnrollmentSection({
   faceProfile,
   onEnrollFaceProfile
 }) {
-  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [uploadedImages, setUploadedImages] = useState([]);
   const [capturedImages, setCapturedImages] = useState([]);
   const [camera, setCamera] = useState({
     open: false,
@@ -39,15 +39,15 @@ export function StudentFaceEnrollmentSection({
     stopCameraStream();
   }, []);
 
-  const totalSelectedImages = selectedFiles.length + capturedImages.length;
+  const totalSelectedImages = uploadedImages.length + capturedImages.length;
   const selectedImageItems = [
-    ...selectedFiles.map((file) => ({
-      key: `${file.name}-${file.size}`,
-      label: file.name,
+    ...uploadedImages.map((image, index) => ({
+      key: `upload-${image.fileName}-${index}`,
+      label: image.fileName,
       source: "Upload"
     })),
     ...capturedImages.map((image, index) => ({
-      key: `${image.fileName}-${index}`,
+      key: `camera-${image.fileName}-${index}`,
       label: image.fileName,
       source: "Camera"
     }))
@@ -65,7 +65,7 @@ export function StudentFaceEnrollmentSection({
   }
 
   function resetSelection() {
-    setSelectedFiles([]);
+    setUploadedImages([]);
     setCapturedImages([]);
 
     if (inputRef.current) {
@@ -156,18 +156,28 @@ export function StudentFaceEnrollmentSection({
     }
   }
 
-  function handleFileChange(event) {
+  async function handleFileChange(event) {
     const files = Array.from(event.target.files ?? []);
     const availableSlots = Math.max(MAXIMUM_IMAGE_COUNT - capturedImages.length, 0);
     const nextFiles = files.slice(0, availableSlots);
-
-    setSelectedFiles(nextFiles);
 
     if (files.length > availableSlots) {
       setStatus({
         pending: false,
         tone: "warning",
         message: `You can enroll up to ${MAXIMUM_IMAGE_COUNT} images in one submission.`
+      });
+    }
+
+    try {
+      const nextImages = await convertFilesToImagesPayload(nextFiles);
+      setUploadedImages(nextImages);
+    } catch (error) {
+      setStatus({
+        pending: false,
+        tone: "warning",
+        message:
+          error instanceof Error ? error.message : "Unable to prepare selected images."
       });
     }
   }
@@ -208,10 +218,10 @@ export function StudentFaceEnrollmentSection({
 
     context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
 
-    setCapturedImages((current) => [
-      ...current,
+    setCapturedImages((currentImages) => [
+      ...currentImages,
       {
-        fileName: `camera-capture-${current.length + 1}.jpg`,
+        fileName: `camera-capture-${currentImages.length + 1}.jpg`,
         dataUrl: canvas.toDataURL("image/jpeg", 0.92)
       }
     ]);
@@ -259,7 +269,6 @@ export function StudentFaceEnrollmentSection({
     });
 
     try {
-      const uploadedImages = await convertFilesToImagesPayload(selectedFiles);
       const images = [...uploadedImages, ...capturedImages];
       const response = await onEnrollFaceProfile(images);
       resetSelection();

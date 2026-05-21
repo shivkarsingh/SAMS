@@ -12,6 +12,20 @@ function formatFullName(person) {
   return `${person.firstName} ${person.lastName}`.trim();
 }
 
+export function isValidEnrollmentImage(image) {
+  return Boolean(
+    image &&
+      typeof image.fileName === "string" &&
+      image.fileName.trim() &&
+      typeof image.dataUrl === "string" &&
+      image.dataUrl.startsWith("data:image/")
+  );
+}
+
+export function resolveProfilePhotoUrl(images) {
+  return images.find((image) => isValidEnrollmentImage(image))?.dataUrl ?? "";
+}
+
 function sanitizeFaceProfile(faceProfile) {
   if (!faceProfile) {
     return {
@@ -68,14 +82,7 @@ export async function enrollStudentFaceProfile({ studentUserId, images }) {
     throw new Error("Please upload at least 6 clear images for face enrollment.");
   }
 
-  const validImages = images.filter(
-    (image) =>
-      image &&
-      typeof image.fileName === "string" &&
-      image.fileName.trim() &&
-      typeof image.dataUrl === "string" &&
-      image.dataUrl.startsWith("data:image/")
-  );
+  const validImages = images.filter((image) => isValidEnrollmentImage(image));
 
   if (validImages.length < 6) {
     throw new Error("Please provide valid image files for enrollment.");
@@ -90,10 +97,13 @@ export async function enrollStudentFaceProfile({ studentUserId, images }) {
     metadata: {
       department: student.department,
       batch: student.batch,
-      yearOfPassing: student.yearOfPassing
+      yearOfPassing: student.yearOfPassing,
+      semesterLabel: student.semesterLabel
     },
     referenceImages: validImages.map((image) => image.dataUrl)
   });
+
+  const profilePhotoUrl = resolveProfilePhotoUrl(validImages);
 
   const updatedFaceProfile = await FaceProfile.findOneAndUpdate(
     {
@@ -109,14 +119,15 @@ export async function enrollStudentFaceProfile({ studentUserId, images }) {
       faceModel: aiResult.faceModel,
       executionMode: aiResult.executionMode,
       referenceImageNames: validImages.map((image) => image.fileName),
-      profilePhotoUrl: validImages[0]?.dataUrl ?? "",
+      profilePhotoUrl,
       notes: aiResult.notes,
       lastEnrolledAt: aiResult.storedAt
     },
     {
       new: true,
       upsert: true,
-      setDefaultsOnInsert: true
+      setDefaultsOnInsert: true,
+      runValidators: true
     }
   ).lean();
 

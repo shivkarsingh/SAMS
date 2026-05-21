@@ -34,6 +34,7 @@ export function saveStudentProfile(user, nextProfile) {
     batch: nextProfile.batch,
     yearOfPassing: nextProfile.yearOfPassing,
     department: nextProfile.department,
+    semesterLabel: nextProfile.semesterLabel,
     email: nextProfile.email,
     phoneNumber: nextProfile.phoneNumber,
     avatarDataUrl: nextProfile.avatarDataUrl ?? user.avatarDataUrl

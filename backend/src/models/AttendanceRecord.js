@@ -78,6 +78,17 @@ const attendanceRecordSchema = new mongoose.Schema(
       type: Number,
       default: null
     },
+    attendanceUnit: {
+      type: Number,
+      min: 1,
+      default: 1
+    },
+    sessionType: {
+      type: String,
+      enum: ["regular", "extra"],
+      default: "regular",
+      index: true
+    },
     recordedAt: {
       type: Date,
       default: Date.now

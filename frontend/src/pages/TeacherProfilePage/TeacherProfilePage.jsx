@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { LoadingCard } from "../../components/common/LoadingCard";
 import { PageBackground } from "../../components/common/PageBackground";
 import {
   fetchTeacherDashboard,
   requestProfileEmailOtp,
-  updateUserProfile
+  updateUserProfile,
+  verifyProfileEmailOtp
 } from "../../services/api";
-import { clearSession, getSession, saveSession } from "../../services/session";
+import { clearSession, getSession } from "../../services/session";
 import { goToRoute } from "../../utils/router";
 import { TeacherDashboardHeader } from "../TeacherDashboardPage/components/TeacherDashboardHeader";
 import { TeacherProfileSection } from "../TeacherDashboardPage/components/TeacherProfileSection";
@@ -19,9 +20,8 @@ export function TeacherProfilePage() {
     loading: true,
     message: ""
   });
-
-  const session = useMemo(() => getSession(), []);
-  const user = session?.user ?? null;
+  const [sessionUser, setSessionUser] = useState(() => getSession()?.user ?? null);
+  const user = sessionUser;
 
   useEffect(() => {
     async function loadProfile() {
@@ -72,10 +72,14 @@ export function TeacherProfilePage() {
       ...nextProfile,
       ...response.user
     };
+    const nextSessionUser = {
+      ...response.user,
+      avatarDataUrl: mergedProfile.avatarDataUrl ?? response.user.avatarDataUrl
+    };
 
     setProfile(mergedProfile);
-    saveTeacherProfile(response.user, mergedProfile);
-    saveSession(response.user);
+    saveTeacherProfile(nextSessionUser, mergedProfile);
+    setSessionUser(nextSessionUser);
     return response;
   }
 
@@ -85,6 +89,14 @@ export function TeacherProfilePage() {
     }
 
     return requestProfileEmailOtp(user.role, user.userId, { email });
+  }
+
+  async function handleVerifyEmailOtp(email, otp) {
+    if (!user) {
+      return null;
+    }
+
+    return verifyProfileEmailOtp(user.role, user.userId, { email, otp });
   }
 
   if (!user || user.role !== "teacher") {
@@ -148,6 +160,7 @@ export function TeacherProfilePage() {
           profile={profile}
           onSaveProfile={handleSaveProfile}
           onRequestEmailOtp={handleRequestEmailOtp}
+          onVerifyEmailOtp={handleVerifyEmailOtp}
         />
       </main>
     </div>

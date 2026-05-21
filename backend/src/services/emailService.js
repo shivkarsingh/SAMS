@@ -10,11 +10,59 @@ let verificationStatus = {
 };
 let activeDeliveries = 0;
 const deliveryQueue = [];
+const inFlightDeliveriesByNotificationKey = new Map();
 
 function normalizeRecipients(recipients) {
   return (Array.isArray(recipients) ? recipients : [recipients])
     .map((recipient) => String(recipient ?? "").trim().toLowerCase())
     .filter(Boolean);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function htmlToText(value) {
+  return String(value ?? "")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|tr|li|h[1-6])>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n\s+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function normalizeEmailContent({ subject, html, text }) {
+  const normalizedSubject =
+    String(subject ?? "").trim() || "SAMS notification";
+  const normalizedHtml = String(html ?? "").trim();
+  const normalizedText =
+    String(text ?? "").trim() ||
+    htmlToText(normalizedHtml) ||
+    normalizedSubject;
+  const fallbackHtml = `<div style="font-family:Arial,Helvetica,sans-serif;line-height:1.6;color:#162033;"><p>${escapeHtml(
+    normalizedText
+  ).replace(/\n/g, "<br>")}</p></div>`;
+
+  return {
+    subject: normalizedSubject,
+    html: normalizedHtml || fallbackHtml,
+    text: normalizedText
+  };
 }
 
 function hasSmtpConfig() {
@@ -251,6 +299,8 @@ export async function sendEmail({
   metadata = {}
 }) {
   const recipients = normalizeRecipients(to);
+  const emailContent = normalizeEmailContent({ subject, html, text });
+  const normalizedNotificationKey = String(notificationKey ?? "").trim();
 
   if (!recipients.length) {
     return {
@@ -259,13 +309,30 @@ export async function sendEmail({
     };
   }
 
-  if (notificationKey) {
-    const existingLog = await EmailDeliveryLog.findOne({
-      notificationKey,
-      status: "sent"
-    }).lean();
+  if (normalizedNotificationKey) {
+    if (inFlightDeliveriesByNotificationKey.has(normalizedNotificationKey)) {
+      return {
+        status: "skipped",
+        reason: "duplicate-in-flight"
+      };
+    }
+
+    inFlightDeliveriesByNotificationKey.set(normalizedNotificationKey, true);
+
+    let existingLog;
+    try {
+      existingLog = await EmailDeliveryLog.findOne({
+        notificationKey: normalizedNotificationKey,
+        status: "sent"
+      }).lean();
+    } catch (error) {
+      inFlightDeliveriesByNotificationKey.delete(normalizedNotificationKey);
+      throw error;
+    }
 
     if (existingLog) {
+      inFlightDeliveriesByNotificationKey.delete(normalizedNotificationKey);
+
       return {
         status: "skipped",
         reason: "duplicate",
@@ -278,23 +345,27 @@ export async function sendEmail({
     const reason = env.emailEnabled ? "smtp-not-configured" : "email-disabled";
     console.info("[email:skipped]", {
       to: recipients,
-      subject,
+      subject: emailContent.subject,
       template,
-      notificationKey,
+      notificationKey: normalizedNotificationKey,
       reason
     });
 
     const log = await createDeliveryLog({
       to: recipients,
-      subject,
+      subject: emailContent.subject,
       template,
       status: "skipped",
-      notificationKey: notificationKey || undefined,
+      notificationKey: normalizedNotificationKey || undefined,
       metadata: {
         ...metadata,
         reason
       }
     });
+
+    if (normalizedNotificationKey) {
+      inFlightDeliveriesByNotificationKey.delete(normalizedNotificationKey);
+    }
 
     return {
       status: "skipped",
@@ -303,14 +374,14 @@ export async function sendEmail({
     };
   }
 
-  return enqueueDelivery(async () => {
+  const deliveryPromise = enqueueDelivery(async () => {
     try {
       const { result, attempts } = await deliverWithRetries({
         from: env.emailFrom,
         to: recipients,
-        subject,
-        html,
-        text
+        subject: emailContent.subject,
+        html: emailContent.html,
+        text: emailContent.text
       });
       verificationStatus = {
         status: "online",
@@ -320,11 +391,11 @@ export async function sendEmail({
 
       const log = await createDeliveryLog({
         to: recipients,
-        subject,
+        subject: emailContent.subject,
         template,
         status: "sent",
         providerMessageId: result.messageId ?? "",
-        notificationKey: notificationKey || undefined,
+        notificationKey: normalizedNotificationKey || undefined,
         metadata: {
           ...metadata,
           attempts
@@ -341,10 +412,10 @@ export async function sendEmail({
       const attempts = error?.attempts ?? [];
       const log = await createDeliveryLog({
         to: recipients,
-        subject,
+        subject: emailContent.subject,
         template,
         status: "failed",
-        notificationKey: notificationKey || undefined,
+        notificationKey: normalizedNotificationKey || undefined,
         errorMessage:
           error instanceof Error ? error.message : "Unable to send email.",
         metadata: {
@@ -367,6 +438,18 @@ export async function sendEmail({
       };
     }
   });
+
+  if (normalizedNotificationKey) {
+    inFlightDeliveriesByNotificationKey.set(
+      normalizedNotificationKey,
+      deliveryPromise
+    );
+    deliveryPromise.finally(() => {
+      inFlightDeliveriesByNotificationKey.delete(normalizedNotificationKey);
+    });
+  }
+
+  return deliveryPromise;
 }
 
 export async function sendEmailServiceTest({ to }) {

@@ -1,25 +1,9 @@
 const SESSION_STORAGE_KEY = "sams.session";
 const PENDING_JOIN_CODE_KEY = "sams.pendingJoinCode";
-const STUDENT_SESSION_DURATION_MS = 10 * 60 * 1000;
+const SESSION_IDLE_TIMEOUT_MS = 15 * 60 * 1000;
+const SESSION_ABSOLUTE_TIMEOUT_MS = 60 * 60 * 1000;
 
-export function saveSession(user) {
-  const savedAt = new Date();
-  const expiresAt =
-    user.role === "student"
-      ? new Date(savedAt.getTime() + STUDENT_SESSION_DURATION_MS).toISOString()
-      : null;
-
-  localStorage.setItem(
-    SESSION_STORAGE_KEY,
-    JSON.stringify({
-      user,
-      savedAt: savedAt.toISOString(),
-      expiresAt
-    })
-  );
-}
-
-export function getSession() {
+function readStoredSession() {
   const rawValue = localStorage.getItem(SESSION_STORAGE_KEY);
 
   if (!rawValue) {
@@ -27,23 +11,84 @@ export function getSession() {
   }
 
   try {
-    const session = JSON.parse(rawValue);
-
-    if (session?.user?.role === "student") {
-      const expiresAt = session.expiresAt
-        ? new Date(session.expiresAt).getTime()
-        : new Date(session.savedAt).getTime() + STUDENT_SESSION_DURATION_MS;
-
-      if (Number.isFinite(expiresAt) && Date.now() >= expiresAt) {
-        clearSession();
-        return null;
-      }
-    }
-
-    return session;
+    return JSON.parse(rawValue);
   } catch {
+    clearSession();
     return null;
   }
+}
+
+function getTimeValue(value) {
+  const timeValue = new Date(value).getTime();
+
+  return Number.isFinite(timeValue) ? timeValue : null;
+}
+
+function isSessionExpired(session, now = Date.now()) {
+  const savedAt = getTimeValue(session?.savedAt);
+
+  if (savedAt === null) {
+    return true;
+  }
+
+  const lastActivityAt = getTimeValue(session?.lastActivityAt) ?? savedAt;
+  const absoluteExpiresAt = savedAt + SESSION_ABSOLUTE_TIMEOUT_MS;
+  const idleExpiresAt = lastActivityAt + SESSION_IDLE_TIMEOUT_MS;
+
+  return now >= absoluteExpiresAt || now >= idleExpiresAt;
+}
+
+export function saveSession(user) {
+  const savedAt = new Date();
+
+  localStorage.setItem(
+    SESSION_STORAGE_KEY,
+    JSON.stringify({
+      user,
+      savedAt: savedAt.toISOString(),
+      lastActivityAt: savedAt.toISOString(),
+      expiresAt: new Date(
+        savedAt.getTime() + SESSION_ABSOLUTE_TIMEOUT_MS
+      ).toISOString()
+    })
+  );
+}
+
+export function getSession() {
+  const session = readStoredSession();
+
+  if (!session) {
+    return null;
+  }
+
+  if (isSessionExpired(session)) {
+    clearSession();
+    return null;
+  }
+
+  return session;
+}
+
+export function refreshSessionActivity() {
+  const session = readStoredSession();
+
+  if (!session) {
+    return null;
+  }
+
+  if (isSessionExpired(session)) {
+    clearSession();
+    return null;
+  }
+
+  const nextSession = {
+    ...session,
+    lastActivityAt: new Date().toISOString()
+  };
+
+  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(nextSession));
+
+  return nextSession;
 }
 
 export function hasSavedSession() {

@@ -213,6 +213,8 @@ export function buildAbsentNotificationTemplate({ student, classroom, record }) 
         ${infoRows([
           { label: "Subject", value: `${classroom.subjectCode} - ${classroom.subjectName}` },
           { label: "Date", value: formatDate(record.recordedAt) },
+          { label: "Class Type", value: record.sessionType === "extra" ? "Extra Class" : "Scheduled Class" },
+          { label: "Attendance Unit", value: record.attendanceUnit ?? 1 },
           { label: "Class Timing", value: classroom.scheduleSummary || "Schedule not specified" },
           { label: "Note", value: record.notes }
         ])}

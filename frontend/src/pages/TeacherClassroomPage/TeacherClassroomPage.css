@@ -17,6 +17,261 @@
   gap: 14px;
 }
 
+.teacher-sessions-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.teacher-session-card {
+  width: 100%;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.teacher-session-card.selected {
+  border-color: rgba(251, 146, 60, 0.46);
+  background: rgba(251, 146, 60, 0.1);
+  box-shadow: 0 18px 50px rgba(251, 146, 60, 0.12);
+}
+
+.teacher-session-card .timeline-content {
+  min-width: 0;
+}
+
+.teacher-session-view-label {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid rgba(251, 146, 60, 0.28);
+  border-radius: 999px;
+  background: rgba(251, 146, 60, 0.1);
+  color: #fed7aa;
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.teacher-session-detail {
+  display: grid;
+  gap: 16px;
+  min-height: 240px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  background: rgba(6, 12, 28, 0.32);
+}
+
+.teacher-session-detail-header {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.teacher-session-detail-header span,
+.teacher-session-student-row small,
+.teacher-session-empty-list {
+  color: #9caecc;
+}
+
+.teacher-session-detail-header strong {
+  display: block;
+  margin-top: 4px;
+  color: #f8fafc;
+  font-size: 1.1rem;
+}
+
+.teacher-session-counts {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.teacher-session-counts span {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #e8eef8;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.teacher-session-roster-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.teacher-session-student-group {
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.teacher-session-student-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.teacher-session-student-heading span {
+  color: #f8fafc;
+  font-weight: 900;
+}
+
+.teacher-session-student-heading strong {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+  font-size: 0.9rem;
+}
+
+.teacher-session-student-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.teacher-session-student-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 10px 0;
+}
+
+.teacher-session-student-row + .teacher-session-student-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.teacher-session-student-row div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.teacher-session-student-row .teacher-session-student-profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.teacher-session-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  overflow: hidden;
+  border: 1px solid rgba(141, 231, 245, 0.22);
+  border-radius: 999px;
+  background: rgba(141, 231, 245, 0.1);
+  color: #e5fbff;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.teacher-session-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.teacher-session-student-row strong,
+.teacher-session-student-row small {
+  overflow-wrap: anywhere;
+}
+
+.teacher-session-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.teacher-session-status-pill {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.teacher-session-status-pill.present {
+  background: rgba(52, 211, 153, 0.12);
+  color: #86efac;
+}
+
+.teacher-session-status-pill.absent {
+  background: rgba(248, 113, 113, 0.12);
+  color: #fecaca;
+}
+
+.teacher-session-status-pill.cancelled {
+  background: rgba(148, 163, 184, 0.14);
+  color: #cbd5e1;
+}
+
+.teacher-session-edit-toggle {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.54);
+}
+
+.teacher-session-edit-button {
+  min-height: 32px;
+  padding: 0 11px;
+  border: 0;
+  background: transparent;
+  color: #cbd5e1;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.teacher-session-edit-button + .teacher-session-edit-button {
+  border-left: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.teacher-session-edit-button.present.active,
+.teacher-session-edit-button.present:hover:not(:disabled) {
+  background: rgba(34, 197, 94, 0.18);
+  color: #bbf7d0;
+}
+
+.teacher-session-edit-button.absent.active,
+.teacher-session-edit-button.absent:hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.16);
+  color: #fecaca;
+}
+
+.teacher-session-edit-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.teacher-session-empty-list {
+  margin: 0;
+}
+
 .teacher-classroom-hero {
   grid-template-columns: 1.12fr 0.88fr;
   gap: 20px;
@@ -61,6 +316,7 @@
 }
 
 .attendance-download-panel,
+.classroom-exam-setup-panel,
 .qr-attendance-panel {
   display: grid;
   gap: 14px;
@@ -69,13 +325,20 @@
 }
 
 .attendance-download-panel h3,
+.classroom-exam-setup-panel h3,
+.classroom-exam-setup-panel p,
 .qr-attendance-panel h3,
 .qr-attendance-panel p {
   margin: 8px 0 0;
 }
 
+.classroom-exam-setup-panel p,
 .qr-attendance-panel p {
   color: #9caecc;
+}
+
+.classroom-exam-form {
+  gap: 12px;
 }
 
 .attendance-download-grid {
@@ -148,6 +411,12 @@
   transform: translateY(0) scale(0.98);
 }
 
+.classroom-tool-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+  transform: none;
+}
+
 .classroom-tool-button-notes:hover {
   border-color: rgba(56, 189, 248, 0.28);
   background: rgba(56, 189, 248, 0.12);
@@ -176,6 +445,17 @@
   border-color: rgba(249, 115, 22, 0.28);
   background: rgba(249, 115, 22, 0.12);
   box-shadow: 0 14px 30px rgba(249, 115, 22, 0.14);
+}
+
+.classroom-tool-button-danger {
+  border-color: rgba(248, 113, 113, 0.24);
+  color: #fecaca;
+}
+
+.classroom-tool-button-danger:hover:not(:disabled) {
+  border-color: rgba(248, 113, 113, 0.38);
+  background: rgba(248, 113, 113, 0.12);
+  box-shadow: 0 14px 30px rgba(248, 113, 113, 0.14);
 }
 
 .classroom-tool-button-download:hover {
@@ -340,6 +620,10 @@
   background: rgba(52, 211, 153, 0.05);
 }
 
+.manual-attendance-toggle {
+  margin-top: 18px;
+}
+
 .manual-attendance-head,
 .manual-attendance-row {
   display: flex;
@@ -385,6 +669,40 @@
   max-height: 520px;
   overflow: auto;
   padding-right: 4px;
+}
+
+.attendance-unit-field {
+  max-width: 220px;
+}
+
+.attendance-unit-field input {
+  max-width: 180px;
+}
+
+.attendance-session-options {
+  display: flex;
+  gap: 14px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.attendance-extra-class-option {
+  display: inline-flex;
+  min-height: 46px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 14px;
+  border: 1px solid rgba(141, 231, 245, 0.18);
+  border-radius: 14px;
+  background: rgba(141, 231, 245, 0.06);
+  color: #e8eef8;
+  font-weight: 900;
+}
+
+.attendance-extra-class-option input {
+  width: 16px;
+  height: 16px;
+  accent-color: #8de7f5;
 }
 
 .manual-attendance-row {
@@ -512,12 +830,55 @@
   text-transform: none;
 }
 
-.today-draft-list {
+.today-draft-groups {
   display: grid;
-  gap: 10px;
+  gap: 16px;
   max-height: 560px;
   overflow: auto;
   padding-right: 4px;
+}
+
+.today-draft-group {
+  display: grid;
+  gap: 10px;
+  padding: 0 0 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.today-draft-group:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.today-draft-group-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.today-draft-group-head h4 {
+  margin: 0;
+  color: #f4f7fb;
+  font-size: 0.96rem;
+}
+
+.today-draft-group-head span {
+  display: inline-grid;
+  min-width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid rgba(141, 231, 245, 0.16);
+  border-radius: 999px;
+  background: rgba(141, 231, 245, 0.08);
+  color: #dff7ff;
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.today-draft-list {
+  display: grid;
+  gap: 10px;
 }
 
 .today-draft-row {
@@ -656,6 +1017,7 @@
 
 .teacher-camera-card {
   display: grid;
+  justify-items: center;
   gap: 14px;
   margin-top: 18px;
   padding: 18px;
@@ -664,11 +1026,18 @@
   background: rgba(141, 231, 245, 0.05);
 }
 
+.teacher-camera-frame {
+  width: min(100%, 720px);
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 20px;
+  border: 1px solid rgba(141, 231, 245, 0.14);
+  background: rgba(6, 12, 24, 0.82);
+}
+
 .teacher-camera-preview {
   width: 100%;
-  min-height: 260px;
-  border-radius: 20px;
-  background: rgba(6, 12, 24, 0.82);
+  height: 100%;
   object-fit: cover;
 }
 
@@ -693,6 +1062,18 @@
   border: 1px solid rgba(52, 211, 153, 0.14);
 }
 
+.selected-file-pill button {
+  border: 1px solid rgba(103, 232, 249, 0.18);
+  border-radius: 999px;
+  background: rgba(103, 232, 249, 0.08);
+  color: #dff7ff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 5px 9px;
+}
+
 .selected-file-source {
   color: #8de7f5;
   font-size: 0.74rem;
@@ -707,6 +1088,10 @@
 
 .teacher-finalized-card {
   margin-top: 20px;
+}
+
+.finalized-email-actions {
+  margin-top: 12px;
 }
 
 .active-teacher-nav {
@@ -730,7 +1115,8 @@
 }
 
 @media (max-width: 980px) {
-  .teacher-classroom-hero {
+  .teacher-classroom-hero,
+  .teacher-sessions-layout {
     grid-template-columns: 1fr;
   }
 }
@@ -801,5 +1187,23 @@
   .teacher-classroom-tools {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .teacher-session-detail-header,
+  .teacher-session-student-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .teacher-session-counts {
+    justify-content: flex-start;
+  }
+
+  .teacher-session-row-actions {
+    justify-content: flex-start;
+  }
+
+  .teacher-session-view-label {
+    white-space: normal;
   }
 }

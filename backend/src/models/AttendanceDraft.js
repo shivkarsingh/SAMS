@@ -84,6 +84,17 @@ const attendanceDraftSchema = new mongoose.Schema(
       trim: true,
       default: ""
     },
+    attendanceUnit: {
+      type: Number,
+      min: 1,
+      default: 1
+    },
+    sessionType: {
+      type: String,
+      enum: ["regular", "extra"],
+      default: "regular",
+      index: true
+    },
     status: {
       type: String,
       enum: ["draft", "finalized"],

@@ -2,6 +2,16 @@ import { DashboardPanelHeader } from "../../../components/common/DashboardPanelH
 import { MetricBar } from "../../../components/common/MetricBar";
 import { goToRoute } from "../../../utils/router";
 
+function formatHighestStudentPercentage(course) {
+  const highestPercentage = course.highestStudentAttendance?.attendancePercentage;
+
+  return highestPercentage !== null &&
+    highestPercentage !== undefined &&
+    Number.isFinite(Number(highestPercentage))
+    ? `${highestPercentage}%`
+    : "No records";
+}
+
 export function StudentClassesPanel({ classes }) {
   return (
     <article className="glass-card dashboard-panel" id="performance">
@@ -42,8 +52,8 @@ export function StudentClassesPanel({ classes }) {
                 <article className="alert-card warning student-class-warning">
                   <h3>Low attendance warning</h3>
                   <p>
-                    Attend {course.classesNeededForSafeRange || 1} upcoming class
-                    {(course.classesNeededForSafeRange || 1) === 1 ? "" : "es"} to recover this subject.
+                    Attend {course.classesNeededForSafeRange || 1} upcoming unit
+                    {(course.classesNeededForSafeRange || 1) === 1 ? "" : "s"} to recover this subject.
                   </p>
                 </article>
               ) : null}
@@ -64,7 +74,7 @@ export function StudentClassesPanel({ classes }) {
                   <span>Recovery</span>
                   <strong>
                     {course.classesNeededForSafeRange
-                      ? `${course.classesNeededForSafeRange} classes`
+                      ? `${course.classesNeededForSafeRange} units`
                       : "Safe"}
                   </strong>
                 </div>
@@ -72,11 +82,15 @@ export function StudentClassesPanel({ classes }) {
                   <span>Absent</span>
                   <strong>{course.absent ?? Math.max(0, course.total - course.attended)}</strong>
                 </div>
+                <div>
+                  <span>Highest Student %</span>
+                  <strong>{formatHighestStudentPercentage(course)}</strong>
+                </div>
               </div>
 
               <div className="course-footer">
                 <span>
-                  {course.attended}/{course.total} sessions attended
+                  {course.attended}/{course.total} attendance units
                 </span>
                 <span>
                   Last: {course.lastStatus} • {course.lastMarkedLabel}

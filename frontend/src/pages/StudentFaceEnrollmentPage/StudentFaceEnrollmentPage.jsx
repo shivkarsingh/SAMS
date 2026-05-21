@@ -110,18 +110,7 @@ export function StudentFaceEnrollmentPage() {
       <header className="dashboard-topbar glass-card">
         <AppBrand href="#/" subtitle="Student Face Enrollment" />
 
-        <nav className="dashboard-nav student-workspace-nav">
-          <button
-            className="dashboard-nav-button"
-            type="button"
-            onClick={() => goToRoute("/student-dashboard")}
-          >
-            Dashboard
-          </button>
-          <button className="dashboard-nav-button active-student-nav" type="button">
-            Face Enrollment
-          </button>
-        </nav>
+        <div />
 
         <div className="dashboard-header-actions">
           <button

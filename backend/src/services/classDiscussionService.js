@@ -2,22 +2,37 @@ import mongoose from "mongoose";
 import { ClassDiscussionMessage } from "../models/ClassDiscussionMessage.js";
 import { ClassMembership } from "../models/ClassMembership.js";
 import { Classroom } from "../models/Classroom.js";
+import { FaceProfile } from "../models/FaceProfile.js";
 import { User } from "../models/User.js";
 import {
   sanitizeScheduleSlots,
   summarizeScheduleSlots
 } from "../utils/schedule.js";
+import { resolveStudentDisplayPhotoUrl } from "../utils/studentDisplayPhoto.js";
 
 const MAX_DISCUSSION_MESSAGE_LENGTH = 1000;
 const MAX_DISCUSSION_REPLY_LENGTH = 600;
 const MAX_DISCUSSION_MESSAGES = 80;
 
 function normalizeUserId(userId) {
-  return String(userId).trim().toUpperCase();
+  return String(userId ?? "").trim().toUpperCase();
 }
 
 function formatFullName(person) {
   return `${person.firstName} ${person.lastName}`.trim();
+}
+
+function getAuthorPhotoPayload(user, faceProfile) {
+  const avatarDataUrl = user?.avatarDataUrl ?? "";
+
+  return {
+    avatarDataUrl,
+    faceProfilePhotoUrl: faceProfile?.profilePhotoUrl ?? "",
+    authorPhotoUrl:
+      user?.role === "student"
+        ? resolveStudentDisplayPhotoUrl(user, faceProfile)
+        : avatarDataUrl
+  };
 }
 
 function sanitizeClassroom(classroom) {
@@ -36,26 +51,76 @@ function sanitizeClassroom(classroom) {
   };
 }
 
-function sanitizeMessage(message) {
+function sanitizeMessage(message, authorPhotosById = new Map()) {
+  const authorPhoto =
+    authorPhotosById.get(normalizeUserId(message.authorUserId)) ?? {};
+
   return {
     id: String(message._id),
     classId: String(message.classId),
     authorUserId: message.authorUserId,
     authorName: message.authorName,
     authorRole: message.authorRole,
+    authorPhotoUrl: authorPhoto.authorPhotoUrl ?? "",
+    authorAvatarDataUrl: authorPhoto.avatarDataUrl ?? "",
+    authorFaceProfilePhotoUrl: authorPhoto.faceProfilePhotoUrl ?? "",
     message: message.message,
-    replies: (message.replies ?? []).map((reply) => ({
-      id: String(reply._id),
-      authorUserId: reply.authorUserId,
-      authorName: reply.authorName,
-      authorRole: reply.authorRole,
-      message: reply.message,
-      createdAt: reply.createdAt
-    })),
+    replies: (message.replies ?? []).map((reply) => {
+      const replyAuthorPhoto =
+        authorPhotosById.get(normalizeUserId(reply.authorUserId)) ?? {};
+
+      return {
+        id: String(reply._id),
+        authorUserId: reply.authorUserId,
+        authorName: reply.authorName,
+        authorRole: reply.authorRole,
+        authorPhotoUrl: replyAuthorPhoto.authorPhotoUrl ?? "",
+        authorAvatarDataUrl: replyAuthorPhoto.avatarDataUrl ?? "",
+        authorFaceProfilePhotoUrl: replyAuthorPhoto.faceProfilePhotoUrl ?? "",
+        message: reply.message,
+        createdAt: reply.createdAt
+      };
+    }),
     likes: message.likes ?? [],
     dislikes: message.dislikes ?? [],
     createdAt: message.createdAt
   };
+}
+
+async function getAuthorPhotosById(messages = []) {
+  const messageList = Array.isArray(messages) ? messages : [messages];
+  const authorIds = Array.from(
+    new Set(
+      messageList.flatMap((message) => [
+        normalizeUserId(message.authorUserId),
+        ...(message.replies ?? []).map((reply) => normalizeUserId(reply.authorUserId))
+      ])
+    )
+  ).filter(Boolean);
+
+  if (!authorIds.length) {
+    return new Map();
+  }
+
+  const [users, faceProfiles] = await Promise.all([
+    User.find({
+      userId: { $in: authorIds }
+    }).lean(),
+    FaceProfile.find({
+      studentUserId: { $in: authorIds }
+    }).lean()
+  ]);
+  const usersById = new Map(users.map((user) => [normalizeUserId(user.userId), user]));
+  const faceProfilesById = new Map(
+    faceProfiles.map((profile) => [normalizeUserId(profile.studentUserId), profile])
+  );
+
+  return new Map(
+    authorIds.map((authorId) => [
+      authorId,
+      getAuthorPhotoPayload(usersById.get(authorId), faceProfilesById.get(authorId))
+    ])
+  );
 }
 
 function assertMessageObjectId(messageId) {
@@ -136,10 +201,14 @@ export async function getClassDiscussion({ classId, userId, role }) {
     .sort({ createdAt: -1 })
     .limit(MAX_DISCUSSION_MESSAGES)
     .lean();
+  const orderedMessages = messages.reverse();
+  const authorPhotosById = await getAuthorPhotosById(orderedMessages);
 
   return {
     classroom: sanitizeClassroom(classroom),
-    messages: messages.reverse().map(sanitizeMessage)
+    messages: orderedMessages.map((message) =>
+      sanitizeMessage(message, authorPhotosById)
+    )
   };
 }
 
@@ -174,7 +243,10 @@ export async function createClassDiscussionMessage({
     message: trimmedMessage
   });
 
-  return sanitizeMessage(createdMessage);
+  return sanitizeMessage(
+    createdMessage,
+    await getAuthorPhotosById([createdMessage])
+  );
 }
 
 export async function createClassDiscussionReply({
@@ -220,7 +292,12 @@ export async function createClassDiscussionReply({
 
   await discussionMessage.save();
 
-  return sanitizeMessage(discussionMessage.toObject());
+  const updatedMessage = discussionMessage.toObject();
+
+  return sanitizeMessage(
+    updatedMessage,
+    await getAuthorPhotosById([updatedMessage])
+  );
 }
 
 export async function toggleClassDiscussionReaction({
@@ -269,5 +346,10 @@ export async function toggleClassDiscussionReaction({
 
   await discussionMessage.save();
 
-  return sanitizeMessage(discussionMessage.toObject());
+  const updatedMessage = discussionMessage.toObject();
+
+  return sanitizeMessage(
+    updatedMessage,
+    await getAuthorPhotosById([updatedMessage])
+  );
 }

@@ -1,5 +1,7 @@
 import { ClassMembership } from "../models/ClassMembership.js";
 import { AttendanceRecord } from "../models/AttendanceRecord.js";
+import { ClassAssignment } from "../models/ClassAssignment.js";
+import { ClassAssignmentSubmission } from "../models/ClassAssignmentSubmission.js";
 import { ClassExam } from "../models/ClassExam.js";
 import { LeaveRequest } from "../models/LeaveRequest.js";
 import { User } from "../models/User.js";
@@ -18,6 +20,7 @@ import {
   getCurrentScheduleDayId,
   scheduleDays
 } from "../utils/schedule.js";
+import { resolveStudentDisplayPhotoUrl } from "../utils/studentDisplayPhoto.js";
 
 const SAFE_ATTENDANCE_PERCENTAGE = 75;
 
@@ -61,6 +64,27 @@ function getAttendanceRecordTimestamp(record) {
   return new Date(record.recordedAt ?? record.createdAt ?? Date.now());
 }
 
+function getAttendanceDayWindow(date = new Date()) {
+  const dayStart = new Date(date);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayStart.getDate() + 1);
+
+  return { dayStart, dayEnd };
+}
+
+function getAttendanceUnit(record) {
+  const numericUnit = Number(record?.attendanceUnit ?? 1);
+
+  return Number.isFinite(numericUnit) && numericUnit >= 1
+    ? Math.max(1, Math.round(numericUnit))
+    : 1;
+}
+
+function getSessionType(record) {
+  return record?.sessionType === "extra" ? "extra" : "regular";
+}
+
 function formatStudentAttendanceRecord(record) {
   const timestamp = getAttendanceRecordTimestamp(record);
 
@@ -76,6 +100,8 @@ function formatStudentAttendanceRecord(record) {
     verificationMethod: record.verificationMethod ?? "manual",
     source: record.source ?? "",
     confidence: record.confidence ?? null,
+    attendanceUnit: getAttendanceUnit(record),
+    sessionType: getSessionType(record),
     notes: record.notes ?? ""
   };
 }
@@ -144,13 +170,42 @@ function getNextScheduleSlot(joinedClass) {
   return todaysSlots[0] ?? (joinedClass.scheduleSlots ?? [])[0] ?? null;
 }
 
+function getHighestStudentAttendance(attendanceSummary, memberships = []) {
+  const rankedStudents = memberships
+    .map((membership) => {
+      const normalizedStudentUserId = String(membership.studentUserId ?? "")
+        .trim()
+        .toUpperCase();
+      const stats = attendanceSummary.studentStatsById.get(normalizedStudentUserId);
+
+      if (!stats || stats.totalCount <= 0) {
+        return null;
+      }
+
+      return {
+        attendancePercentage: stats.attendancePercentage,
+        attended: stats.presentCount,
+        total: stats.totalCount
+      };
+    })
+    .filter(Boolean)
+    .sort(
+      (left, right) =>
+        right.attendancePercentage - left.attendancePercentage ||
+        right.attended - left.attended
+    );
+
+  return rankedStudents[0] ?? null;
+}
+
 function buildClassPerformance(
   joinedClasses,
   summariesByClass,
   studentUserId,
   attendanceRecords = [],
   leaveRequests = [],
-  examRecords = []
+  examRecords = [],
+  membershipsByClass = new Map()
 ) {
   const normalizedStudentUserId = String(studentUserId).trim().toUpperCase();
   const recordsByClassId = new Map();
@@ -177,6 +232,10 @@ function buildClassPerformance(
     const attendanceSummary =
       summariesByClass.get(String(joinedClass.id)) ??
       summarizeAttendanceRecords([], [normalizedStudentUserId]);
+    const highestStudentAttendance = getHighestStudentAttendance(
+      attendanceSummary,
+      membershipsByClass.get(String(joinedClass.id)) ?? []
+    );
     const studentStats =
       attendanceSummary.studentStatsById.get(normalizedStudentUserId) ?? {
         presentCount: 0,
@@ -214,12 +273,14 @@ function buildClassPerformance(
       id: joinedClass.id,
       code: joinedClass.subjectCode,
       title: joinedClass.subjectName,
+      semesterLabel: joinedClass.semesterLabel,
       faculty: joinedClass.teacherName,
       attended,
       absent,
       total,
       studentPercentage,
       classAverage: attendanceSummary.averageAttendance,
+      highestStudentAttendance,
       room: joinedClass.room || "Room update pending",
       nextClass: joinedClass.scheduleSummary || "Schedule to be announced",
       scheduleSlots: joinedClass.scheduleSlots ?? [],
@@ -316,20 +377,36 @@ function buildComparison(classPerformance) {
           recordedClasses.length
       )
     : 0;
-  const bestClass = recordedClasses.length
-    ? Math.max(...recordedClasses.map((course) => course.studentPercentage))
-    : 0;
-  const weakestClass = recordedClasses.length
-    ? Math.min(...recordedClasses.map((course) => course.studentPercentage))
-    : 0;
+  const bestCourse = recordedClasses.length
+    ? [...recordedClasses].sort(
+        (left, right) =>
+          right.studentPercentage - left.studentPercentage ||
+          String(left.title).localeCompare(String(right.title))
+      )[0]
+    : null;
+  const weakestCourse = recordedClasses.length
+    ? [...recordedClasses].sort(
+        (left, right) =>
+          left.studentPercentage - right.studentPercentage ||
+          String(left.title).localeCompare(String(right.title))
+      )[0]
+    : null;
 
   return {
     overallAttendance,
     items: [
       { label: "You", value: overallAttendance },
       { label: "Class Avg", value: classAverage },
-      { label: "Best Subject", value: bestClass },
-      { label: "Lowest Subject", value: weakestClass }
+      {
+        label: "Best Subject",
+        value: bestCourse?.studentPercentage ?? 0,
+        detail: bestCourse ? `${bestCourse.code} - ${bestCourse.title}` : ""
+      },
+      {
+        label: "Low Subject",
+        value: weakestCourse?.studentPercentage ?? 0,
+        detail: weakestCourse ? `${weakestCourse.code} - ${weakestCourse.title}` : ""
+      }
     ]
   };
 }
@@ -434,6 +511,7 @@ function buildWeeklySchedule(joinedClasses) {
             id: `${joinedClass.id}-${slot.day}-${slot.startTime}`,
             title: joinedClass.subjectName,
             code: joinedClass.subjectCode,
+            semesterLabel: joinedClass.semesterLabel,
             time: slot.timeLabel,
             startTime: slot.startTime,
             faculty: joinedClass.teacherName,
@@ -450,25 +528,103 @@ function buildWeeklySchedule(joinedClasses) {
   });
 }
 
-function buildUpcomingClasses(joinedClasses) {
+function getTodayAttendanceByClass(attendanceRecords = []) {
+  const { dayStart, dayEnd } = getAttendanceDayWindow(new Date());
+  const todayAttendanceByClass = new Map();
+
+  attendanceRecords
+    .filter((record) => {
+      const recordedAt = getAttendanceRecordTimestamp(record);
+
+      return recordedAt >= dayStart && recordedAt < dayEnd;
+    })
+    .sort(
+      (left, right) =>
+        getAttendanceRecordTimestamp(left) - getAttendanceRecordTimestamp(right)
+    )
+    .forEach((record) => {
+      todayAttendanceByClass.set(String(record.classId), record);
+    });
+
+  return todayAttendanceByClass;
+}
+
+function buildUpcomingClasses(joinedClasses, attendanceRecords = []) {
   const todayId = getCurrentScheduleDayId();
+  const todayAttendanceByClass = getTodayAttendanceByClass(attendanceRecords);
 
   return joinedClasses
     .flatMap((joinedClass) =>
       (joinedClass.scheduleSlots ?? [])
         .filter((slot) => slot.day === todayId)
-        .map((slot) => ({
-          id: `${joinedClass.id}-${slot.day}-${slot.startTime}`,
-          title: joinedClass.subjectName,
-          code: joinedClass.subjectCode,
-          time: slot.timeLabel,
-          startTime: slot.startTime,
-          faculty: joinedClass.teacherName,
-          room: joinedClass.room || "Room update pending",
-          status: `Join code: ${joinedClass.joinCode}`
-        }))
+        .map((slot) => {
+          const todayRecord = todayAttendanceByClass.get(String(joinedClass.id));
+          const todayStatus = todayRecord?.status ?? "";
+          const cancelledToday = todayStatus === "cancelled";
+          const attendanceTakenToday = Boolean(todayRecord) && !cancelledToday;
+
+          return {
+            id: `${joinedClass.id}-${slot.day}-${slot.startTime}`,
+            title: joinedClass.subjectName,
+            code: joinedClass.subjectCode,
+            semesterLabel: joinedClass.semesterLabel,
+            time: slot.timeLabel,
+            startTime: slot.startTime,
+            faculty: joinedClass.teacherName,
+            room: joinedClass.room || "Room update pending",
+            attendanceTakenToday,
+            todayAttendanceStatus: todayStatus,
+            status: cancelledToday
+              ? "Cancelled"
+              : attendanceTakenToday
+                ? "Taken"
+                : "Pending"
+          };
+        })
     )
     .sort((left, right) => left.startTime.localeCompare(right.startTime));
+}
+
+function buildAssignmentNotifications(
+  assignments = [],
+  submissions = [],
+  joinedClasses = []
+) {
+  const now = new Date();
+  const submittedAssignmentIds = new Set(
+    submissions.map((submission) => String(submission.assignmentId))
+  );
+  const classById = new Map(
+    joinedClasses.map((joinedClass) => [String(joinedClass.id), joinedClass])
+  );
+
+  return assignments
+    .filter(
+      (assignment) =>
+        new Date(assignment.deadlineAt) >= now &&
+        !submittedAssignmentIds.has(String(assignment._id))
+    )
+    .sort(
+      (left, right) =>
+        new Date(right.createdAt ?? right.deadlineAt) -
+        new Date(left.createdAt ?? left.deadlineAt)
+    )
+    .slice(0, 6)
+    .map((assignment) => {
+      const joinedClass = classById.get(String(assignment.classId));
+
+      return {
+        id: String(assignment._id),
+        classId: String(assignment.classId),
+        title: assignment.title,
+        subjectCode: joinedClass?.subjectCode ?? "Class",
+        subjectName: joinedClass?.subjectName ?? "Class assignment",
+        deadlineAt: assignment.deadlineAt,
+        deadlineLabel: formatDateLabel(assignment.deadlineAt),
+        createdAt: assignment.createdAt,
+        attachmentCount: assignment.attachments?.length ?? 0
+      };
+    });
 }
 
 function buildCancellationAlerts(records, joinedClasses) {
@@ -557,12 +713,17 @@ export async function getStudentDashboard(userId) {
     classId: { $in: classIds }
   }).lean();
   const rosterIdsByClass = new Map();
+  const membershipsByClass = new Map();
 
   memberships.forEach((membership) => {
     const classId = String(membership.classId);
     const currentRosterIds = rosterIdsByClass.get(classId) ?? [];
+    const currentMemberships = membershipsByClass.get(classId) ?? [];
+
     currentRosterIds.push(String(membership.studentUserId).trim().toUpperCase());
+    currentMemberships.push(membership);
     rosterIdsByClass.set(classId, currentRosterIds);
+    membershipsByClass.set(classId, currentMemberships);
   });
 
   const summariesByClass = await getAttendanceSummariesByClass(
@@ -596,19 +757,39 @@ export async function getStudentDashboard(userId) {
         .sort({ examDate: 1 })
         .lean()
     : [];
+  const studentAssignments = classIds.length
+    ? await ClassAssignment.find({
+        classId: { $in: classIds },
+        deadlineAt: { $gte: new Date() }
+      })
+        .sort({ createdAt: -1 })
+        .select({ "attachments.dataUrl": 0 })
+        .lean()
+    : [];
+  const studentAssignmentSubmissions = studentAssignments.length
+    ? await ClassAssignmentSubmission.find({
+        assignmentId: {
+          $in: studentAssignments.map((assignment) => assignment._id)
+        },
+        studentUserId: normalizedUserId
+      })
+        .sort({ submittedAt: -1 })
+        .lean()
+    : [];
   const classPerformance = buildClassPerformance(
     joinedClasses,
     summariesByClass,
     normalizedUserId,
     studentAttendanceRecords,
     studentLeaveRequests,
-    studentExamRecords
+    studentExamRecords,
+    membershipsByClass
   );
   const upcomingExams = classPerformance
     .map((course) => course.upcomingExam)
     .filter(Boolean)
     .sort(sortUpcomingExams);
-  const upcomingClasses = buildUpcomingClasses(joinedClasses);
+  const upcomingClasses = buildUpcomingClasses(joinedClasses, studentAttendanceRecords);
   const weeklySchedule = buildWeeklySchedule(joinedClasses);
   const comparison = buildComparison(classPerformance);
   const recordedClasses = classPerformance.filter((course) => course.total > 0);
@@ -634,16 +815,16 @@ export async function getStudentDashboard(userId) {
   const thisMonthStart = new Date();
   thisMonthStart.setDate(1);
   thisMonthStart.setHours(0, 0, 0, 0);
-  const missedClassesThisMonth = studentAttendanceRecords.filter((record) => {
+  const missedClassesThisMonth = studentAttendanceRecords.reduce((total, record) => {
     const recordedAt = new Date(record.recordedAt ?? record.createdAt ?? Date.now());
-
-    return (
+    const isMissed =
       recordedAt >= thisMonthStart &&
       record.status !== "present" &&
       record.status !== "late" &&
-      record.status !== "cancelled"
-    );
-  }).length;
+      record.status !== "cancelled";
+
+    return isMissed ? total + getAttendanceUnit(record) : total;
+  }, 0);
   const recoveryPlan = buildRecoveryPlan(classPerformance);
   const aiCoach = buildAiCoach({
     classPerformance,
@@ -662,6 +843,11 @@ export async function getStudentDashboard(userId) {
   );
   const lowAttendanceAlerts = buildLowAttendanceAlerts(classPerformance);
   const examAlerts = buildExamAlerts(upcomingExams);
+  const assignmentNotifications = buildAssignmentNotifications(
+    studentAssignments,
+    studentAssignmentSubmissions,
+    joinedClasses
+  );
   const baseAlerts = classPerformance.length
     ? [
         ...examAlerts,
@@ -705,7 +891,11 @@ export async function getStudentDashboard(userId) {
       batch: student.batch,
       yearOfPassing: student.yearOfPassing,
       department: student.department,
+      semesterLabel: student.semesterLabel,
       email: student.email,
+      avatarDataUrl: student.avatarDataUrl ?? "",
+      faceProfilePhotoUrl: faceProfile.profilePhotoUrl ?? "",
+      displayAvatarUrl: resolveStudentDisplayPhotoUrl(student, faceProfile),
       joinedClassesCount: joinedClasses.length
     },
     overview: {
@@ -742,11 +932,12 @@ export async function getStudentDashboard(userId) {
     upcomingClasses,
     weeklySchedule,
     alerts: baseAlerts,
+    assignmentNotifications,
     achievements: classPerformance.length
       ? [
           `${classPerformance.length} classes joined`,
           `${safeClasses} classes in safe range`,
-          `${attendedSessions}/${totalRecordedSessions} recorded sessions attended`
+          `${belowRangeClasses} classes below range`
         ]
       : ["Create your face profile", "Join your first class", "Start your attendance record"],
     goals: [

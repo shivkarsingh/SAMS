@@ -3,6 +3,7 @@ import {
   deleteAdminUser,
   getAdminDashboard,
   updateAdminClassroomStatus,
+  updateAdminStudentRollNumber,
   updateAdminUserEmailVerification
 } from "../services/adminService.js";
 
@@ -97,6 +98,28 @@ export async function updateUserEmailVerification(request, response) {
         error instanceof Error
           ? error.message
           : "Unable to update user verification."
+    });
+  }
+}
+
+export async function updateStudentRollNumber(request, response) {
+  try {
+    const result = await updateAdminStudentRollNumber({
+      adminUserId: request.params.adminId,
+      userId: request.params.userId,
+      rollNumber: request.body?.rollNumber
+    });
+
+    response.json({
+      message: "Student roll number updated.",
+      ...result
+    });
+  } catch (error) {
+    response.status(400).json({
+      message:
+        error instanceof Error
+          ? error.message
+          : "Unable to update student roll number."
     });
   }
 }

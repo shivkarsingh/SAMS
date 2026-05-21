@@ -12,10 +12,26 @@ function getTimeGreeting() {
   return "Good evening";
 }
 
-export function TeacherHeroSection() {
+export function TeacherHeroSection({
+  onOpenClasses,
+  onCreateClass,
+  onOpenTodos
+}) {
   return (
     <section className="teacher-dashboard-greeting" id="overview">
+      <span className="pill">Teacher Dashboard</span>
       <h1>{getTimeGreeting()}</h1>
+      <div className="dashboard-actions">
+        <button className="primary-button" type="button" onClick={onOpenClasses}>
+          View Classes
+        </button>
+        <button className="secondary-button" type="button" onClick={onCreateClass}>
+          Create Class
+        </button>
+        <button className="secondary-button" type="button" onClick={onOpenTodos}>
+          Open To Do
+        </button>
+      </div>
     </section>
   );
 }

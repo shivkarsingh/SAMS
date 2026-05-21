@@ -80,12 +80,12 @@ class Settings:
         "ALLOW_MULTI_FACE_ENROLLMENT_IMAGES", "false"
     ).lower() in {"1", "true", "yes", "on"}
     recognition_threshold: float = float(
-        os.getenv("RECOGNITION_THRESHOLD", "0.72")
+        os.getenv("RECOGNITION_THRESHOLD", "0.68")
     )
     recognition_min_margin: float = float(
         os.getenv("RECOGNITION_MIN_MARGIN", "0.06")
     )
-    review_threshold: float = float(os.getenv("REVIEW_THRESHOLD", "0.62"))
+    review_threshold: float = float(os.getenv("REVIEW_THRESHOLD", "0.55"))
     data_dir: Path = Path(os.getenv("AI_DATA_DIR", str(DATA_DIR)))
     enrollment_store_path: Path = Path(
         os.getenv(

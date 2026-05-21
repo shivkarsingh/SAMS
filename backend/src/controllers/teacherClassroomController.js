@@ -3,13 +3,19 @@ import {
   archiveTeacherClassroom,
   cancelTeacherClassToday,
   createTeacherQrAttendanceSession,
+  deleteTeacherClassroom,
   deleteTeacherClassroomStudent,
+  discardTeacherTodayAttendanceDraft,
   finalizeTeacherClassAttendance,
   finalizeTeacherTodayAttendanceDraft,
   getTeacherClassroomDetails,
   markStudentQrAttendance,
   processTeacherClassAttendance,
+  sendTeacherAttendanceAbsenteeEmails,
+  sendTeacherExamAttendanceWarningEmails,
+  sendTeacherTodayDraftAbsenteeEmails,
   submitTeacherManualAttendance,
+  updateTeacherSessionAttendanceRecord,
   updateTeacherTodayAttendanceDraft,
   updateTeacherClassroomStudent
 } from "../services/teacherClassroomService.js";
@@ -161,9 +167,37 @@ export async function archiveTeacherClass(request, response) {
   }
 }
 
+export async function deleteTeacherClass(request, response) {
+  const { teacherId, classId } = request.params;
+
+  if (!teacherId || !classId) {
+    response.status(400).json({
+      message: "teacherId and classId are required."
+    });
+    return;
+  }
+
+  try {
+    const result = await deleteTeacherClassroom({
+      teacherUserId: teacherId,
+      classId
+    });
+
+    response.json({
+      message: "Class and related data deleted.",
+      ...result
+    });
+  } catch (error) {
+    response.status(400).json({
+      message:
+        error instanceof Error ? error.message : "Unable to delete this class."
+    });
+  }
+}
+
 export async function submitManualAttendance(request, response) {
   const { teacherId, classId } = request.params;
-  const { statuses, notes } = request.body ?? {};
+  const { statuses, notes, attendanceUnit, sessionType } = request.body ?? {};
 
   if (!teacherId || !classId) {
     response.status(400).json({
@@ -177,7 +211,9 @@ export async function submitManualAttendance(request, response) {
       teacherUserId: teacherId,
       classId,
       statuses,
-      notes
+      notes,
+      attendanceUnit,
+      sessionType
     });
 
     response.json({
@@ -316,7 +352,7 @@ export async function processTeacherAttendance(request, response) {
 
 export async function updateTodayAttendanceDraft(request, response) {
   const { teacherId, classId, draftId } = request.params;
-  const { statuses, notes } = request.body ?? {};
+  const { statuses, notes, attendanceUnit, sessionType } = request.body ?? {};
 
   if (!teacherId || !classId || !draftId) {
     response.status(400).json({
@@ -331,7 +367,9 @@ export async function updateTodayAttendanceDraft(request, response) {
       classId,
       draftId,
       statuses,
-      notes
+      notes,
+      attendanceUnit,
+      sessionType
     });
 
     response.json({
@@ -350,7 +388,7 @@ export async function updateTodayAttendanceDraft(request, response) {
 
 export async function finalizeTodayAttendanceDraft(request, response) {
   const { teacherId, classId, draftId } = request.params;
-  const { statuses, notes } = request.body ?? {};
+  const { statuses, notes, attendanceUnit, sessionType } = request.body ?? {};
 
   if (!teacherId || !classId || !draftId) {
     response.status(400).json({
@@ -365,7 +403,9 @@ export async function finalizeTodayAttendanceDraft(request, response) {
       classId,
       draftId,
       statuses,
-      notes
+      notes,
+      attendanceUnit,
+      sessionType
     });
 
     response.json({
@@ -382,6 +422,73 @@ export async function finalizeTodayAttendanceDraft(request, response) {
   }
 }
 
+export async function discardTodayAttendanceDraft(request, response) {
+  const { teacherId, classId, draftId } = request.params;
+
+  if (!teacherId || !classId || !draftId) {
+    response.status(400).json({
+      message: "teacherId, classId, and draftId are required."
+    });
+    return;
+  }
+
+  try {
+    const result = await discardTeacherTodayAttendanceDraft({
+      teacherUserId: teacherId,
+      classId,
+      draftId
+    });
+
+    response.json({
+      message: "Previous attendance verification removed. Capture again when ready.",
+      ...result
+    });
+  } catch (error) {
+    response.status(400).json({
+      message:
+        error instanceof Error
+          ? error.message
+          : "Unable to remove today attendance draft."
+    });
+  }
+}
+
+export async function sendTodayDraftAbsenteeEmails(request, response) {
+  const { teacherId, classId, draftId } = request.params;
+  const { statuses, notes, attendanceUnit, sessionType } = request.body ?? {};
+
+  if (!teacherId || !classId || !draftId) {
+    response.status(400).json({
+      message: "teacherId, classId, and draftId are required."
+    });
+    return;
+  }
+
+  try {
+    const result = await sendTeacherTodayDraftAbsenteeEmails({
+      teacherUserId: teacherId,
+      classId,
+      draftId,
+      statuses,
+      notes,
+      attendanceUnit,
+      sessionType
+    });
+
+    response.json({
+      message: "Absentee email workflow completed.",
+      ...result
+    });
+  } catch (error) {
+    response.status(400).json({
+      message:
+        error instanceof Error
+          ? error.message
+          : "Unable to send absentee emails."
+    });
+  }
+}
+
 export async function finalizeTeacherAttendance(request, response) {
   const { teacherId, classId } = request.params;
   const {
@@ -389,7 +496,9 @@ export async function finalizeTeacherAttendance(request, response) {
     confirmedPresentIds,
     manuallyAddedPresentIds,
     rejectedTrackIds,
-    notes
+    notes,
+    attendanceUnit,
+    sessionType
   } = request.body ?? {};
 
   if (!teacherId || !classId || !sessionId) {
@@ -407,7 +516,9 @@ export async function finalizeTeacherAttendance(request, response) {
       confirmedPresentIds,
       manuallyAddedPresentIds,
       rejectedTrackIds,
-      notes
+      notes,
+      attendanceUnit,
+      sessionType
     });
 
     response.json({
@@ -420,6 +531,72 @@ export async function finalizeTeacherAttendance(request, response) {
         error instanceof Error
           ? error.message
           : "Unable to finalize attendance."
+    });
+  }
+}
+
+export async function sendAttendanceAbsenteeEmails(request, response) {
+  const { teacherId, classId } = request.params;
+  const { sessionId } = request.body ?? {};
+
+  if (!teacherId || !classId) {
+    response.status(400).json({
+      message: "teacherId and classId are required."
+    });
+    return;
+  }
+
+  try {
+    const result = await sendTeacherAttendanceAbsenteeEmails({
+      teacherUserId: teacherId,
+      classId,
+      sessionId
+    });
+
+    response.json({
+      message: "Absentee email workflow completed.",
+      ...result
+    });
+  } catch (error) {
+    response.status(400).json({
+      message:
+        error instanceof Error
+          ? error.message
+          : "Unable to send absentee emails."
+    });
+  }
+}
+
+export async function updateSessionAttendanceRecord(request, response) {
+  const { teacherId, classId, sessionId, studentId } = request.params;
+  const { status } = request.body ?? {};
+
+  if (!teacherId || !classId || !sessionId || !studentId) {
+    response.status(400).json({
+      message: "teacherId, classId, sessionId, and studentId are required."
+    });
+    return;
+  }
+
+  try {
+    const result = await updateTeacherSessionAttendanceRecord({
+      teacherUserId: teacherId,
+      classId,
+      sessionId,
+      studentUserId: studentId,
+      status
+    });
+
+    response.json({
+      message: "Attendance record updated.",
+      ...result
+    });
+  } catch (error) {
+    response.status(400).json({
+      message:
+        error instanceof Error
+          ? error.message
+          : "Unable to update attendance record."
     });
   }
 }
@@ -457,6 +634,36 @@ export async function reviewLeaveRequest(request, response) {
         error instanceof Error
           ? error.message
           : "Unable to review leave request."
+    });
+  }
+}
+
+export async function sendExamAttendanceWarningEmails(request, response) {
+  const { teacherId, classId } = request.params;
+
+  if (!teacherId || !classId) {
+    response.status(400).json({
+      message: "teacherId and classId are required."
+    });
+    return;
+  }
+
+  try {
+    const result = await sendTeacherExamAttendanceWarningEmails({
+      teacherUserId: teacherId,
+      classId
+    });
+
+    response.json({
+      message: "Exam low-attendance email workflow completed.",
+      ...result
+    });
+  } catch (error) {
+    response.status(400).json({
+      message:
+        error instanceof Error
+          ? error.message
+          : "Unable to send exam low-attendance emails."
     });
   }
 }

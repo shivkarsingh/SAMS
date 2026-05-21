@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { LoadingCard } from "../../components/common/LoadingCard";
 import { AppBrand } from "../../components/common/AppBrand";
 import { PageBackground } from "../../components/common/PageBackground";
-import { joinStudentClass } from "../../services/api";
 import {
   clearPendingJoinCode,
   getPendingJoinCode,
@@ -62,33 +61,8 @@ export function JoinClassPage() {
       return;
     }
 
-    async function completeJoin() {
-      try {
-        const response = await joinStudentClass(user.userId, {
-          joinInput: joinCode
-        });
-
-        clearPendingJoinCode();
-        setStatus({
-          loading: false,
-          tone: "success",
-          title: response.classroom.subjectName,
-          message: response.message
-        });
-      } catch (error) {
-        setStatus({
-          loading: false,
-          tone: "warning",
-          title: "Unable to join class",
-          message:
-            error instanceof Error
-              ? error.message
-              : "The invite could not be completed."
-        });
-      }
-    }
-
-    void completeJoin();
+    clearPendingJoinCode();
+    goToRoute(`/student-dashboard?joinCode=${encodeURIComponent(joinCode)}`);
   }, [joinCode, user]);
 
   return (

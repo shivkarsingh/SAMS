@@ -1,7 +1,6 @@
 import mongoose from "mongoose";
 import { AttendanceDraft } from "../models/AttendanceDraft.js";
 import { AttendanceRecord } from "../models/AttendanceRecord.js";
-import { ClassAssignment } from "../models/ClassAssignment.js";
 import { ClassAssignmentSubmission } from "../models/ClassAssignmentSubmission.js";
 import { ClassDiscussionMessage } from "../models/ClassDiscussionMessage.js";
 import { ClassExam } from "../models/ClassExam.js";
@@ -16,6 +15,12 @@ import {
   sanitizeScheduleSlots,
   summarizeScheduleSlots
 } from "../utils/schedule.js";
+import {
+  findStudentRollConflict,
+  normalizeRollNumber
+} from "../utils/studentRollNumberScope.js";
+import { resolveStudentDisplayPhotoUrl } from "../utils/studentDisplayPhoto.js";
+import { deleteClassroomData } from "./classroomDeletionService.js";
 
 const rollNumberCollator = new Intl.Collator("en", {
   numeric: true,
@@ -24,6 +29,13 @@ const rollNumberCollator = new Intl.Collator("en", {
 
 function normalizeUserId(userId) {
   return String(userId ?? "").trim().toUpperCase();
+}
+
+function buildStudentUserId(firstName, rollNumber) {
+  const namePart = String(firstName ?? "").trim().replace(/\s+/g, "");
+  const rollPart = normalizeRollNumber(rollNumber);
+
+  return namePart && rollPart ? normalizeUserId(`${namePart}#${rollPart}`) : "";
 }
 
 function normalizeRole(role) {
@@ -52,8 +64,10 @@ function sanitizeUser(user, extra = {}) {
     lastName: user.lastName,
     email: user.email,
     emailVerified: Boolean(user.emailVerified),
+    avatarDataUrl: user.avatarDataUrl ?? "",
     rollNumber: user.rollNumber ?? "",
     department: user.department ?? "",
+    semesterLabel: user.semesterLabel ?? "",
     designation: user.designation ?? "",
     createdAt: user.createdAt,
     ...extra
@@ -131,52 +145,6 @@ async function requireAdmin(adminUserId) {
   return admin;
 }
 
-function getDeletedCount(result) {
-  return result?.deletedCount ?? 0;
-}
-
-async function deleteClassroomData(classroom) {
-  const classObjectId = classroom._id;
-  const classIdString = String(classroom._id);
-
-  const [
-    memberships,
-    attendanceRecords,
-    attendanceDrafts,
-    exams,
-    leaveRequests,
-    assignments,
-    assignmentSubmissions,
-    discussions,
-    qrSessions
-  ] = await Promise.all([
-    ClassMembership.deleteMany({ classId: classObjectId }),
-    AttendanceRecord.deleteMany({ classId: classIdString }),
-    AttendanceDraft.deleteMany({ classId: classObjectId }),
-    ClassExam.deleteMany({ classId: classObjectId }),
-    LeaveRequest.deleteMany({ classId: classObjectId }),
-    ClassAssignment.deleteMany({ classId: classObjectId }),
-    ClassAssignmentSubmission.deleteMany({ classId: classObjectId }),
-    ClassDiscussionMessage.deleteMany({ classId: classObjectId }),
-    QrAttendanceSession.deleteMany({ classId: classIdString })
-  ]);
-
-  const classroomDelete = await Classroom.deleteOne({ _id: classObjectId });
-
-  return {
-    classrooms: getDeletedCount(classroomDelete),
-    memberships: getDeletedCount(memberships),
-    attendanceRecords: getDeletedCount(attendanceRecords),
-    attendanceDrafts: getDeletedCount(attendanceDrafts),
-    exams: getDeletedCount(exams),
-    leaveRequests: getDeletedCount(leaveRequests),
-    assignments: getDeletedCount(assignments),
-    assignmentSubmissions: getDeletedCount(assignmentSubmissions),
-    discussions: getDeletedCount(discussions),
-    qrSessions: getDeletedCount(qrSessions)
-  };
-}
-
 function combineDeletionSummaries(summaries) {
   return summaries.reduce((combined, summary) => {
     Object.entries(summary).forEach(([key, value]) => {
@@ -205,16 +173,36 @@ async function getClassroomRow(classroom) {
 }
 
 async function getStudentRow(student) {
-  const [classesCount, attendanceRecordsCount] =
+  const [classesCount, attendanceRecordsCount, faceProfile] =
     await Promise.all([
       ClassMembership.countDocuments({ studentUserId: student.userId }),
-      AttendanceRecord.countDocuments({ studentId: student.userId })
+      AttendanceRecord.countDocuments({ studentId: student.userId }),
+      FaceProfile.findOne({ studentUserId: student.userId }).lean()
     ]);
 
   return sanitizeUser(student, {
     rollNumber: getStudentDisplayRollNumber(student),
+    faceProfilePhotoUrl: faceProfile?.profilePhotoUrl ?? "",
+    profilePhotoUrl: resolveStudentDisplayPhotoUrl(student, faceProfile),
     classesCount,
-    attendanceRecordsCount
+    attendanceRecordsCount,
+    faceProfile: faceProfile
+      ? {
+          status: faceProfile.status,
+          enrolled: faceProfile.status === "enrolled",
+          uploadedImageCount: faceProfile.uploadedImageCount ?? 0,
+          embeddingCount: faceProfile.embeddingCount ?? 0,
+          profilePhotoUrl: faceProfile.profilePhotoUrl ?? "",
+          lastEnrolledAt: faceProfile.lastEnrolledAt ?? null
+        }
+      : {
+          status: "not-started",
+          enrolled: false,
+          uploadedImageCount: 0,
+          embeddingCount: 0,
+          profilePhotoUrl: "",
+          lastEnrolledAt: null
+        }
   });
 }
 
@@ -229,6 +217,123 @@ async function getTeacherRow(teacher) {
     classesCount,
     attendanceRecordsCount
   });
+}
+
+async function findExistingStudentRollConflict(candidate, excludeUserId = "") {
+  const studentsWithRollNumber = await User.find({
+    role: "student",
+    rollNumber: candidate.rollNumber
+  }).lean();
+
+  return findStudentRollConflict(studentsWithRollNumber, candidate, excludeUserId);
+}
+
+async function replaceDiscussionUserId(previousUserId, nextUserId) {
+  if (previousUserId === nextUserId) {
+    return;
+  }
+
+  await Promise.all([
+    ClassDiscussionMessage.updateMany(
+      { authorUserId: previousUserId },
+      { $set: { authorUserId: nextUserId } }
+    ),
+    ClassDiscussionMessage.updateMany(
+      { "replies.authorUserId": previousUserId },
+      { $set: { "replies.$[reply].authorUserId": nextUserId } },
+      { arrayFilters: [{ "reply.authorUserId": previousUserId }] }
+    ),
+    ClassDiscussionMessage.updateMany(
+      { likes: previousUserId },
+      { $set: { "likes.$[likedUserId]": nextUserId } },
+      { arrayFilters: [{ likedUserId: previousUserId }] }
+    ),
+    ClassDiscussionMessage.updateMany(
+      { dislikes: previousUserId },
+      { $set: { "dislikes.$[dislikedUserId]": nextUserId } },
+      { arrayFilters: [{ dislikedUserId: previousUserId }] }
+    )
+  ]);
+}
+
+async function replaceStudentRollNumberReferences({
+  previousUserId,
+  nextUserId,
+  rollNumber
+}) {
+  const idChanged = previousUserId !== nextUserId;
+
+  await Promise.all([
+    ClassMembership.updateMany(
+      { studentUserId: previousUserId },
+      {
+        $set: {
+          ...(idChanged ? { studentUserId: nextUserId } : {}),
+          rollNumber
+        }
+      }
+    ),
+    AttendanceRecord.updateMany(
+      { studentId: previousUserId },
+      {
+        $set: {
+          ...(idChanged ? { studentId: nextUserId } : {}),
+          rollNumber
+        }
+      }
+    ),
+    AttendanceDraft.updateMany(
+      { "records.studentId": previousUserId },
+      {
+        $set: {
+          ...(idChanged ? { "records.$[record].studentId": nextUserId } : {}),
+          "records.$[record].rollNumber": rollNumber
+        }
+      },
+      { arrayFilters: [{ "record.studentId": previousUserId }] }
+    ),
+    LeaveRequest.updateMany(
+      { studentUserId: previousUserId },
+      {
+        $set: {
+          ...(idChanged ? { studentUserId: nextUserId } : {}),
+          rollNumber
+        }
+      }
+    ),
+    ClassAssignmentSubmission.updateMany(
+      { studentUserId: previousUserId },
+      {
+        $set: {
+          ...(idChanged ? { studentUserId: nextUserId } : {}),
+          rollNumber
+        }
+      }
+    ),
+    idChanged
+      ? FaceProfile.updateMany(
+          { studentUserId: previousUserId },
+          {
+            $set: {
+              studentUserId: nextUserId,
+              status: "needs-refresh"
+            },
+            $addToSet: {
+              notes:
+                "Roll number changed. Re-enroll this face profile before using AI attendance again."
+            }
+          }
+        )
+      : Promise.resolve(),
+    idChanged
+      ? EmailOtp.updateMany(
+          { role: "student", userId: previousUserId },
+          { $set: { userId: nextUserId } }
+        )
+      : Promise.resolve()
+  ]);
+
+  await replaceDiscussionUserId(previousUserId, nextUserId);
 }
 
 export async function getAdminDashboard(adminUserId) {
@@ -485,5 +590,82 @@ export async function updateAdminUserEmailVerification({
 
   return {
     user: sanitizeUser(user)
+  };
+}
+
+export async function updateAdminStudentRollNumber({
+  adminUserId,
+  userId,
+  rollNumber
+}) {
+  await requireAdmin(adminUserId);
+  const normalizedUserId = normalizeUserId(userId);
+  const normalizedRollNumber = normalizeRollNumber(rollNumber);
+
+  if (!normalizedRollNumber) {
+    throw new Error("Roll number is required.");
+  }
+
+  if (!/^\d+$/.test(normalizedRollNumber)) {
+    throw new Error("Roll number must contain numbers only.");
+  }
+
+  const student = await User.findOne({
+    role: "student",
+    userId: normalizedUserId
+  });
+
+  if (!student) {
+    throw new Error("Student account not found.");
+  }
+
+  if (normalizedRollNumber === normalizeRollNumber(student.rollNumber)) {
+    return {
+      user: await getStudentRow(student)
+    };
+  }
+
+  const existingRollNumber = await findExistingStudentRollConflict(
+    {
+      rollNumber: normalizedRollNumber,
+      department: student.department,
+      semesterLabel: student.semesterLabel
+    },
+    student.userId
+  );
+
+  if (existingRollNumber) {
+    throw new Error(
+      "A student with this roll number already exists in the same branch and semester."
+    );
+  }
+
+  const nextUserId = buildStudentUserId(student.firstName, normalizedRollNumber);
+
+  if (!nextUserId) {
+    throw new Error("Student ID could not be generated from name and roll number.");
+  }
+
+  const existingUserId = await User.findOne({
+    userId: nextUserId,
+    _id: { $ne: student._id }
+  }).lean();
+
+  if (existingUserId) {
+    throw new Error("A user with the generated student ID already exists.");
+  }
+
+  await replaceStudentRollNumberReferences({
+    previousUserId: student.userId,
+    nextUserId,
+    rollNumber: normalizedRollNumber
+  });
+
+  student.userId = nextUserId;
+  student.rollNumber = normalizedRollNumber;
+  await student.save();
+
+  return {
+    user: await getStudentRow(student)
   };
 }

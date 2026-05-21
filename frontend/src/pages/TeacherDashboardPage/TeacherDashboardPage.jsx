@@ -1,16 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { LoadingCard } from "../../components/common/LoadingCard";
 import { PageBackground } from "../../components/common/PageBackground";
-import {
-  archiveTeacherClass,
-  createTeacherClass,
-  fetchTeacherDashboard,
-  setTeacherClassExam
-} from "../../services/api";
+import { fetchTeacherDashboard } from "../../services/api";
 import { clearSession, getSession } from "../../services/session";
-import { goToRoute } from "../../utils/router";
-import { TeacherClassesPanel } from "./components/TeacherClassesPanel";
-import { TeacherClassCreationSection } from "./components/TeacherClassCreationSection";
+import { getHashSearchParam, goToRoute } from "../../utils/router";
 import { TeacherDashboardHeader } from "./components/TeacherDashboardHeader";
 import { TeacherExamsSection } from "./components/TeacherExamsSection";
 import { TeacherHeroSection } from "./components/TeacherHeroSection";
@@ -59,6 +52,18 @@ export function TeacherDashboardPage() {
     void loadDashboard();
   }, [user]);
 
+  useEffect(() => {
+    if (!dashboard) {
+      return;
+    }
+
+    const sectionId = getHashSearchParam("section");
+
+    if (sectionId === "exams" || sectionId === "schedule") {
+      window.requestAnimationFrame(() => scrollToSection(sectionId));
+    }
+  }, [dashboard]);
+
   function handleLogout() {
     clearSession();
     goToRoute("/login");
@@ -73,32 +78,6 @@ export function TeacherDashboardPage() {
         block: "start"
       });
     }
-  }
-
-  async function handleCreateClass(form) {
-    const result = await createTeacherClass(user.userId, form);
-    await loadDashboard();
-    return result;
-  }
-
-  async function handleSetExam(classId, form) {
-    const result = await setTeacherClassExam(user.userId, classId, form);
-    await loadDashboard();
-    return result;
-  }
-
-  async function handleArchiveClass(classId) {
-    const result = await archiveTeacherClass(user.userId, classId);
-    await loadDashboard();
-    return result;
-  }
-
-  function openClassroom(classId) {
-    goToRoute(`/teacher-classroom?classId=${encodeURIComponent(classId)}`);
-  }
-
-  function openAttendance(classId) {
-    goToRoute(`/teacher-classroom-attendance?classId=${encodeURIComponent(classId)}`);
   }
 
   if (!user || user.role !== "teacher") {
@@ -146,10 +125,11 @@ export function TeacherDashboardPage() {
         onLogout={handleLogout}
         onNavigate={scrollToSection}
         navItems={[
-          { id: "classes", label: "Classes" },
-          { id: "exams", label: "Exams" },
+          { id: "classes", label: "Classes", route: "/teacher-classes" },
+          { id: "exams", label: "Calendar" },
           { id: "schedule", label: "Schedule" },
-          { id: "class-management", label: "Create Class" }
+          { id: "todos", label: "To Do", route: "/teacher-todos" },
+          { id: "class-management", label: "Create Class", route: "/teacher-create-class" }
         ]}
         utilityAction={{
           label: "Profile",
@@ -159,28 +139,20 @@ export function TeacherDashboardPage() {
       />
 
       <main className="dashboard-shell">
-        <TeacherHeroSection />
-
-        <TeacherClassesPanel
-          classesManaged={dashboard.classesManaged}
-          onOpenClassroom={openClassroom}
-          onOpenAttendance={openAttendance}
-          onArchiveClass={handleArchiveClass}
+        <TeacherHeroSection
+          onOpenClasses={() => goToRoute("/teacher-classes")}
+          onCreateClass={() => goToRoute("/teacher-create-class")}
+          onOpenTodos={() => goToRoute("/teacher-todos")}
         />
 
         <TeacherExamsSection
-          classesManaged={dashboard.classesManaged}
           upcomingExams={dashboard.upcomingExams ?? []}
-          onSetExam={handleSetExam}
+          classesManaged={dashboard.classesManaged ?? []}
         />
 
         <TeacherScheduleSection
           todaysSchedule={dashboard.todaysSchedule}
           weeklySchedule={dashboard.weeklySchedule}
-        />
-
-        <TeacherClassCreationSection
-          onCreateClass={handleCreateClass}
         />
       </main>
     </div>

@@ -1,4 +1,25 @@
-const API_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:4000/api/v1";
+function resolveApiBaseUrl() {
+  const configuredBaseUrl = String(process.env.API_BASE_URL ?? "").trim();
+  const fallbackBaseUrl = "http://localhost:4000/api/v1";
+
+  if (!configuredBaseUrl) {
+    return fallbackBaseUrl;
+  }
+
+  if (
+    configuredBaseUrl.startsWith("/") &&
+    typeof window !== "undefined" &&
+    ["localhost", "127.0.0.1"].includes(window.location.hostname) &&
+    window.location.port &&
+    window.location.port !== "4000"
+  ) {
+    return `http://localhost:4000${configuredBaseUrl}`.replace(/\/$/, "");
+  }
+
+  return configuredBaseUrl.replace(/\/$/, "");
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 async function readResponseData(response) {
   const contentType = response.headers.get("content-type") ?? "";
@@ -20,6 +41,8 @@ async function readResponseData(response) {
 function createRequestError(data, fallbackMessage) {
   const error = new Error(data.message ?? fallbackMessage ?? "Request failed.");
   error.details = data;
+  error.code = data.code;
+  error.verificationRequired = data.verificationRequired;
   error.retryAfterSeconds = data.retryAfterSeconds;
   return error;
 }
@@ -195,6 +218,13 @@ export function requestProfileEmailOtp(role, userId, payload) {
   );
 }
 
+export function verifyProfileEmailOtp(role, userId, payload) {
+  return postJson(
+    `/users/${encodeURIComponent(role)}/${encodeURIComponent(userId)}/email-otp/verify`,
+    payload
+  );
+}
+
 export function updateUserProfile(role, userId, payload) {
   return patchJson(
     `/users/${encodeURIComponent(role)}/${encodeURIComponent(userId)}/profile`,
@@ -218,6 +248,13 @@ export function deleteAdminClassroom(adminId, classId) {
 export function updateAdminUserEmailVerification(adminId, role, userId, payload) {
   return patchJson(
     `/admins/${encodeURIComponent(adminId)}/users/${encodeURIComponent(role)}/${encodeURIComponent(userId)}/email-verification`,
+    payload
+  );
+}
+
+export function updateAdminStudentRollNumber(adminId, userId, payload) {
+  return patchJson(
+    `/admins/${encodeURIComponent(adminId)}/students/${encodeURIComponent(userId)}/roll-number`,
     payload
   );
 }
@@ -344,10 +381,23 @@ export function setTeacherClassExam(userId, classId, payload) {
   );
 }
 
+export function sendExamAttendanceWarningEmails(userId, classId) {
+  return postJson(
+    `/teachers/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}/exam/email-warnings`,
+    {}
+  );
+}
+
 export function archiveTeacherClass(userId, classId) {
   return patchJson(
     `/teachers/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}/archive`,
     {}
+  );
+}
+
+export function deleteTeacherClass(userId, classId) {
+  return deleteJson(
+    `/teachers/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}`
   );
 }
 
@@ -372,9 +422,42 @@ export function finalizeTodayAttendanceDraft(userId, classId, draftId, payload) 
   );
 }
 
+export function discardTodayAttendanceDraft(userId, classId, draftId) {
+  return deleteJson(
+    `/teachers/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}/attendance/today-draft/${encodeURIComponent(draftId)}`
+  );
+}
+
+export function sendTodayDraftAbsenteeEmails(userId, classId, draftId, payload) {
+  return postJson(
+    `/teachers/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}/attendance/today-draft/${encodeURIComponent(draftId)}/absentee-email`,
+    payload
+  );
+}
+
 export function finalizeTeacherAttendance(userId, classId, payload) {
   return postJson(
     `/teachers/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}/attendance/finalize`,
+    payload
+  );
+}
+
+export function sendAttendanceAbsenteeEmails(userId, classId, payload) {
+  return postJson(
+    `/teachers/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}/attendance/absentee-email`,
+    payload
+  );
+}
+
+export function updateSessionAttendanceRecord(
+  userId,
+  classId,
+  sessionId,
+  studentId,
+  payload
+) {
+  return patchJson(
+    `/teachers/${encodeURIComponent(userId)}/classes/${encodeURIComponent(classId)}/attendance/sessions/${encodeURIComponent(sessionId)}/students/${encodeURIComponent(studentId)}`,
     payload
   );
 }

@@ -7,6 +7,8 @@ import { ClassNotesPage } from "./pages/ClassNotesPage/ClassNotesPage";
 import { HomePage } from "./pages/HomePage/HomePage";
 import { JoinClassPage } from "./pages/JoinClassPage/JoinClassPage";
 import { QrAttendancePage } from "./pages/QrAttendancePage/QrAttendancePage";
+import { TeacherClassExamPage } from "./pages/TeacherClassExamPage/TeacherClassExamPage";
+import { TeacherClassQrPage } from "./pages/TeacherClassQrPage/TeacherClassQrPage";
 import { TeacherClassroomPage } from "./pages/TeacherClassroomPage/TeacherClassroomPage";
 import { TeacherClassroomSessionsPage } from "./pages/TeacherClassroomSessionsPage/TeacherClassroomSessionsPage";
 import { TeacherClassroomStudentsPage } from "./pages/TeacherClassroomStudentsPage/TeacherClassroomStudentsPage";
@@ -16,12 +18,25 @@ import { StudentClassDetailPage } from "./pages/StudentClassDetailPage/StudentCl
 import { StudentFaceEnrollmentPage } from "./pages/StudentFaceEnrollmentPage/StudentFaceEnrollmentPage";
 import { StudentProfilePage } from "./pages/StudentProfilePage/StudentProfilePage";
 import { TeacherDashboardPage } from "./pages/TeacherDashboardPage/TeacherDashboardPage";
+import { TeacherDashboardToolsPage } from "./pages/TeacherDashboardPage/TeacherDashboardToolsPage";
 import { TeacherProfilePage } from "./pages/TeacherProfilePage/TeacherProfilePage";
-import { clearSession, getSession, hasSavedSession } from "./services/session";
+import {
+  clearSession,
+  getSession,
+  hasSavedSession,
+  refreshSessionActivity
+} from "./services/session";
 import { getRouteFromHash } from "./utils/router";
 
 export default function App() {
   const [route, setRoute] = useState(getRouteFromHash());
+
+  function redirectExpiredSession() {
+    if (window.location.hash !== "#/login") {
+      clearSession();
+      window.location.hash = "/login";
+    }
+  }
 
   useEffect(() => {
     function handleHashChange() {
@@ -42,14 +57,52 @@ export default function App() {
       const hadSession = hasSavedSession();
       const session = getSession();
 
-      if (hadSession && !session && window.location.hash !== "#/login") {
-        clearSession();
-        window.location.hash = "/login";
+      if (hadSession && !session) {
+        redirectExpiredSession();
       }
     }, 30000);
 
     return () => {
       window.clearInterval(timerId);
+    };
+  }, []);
+
+  useEffect(() => {
+    let lastActivityRefreshAt = 0;
+
+    function handleUserActivity() {
+      const now = Date.now();
+
+      if (now - lastActivityRefreshAt < 30000) {
+        return;
+      }
+
+      lastActivityRefreshAt = now;
+
+      if (hasSavedSession() && !refreshSessionActivity()) {
+        redirectExpiredSession();
+      }
+    }
+
+    const activityEvents = [
+      "click",
+      "keydown",
+      "mousemove",
+      "scroll",
+      "touchstart",
+      "visibilitychange"
+    ];
+
+    activityEvents.forEach((eventName) => {
+      window.addEventListener(eventName, handleUserActivity, {
+        passive: true
+      });
+    });
+
+    return () => {
+      activityEvents.forEach((eventName) => {
+        window.removeEventListener(eventName, handleUserActivity);
+      });
     };
   }, []);
 
@@ -82,7 +135,15 @@ export default function App() {
   }
 
   if (route === "/student-schedule") {
-    return <StudentDashboardToolsPage view="schedule" />;
+    return <StudentDashboardPage />;
+  }
+
+  if (route === "/student-calculator") {
+    return <StudentDashboardToolsPage view="calculator" />;
+  }
+
+  if (route === "/student-calendar") {
+    return <StudentDashboardToolsPage view="calendar" />;
   }
 
   if (route === "/student-exams") {
@@ -90,11 +151,15 @@ export default function App() {
   }
 
   if (route === "/student-insights") {
-    return <StudentDashboardToolsPage view="insights" />;
+    return <StudentDashboardToolsPage view="performance" />;
   }
 
   if (route === "/student-notifications") {
     return <StudentDashboardToolsPage view="notifications" />;
+  }
+
+  if (route === "/student-todos") {
+    return <StudentDashboardToolsPage view="todos" />;
   }
 
   if (route === "/student-classroom") {
@@ -119,6 +184,26 @@ export default function App() {
 
   if (route === "/teacher-dashboard") {
     return <TeacherDashboardPage />;
+  }
+
+  if (route === "/teacher-classes") {
+    return <TeacherDashboardToolsPage view="classes" />;
+  }
+
+  if (route === "/teacher-create-class") {
+    return <TeacherDashboardToolsPage view="create-class" />;
+  }
+
+  if (route === "/teacher-class-exam") {
+    return <TeacherClassExamPage />;
+  }
+
+  if (route === "/teacher-class-qr") {
+    return <TeacherClassQrPage />;
+  }
+
+  if (route === "/teacher-todos") {
+    return <TeacherDashboardToolsPage view="todos" />;
   }
 
   if (route === "/teacher-profile") {

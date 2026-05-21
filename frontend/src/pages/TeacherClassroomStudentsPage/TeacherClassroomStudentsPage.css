@@ -194,6 +194,13 @@
   flex-wrap: wrap;
 }
 
+.teacher-student-calendar-identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 14px;
+}
+
 .teacher-student-calendar-header h3,
 .teacher-student-calendar-header p {
   margin: 8px 0 0;
@@ -461,6 +468,13 @@
   color: #f8fafc;
   font-size: 0.9rem;
   font-weight: 900;
+  overflow: hidden;
+}
+
+.teacher-student-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .teacher-student-identity {

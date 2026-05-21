@@ -472,6 +472,42 @@
   min-width: 0;
 }
 
+.assignment-student-summary,
+.assignment-missing-student {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.assignment-student-summary > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.assignment-student-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  overflow: hidden;
+  border: 1px solid rgba(125, 211, 252, 0.22);
+  border-radius: 999px;
+  background: rgba(14, 165, 233, 0.14);
+  color: #e0f2fe;
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.assignment-student-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .assignment-submission-files {
   display: flex;
   justify-content: flex-end;
@@ -498,7 +534,7 @@
   gap: 9px;
 }
 
-.assignment-missing-list span,
+.assignment-missing-student,
 .assignment-missing-list strong {
   display: block;
   overflow: hidden;
@@ -507,6 +543,16 @@
   background: rgba(251, 113, 133, 0.08);
   color: #fecdd3;
   font-size: 0.9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assignment-missing-student {
+  display: flex;
+}
+
+.assignment-missing-student span {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

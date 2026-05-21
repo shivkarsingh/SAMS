@@ -20,6 +20,81 @@ function formatDateLabel(value) {
   }).format(new Date(value));
 }
 
+function getStudentClassRoute(classId) {
+  return `/student-classroom?classId=${encodeURIComponent(classId)}`;
+}
+
+function isAbsentAttendanceRecord(record) {
+  return String(record?.status ?? "").trim().toLowerCase() === "absent";
+}
+
+function getAlertCategory(alert) {
+  const title = String(alert?.title ?? "").toLowerCase();
+
+  if (title.includes("low attendance") || title.includes("below safe range")) {
+    return "Low Attendance";
+  }
+
+  if (title.includes("cancelled")) {
+    return "Class Alert";
+  }
+
+  return "Dashboard Alert";
+}
+
+function getAlertRoute() {
+  return "/student-performance";
+}
+
+function isExamEligibilityAlert(alert) {
+  return String(alert?.title ?? "").toLowerCase().includes("exam eligibility");
+}
+
+function getNotificationStorageKey(dashboard) {
+  const userId = String(dashboard?.profile?.userId ?? "student")
+    .trim()
+    .toUpperCase();
+
+  return `sams.studentNotifications.seen.${userId || "student"}`;
+}
+
+function getActionableNotifications(dashboard) {
+  return buildStudentNotifications(dashboard).filter(
+    (notification) => notification.tone !== "positive"
+  );
+}
+
+function readSeenNotificationIds(dashboard) {
+  if (typeof localStorage === "undefined") {
+    return new Set();
+  }
+
+  try {
+    const parsedValue = JSON.parse(
+      localStorage.getItem(getNotificationStorageKey(dashboard)) ?? "[]"
+    );
+
+    return new Set(Array.isArray(parsedValue) ? parsedValue : []);
+  } catch (_error) {
+    return new Set();
+  }
+}
+
+function writeSeenNotificationIds(dashboard, notificationIds) {
+  if (typeof localStorage === "undefined") {
+    return;
+  }
+
+  try {
+    localStorage.setItem(
+      getNotificationStorageKey(dashboard),
+      JSON.stringify(Array.from(notificationIds))
+    );
+  } catch (_error) {
+    // Ignore storage errors so notifications still render.
+  }
+}
+
 export function buildStudentNotifications(dashboard) {
   if (!dashboard) {
     return [];
@@ -27,14 +102,59 @@ export function buildStudentNotifications(dashboard) {
 
   const notifications = [];
 
-  (dashboard.alerts ?? []).forEach((alert, index) => {
+  (dashboard.classPerformance ?? []).forEach((course) => {
+    (course.recentAttendance ?? [])
+      .filter(isAbsentAttendanceRecord)
+      .slice(0, 2)
+      .forEach((record) => {
+        notifications.push({
+          id: `absent-${course.id}-${record.sessionId || record.id || record.recordedAt}`,
+          category: "Absent Alert",
+          tone: "danger",
+          title: `${course.code} marked absent`,
+          message: `You were marked absent for ${course.title} on ${
+            record.recordedLabel ?? formatDateLabel(record.recordedAt)
+          }.`,
+          route: getStudentClassRoute(course.id)
+        });
+      });
+  });
+
+  (dashboard.upcomingExams ?? []).forEach((exam) => {
+    const daysUntilExam = Number(exam.daysUntilExam ?? 999);
+    const eligibilityAction = exam.eligibility?.action
+      ? ` ${exam.eligibility.action}`
+      : "";
+
+    notifications.push({
+      id: `exam-date-${exam.id}`,
+      category: "Exam Date",
+      tone: daysUntilExam <= 1 ? "danger" : "warning",
+      title: `${exam.subjectCode} exam on ${exam.examDateLabel}`,
+      message: `${exam.title} is scheduled for ${exam.examDateLabel}.${eligibilityAction}`,
+      route: "/student-exams"
+    });
+  });
+
+  (dashboard.assignmentNotifications ?? []).forEach((assignment) => {
+    notifications.push({
+      id: `assignment-${assignment.id}`,
+      category: "Assignment",
+      tone: "warning",
+      title: `${assignment.subjectCode} assignment given`,
+      message: `${assignment.title} is due on ${assignment.deadlineLabel}.`,
+      route: getStudentClassRoute(assignment.classId)
+    });
+  });
+
+  (dashboard.alerts ?? []).filter((alert) => !isExamEligibilityAlert(alert)).forEach((alert, index) => {
     notifications.push({
       id: `alert-${index}-${alert.title}`,
-      category: "Attendance Alert",
+      category: getAlertCategory(alert),
       tone: normalizeTone(alert.tone),
       title: alert.title,
       message: alert.message,
-      route: "/student-insights"
+      route: getAlertRoute(alert)
     });
   });
 
@@ -49,17 +169,6 @@ export function buildStudentNotifications(dashboard) {
       route: "/student-face-enrollment"
     });
   }
-
-  (dashboard.upcomingExams ?? []).forEach((exam) => {
-    notifications.push({
-      id: `exam-${exam.id}`,
-      category: "Exam Eligibility",
-      tone: normalizeTone(exam.eligibility?.tone),
-      title: `${exam.subjectCode} - ${exam.eligibility?.statusLabel ?? "Exam scheduled"}`,
-      message: exam.eligibility?.action ?? `${exam.title} is scheduled.`,
-      route: "/student-exams"
-    });
-  });
 
   (dashboard.classPerformance ?? []).forEach((course) => {
     (course.leaveRequests ?? []).slice(0, 3).forEach((request) => {
@@ -98,8 +207,19 @@ export function buildStudentNotifications(dashboard) {
   return notifications;
 }
 
+export function markStudentNotificationsSeen(dashboard) {
+  const seenIds = readSeenNotificationIds(dashboard);
+
+  getActionableNotifications(dashboard).forEach((notification) => {
+    seenIds.add(notification.id);
+  });
+  writeSeenNotificationIds(dashboard, seenIds);
+}
+
 export function getStudentNotificationCount(dashboard) {
-  return buildStudentNotifications(dashboard).filter(
-    (notification) => notification.tone !== "positive"
+  const seenIds = readSeenNotificationIds(dashboard);
+
+  return getActionableNotifications(dashboard).filter(
+    (notification) => !seenIds.has(notification.id)
   ).length;
 }

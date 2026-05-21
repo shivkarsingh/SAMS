@@ -31,16 +31,10 @@ export function StudentDashboardHeader({
   onNavigate = null,
   onOpenFaceEnrollment,
   notificationCount = 0,
-  showNotificationBell = true,
+  showNotificationBell = false,
+  showFaceEnrollmentButton = false,
   utilityAction = null,
-  navItems = [
-    { id: "overview", label: "Overview", route: "/student-dashboard" },
-    { id: "classrooms", label: "Classrooms", route: "/student-classes" },
-    { id: "performance", label: "Performance", route: "/student-performance" },
-    { id: "schedule", label: "Schedule", route: "/student-schedule" },
-    { id: "exams", label: "Exams", route: "/student-exams" },
-    { id: "insights", label: "Insights", route: "/student-insights" }
-  ]
+  navItems = []
 }) {
   function handleNavigation(item) {
     if (item.route) {
@@ -67,13 +61,15 @@ export function StudentDashboardHeader({
               {item.label}
             </button>
           ))}
-          <button
-            className="dashboard-nav-button"
-            type="button"
-            onClick={onOpenFaceEnrollment}
-          >
-            Face Enrollment
-          </button>
+          {showFaceEnrollmentButton ? (
+            <button
+              className="dashboard-nav-button"
+              type="button"
+              onClick={onOpenFaceEnrollment}
+            >
+              Face Enrollment
+            </button>
+          ) : null}
         </nav>
       ) : (
         <div />

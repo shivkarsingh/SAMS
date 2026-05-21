@@ -1,4 +1,15 @@
-export function LoginForm({ form, status, onChange, onRoleChange, onSubmit }) {
+export function LoginForm({
+  form,
+  status,
+  verification,
+  resendCooldown,
+  onChange,
+  onRoleChange,
+  onSubmit,
+  onVerificationOtpChange,
+  onResendVerification,
+  onVerifyEmail
+}) {
   return (
     <form className="glass-card auth-card auth-card-compact" onSubmit={onSubmit}>
       <div className="auth-card-header">
@@ -62,7 +73,43 @@ export function LoginForm({ form, status, onChange, onRoleChange, onSubmit }) {
         </label>
       </div>
 
-      <button className="primary-button submit-button" type="submit">
+      {verification?.required ? (
+        <div className="auth-email-verify-panel">
+          <p className="auth-panel-copy">
+            Verify this account email before logging in.
+          </p>
+          <label className="field">
+            <span>Email OTP</span>
+            <input
+              value={verification.otp}
+              onChange={(event) => onVerificationOtpChange(event.target.value)}
+              placeholder="6 digit OTP"
+              inputMode="numeric"
+              maxLength={6}
+            />
+          </label>
+          <div className="auth-otp-actions">
+            <button
+              className="primary-button"
+              type="button"
+              onClick={onVerifyEmail}
+              disabled={status.loading || !verification.otp.trim()}
+            >
+              Verify Email
+            </button>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={onResendVerification}
+              disabled={status.loading || resendCooldown > 0}
+            >
+              {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend OTP"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <button className="primary-button submit-button" type="submit" disabled={status.loading}>
         {status.loading ? "Checking..." : "Login"}
       </button>
 

@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { AttendanceDraft } from "../models/AttendanceDraft.js";
 import { AttendanceRecord } from "../models/AttendanceRecord.js";
 import { ClassMembership } from "../models/ClassMembership.js";
+import { ClassExam } from "../models/ClassExam.js";
 import { Classroom } from "../models/Classroom.js";
 import { FaceProfile } from "../models/FaceProfile.js";
 import { LeaveRequest } from "../models/LeaveRequest.js";
@@ -25,11 +26,18 @@ import {
   processClassroomAttendanceWithAi
 } from "./aiService.js";
 import { sanitizeLeaveRequests } from "./leaveRequestService.js";
+import { buildTeacherExamSummary } from "./examScheduleService.js";
 import { env } from "../config/env.js";
 import {
   sanitizeScheduleSlots,
   summarizeScheduleSlots
 } from "../utils/schedule.js";
+import {
+  findStudentRollConflict,
+  normalizeRollNumber
+} from "../utils/studentRollNumberScope.js";
+import { resolveStudentDisplayPhotoUrl } from "../utils/studentDisplayPhoto.js";
+import { deleteClassroomData } from "./classroomDeletionService.js";
 
 const ATTENDANCE_DRAFT_TTL_MS = 12 * 60 * 60 * 1000;
 
@@ -38,11 +46,48 @@ function clampPercentage(value) {
 }
 
 function normalizeUserId(userId) {
-  return String(userId).trim().toUpperCase();
+  return String(userId ?? "").trim().toUpperCase();
 }
 
-function normalizeRollNumber(rollNumber) {
-  return String(rollNumber ?? "").trim().toUpperCase();
+function normalizeAttendanceUnit(attendanceUnit) {
+  const numericUnit = Number(attendanceUnit ?? 1);
+
+  if (!Number.isFinite(numericUnit) || numericUnit < 1) {
+    throw new Error("Attendance unit must be a positive number.");
+  }
+
+  if (!Number.isInteger(numericUnit)) {
+    throw new Error("Attendance unit must be a whole number.");
+  }
+
+  if (numericUnit > 100) {
+    throw new Error("Attendance unit cannot be greater than 100.");
+  }
+
+  return numericUnit;
+}
+
+function normalizeSessionType(sessionType) {
+  return String(sessionType ?? "").trim().toLowerCase() === "extra"
+    ? "extra"
+    : "regular";
+}
+
+function normalizeEditableAttendanceStatus(status) {
+  const normalizedStatus = String(status ?? "").trim().toLowerCase();
+
+  if (normalizedStatus === "present" || normalizedStatus === "absent") {
+    return normalizedStatus;
+  }
+
+  throw new Error("Attendance status must be present or absent.");
+}
+
+function buildStudentUserId(firstName, rollNumber) {
+  const namePart = String(firstName ?? "").trim().replace(/\s+/g, "");
+  const rollPart = normalizeRollNumber(rollNumber);
+
+  return namePart && rollPart ? normalizeUserId(`${namePart}#${rollPart}`) : "";
 }
 
 function optionalString(value) {
@@ -165,13 +210,43 @@ function buildOverview(roster, attendanceSummary) {
   };
 }
 
-function buildAttendanceHistory(attendanceSummary) {
+function buildAttendanceHistory(attendanceSummary, rosterByStudentId = new Map()) {
   return attendanceSummary.recentSessions.map((session) => ({
     sessionId: session.sessionId,
     recordedAt: session.recordedAt,
     presentCount: session.presentCount,
     absentCount: session.absentCount,
-    cancelledCount: session.cancelledCount ?? 0
+    cancelledCount: session.cancelledCount ?? 0,
+    attendanceUnit: session.attendanceUnit ?? 1,
+    presentUnits: session.presentUnits ?? session.presentCount,
+    absentUnits: session.absentUnits ?? session.absentCount,
+    sessionType: normalizeSessionType(session.sessionType),
+    students: (session.records ?? [])
+      .map((record) => {
+        const studentUserId = normalizeUserId(record.studentId);
+        const rosterStudent = rosterByStudentId.get(studentUserId);
+
+        return {
+          studentUserId,
+          studentName:
+            record.studentName || rosterStudent?.studentName || record.studentId,
+          rollNumber: String(
+            record.rollNumber ?? rosterStudent?.rollNumber ?? ""
+          )
+            .trim()
+            .toUpperCase(),
+          avatarDataUrl: rosterStudent?.avatarDataUrl ?? "",
+          faceProfilePhotoUrl: rosterStudent?.faceProfilePhotoUrl ?? "",
+          profilePhotoUrl: rosterStudent?.profilePhotoUrl ?? "",
+          status: record.status,
+          statusLabel: formatAttendanceStatusLabel(record.status),
+          verificationMethod: record.verificationMethod ?? "",
+          attendanceUnit: record.attendanceUnit ?? session.attendanceUnit ?? 1,
+          recordedAt: record.recordedAt ?? session.recordedAt,
+          notes: record.notes ?? ""
+        };
+      })
+      .sort(compareByRollNumber)
   }));
 }
 
@@ -207,6 +282,9 @@ function buildTodayAttendanceSummary(roster, attendanceRecords) {
   const totalStudents = roster.length;
   const absentees = Math.max(0, totalStudents - presentCount - cancelledCount);
   const countedStudents = Math.max(0, totalStudents - cancelledCount);
+  const todayAttendanceUnits = Array.from(latestTodayRecordByStudentId.values())
+    .map((record) => Number(record.attendanceUnit ?? 1))
+    .filter((unit) => Number.isFinite(unit) && unit >= 1);
 
   return {
     date: getLocalDateKey(new Date()),
@@ -215,6 +293,9 @@ function buildTodayAttendanceSummary(roster, attendanceRecords) {
     absentees,
     cancelledCount,
     recordedCount,
+    attendanceUnit: todayAttendanceUnits.length
+      ? Math.max(...todayAttendanceUnits)
+      : 1,
     attendancePercentage: countedStudents
       ? clampPercentage((presentCount / countedStudents) * 100)
       : 0
@@ -261,6 +342,8 @@ function sanitizeAttendanceDraft(draft) {
     dateKey: draft.dateKey,
     records,
     notes: draft.notes ?? "",
+    attendanceUnit: Number(draft.attendanceUnit ?? 1),
+    sessionType: normalizeSessionType(draft.sessionType),
     status: draft.status,
     counts: getAttendanceDraftCounts(records),
     absenteeEmailSentAt: draft.absenteeEmailSentAt,
@@ -330,10 +413,12 @@ function validateStudentFields(payload, existingUser = null) {
     throw new Error("Student first name and last name must be at least 2 characters.");
   }
 
-  if (!rollNumber || !/^[A-Z0-9][A-Z0-9._/-]{1,}$/i.test(rollNumber)) {
-    throw new Error(
-      "Roll number must use letters, numbers, dots, slashes, underscores, or hyphens."
-    );
+  if (!rollNumber) {
+    throw new Error("Roll number is required.");
+  }
+
+  if (!/^\d+$/.test(rollNumber)) {
+    throw new Error("Roll number must contain numbers only.");
   }
 
   const email = optionalString(payload.email ?? existingUser?.email);
@@ -348,8 +433,20 @@ function validateStudentFields(payload, existingUser = null) {
     rollNumber,
     email,
     department: optionalString(payload.department ?? existingUser?.department),
-    batch: optionalString(payload.batch ?? existingUser?.batch)
+    batch: optionalString(payload.batch ?? existingUser?.batch),
+    semesterLabel: optionalString(
+      payload.semesterLabel ?? existingUser?.semesterLabel
+    )
   };
+}
+
+async function findExistingStudentRollConflict(candidate, excludeUserId = "") {
+  const studentsWithRollNumber = await User.find({
+    role: "student",
+    rollNumber: candidate.rollNumber
+  }).lean();
+
+  return findStudentRollConflict(studentsWithRollNumber, candidate, excludeUserId);
 }
 
 async function getClassroomRosterBundle(classId) {
@@ -441,6 +538,7 @@ function buildRoster(
       rollNumber: resolveRollNumber(membership, user),
       batch: user?.batch ?? classroomFallbackBatch ?? "",
       department: user?.department ?? "",
+      semesterLabel: user?.semesterLabel ?? "",
       email: user?.email ?? "",
       joinedAt: membership.createdAt,
       faceProfileStatus: resolveFaceProfileStatus(faceProfile),
@@ -449,7 +547,9 @@ function buildRoster(
       ),
       enrolledImageCount: faceProfile?.uploadedImageCount ?? 0,
       faceEmbeddingCount: faceProfile?.embeddingCount ?? 0,
-      profilePhotoUrl: faceProfile?.profilePhotoUrl ?? "",
+      avatarDataUrl: user?.avatarDataUrl ?? "",
+      faceProfilePhotoUrl: faceProfile?.profilePhotoUrl ?? "",
+      profilePhotoUrl: resolveStudentDisplayPhotoUrl(user, faceProfile),
       sessionsAttended: attendanceStats.presentCount,
       sessionsHeld: attendanceStats.totalCount,
       attendancePercentage: attendanceStats.attendancePercentage,
@@ -553,7 +653,14 @@ export async function getTeacherClassroomDetails({ teacherUserId, classId }) {
     rosterBundle
   });
 
-  const [attendanceRecords, leaveRequests, todayAttendanceDraft] = await Promise.all([
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const [
+    attendanceRecords,
+    leaveRequests,
+    todayAttendanceDraft,
+    upcomingExamRecord
+  ] = await Promise.all([
     AttendanceRecord.find({
       classId: String(classroom._id)
     }).lean(),
@@ -567,7 +674,15 @@ export async function getTeacherClassroomDetails({ teacherUserId, classId }) {
       teacherUserId: classroom.teacherUserId,
       dateKey: getLocalDateKey(),
       status: "draft"
-    }).lean()
+    }).lean(),
+    ClassExam.findOne({
+      classId: classroom._id,
+      teacherUserId: classroom.teacherUserId,
+      status: "active",
+      examDate: { $gte: today }
+    })
+      .sort({ examDate: 1 })
+      .lean()
   ]);
   const attendanceSummary = summarizeAttendanceRecords(
     attendanceRecords,
@@ -585,18 +700,29 @@ export async function getTeacherClassroomDetails({ teacherUserId, classId }) {
   ).length;
 
   return {
-    classroom: sanitizeClassroom(
-      classroom,
-      attendanceSummary,
-      rosterBundle.studentIds.length
-    ),
+    classroom: {
+      ...sanitizeClassroom(
+        classroom,
+        attendanceSummary,
+        rosterBundle.studentIds.length
+      ),
+      upcomingExam: buildTeacherExamSummary({
+        exam: upcomingExamRecord,
+        classroom,
+        attendanceSummary,
+        studentIds: rosterBundle.studentIds
+      })
+    },
     overview: buildOverview(roster, attendanceSummary),
     todayAttendance: buildTodayAttendanceSummary(roster, attendanceRecords),
     todayAttendanceDraft: sanitizeAttendanceDraft(todayAttendanceDraft),
     roster,
     leaveRequests: sanitizeLeaveRequests(leaveRequests),
     pendingLeaveRequests,
-    attendanceHistory: buildAttendanceHistory(attendanceSummary),
+    attendanceHistory: buildAttendanceHistory(
+      attendanceSummary,
+      new Map(roster.map((student) => [normalizeUserId(student.studentUserId), student]))
+    ),
     attentionNotes: [
       pendingLeaveRequests
         ? `${pendingLeaveRequests} leave request${pendingLeaveRequests === 1 ? "" : "s"} need teacher review.`
@@ -622,10 +748,15 @@ export async function addTeacherClassroomStudent({
 }) {
   const classroom = await getOwnedClassroom(teacherUserId, classId);
   assertClassroomActive(classroom);
-  const normalizedStudentUserId = normalizeUserId(student?.userId);
+  const generatedStudentUserId = buildStudentUserId(
+    student?.firstName,
+    student?.rollNumber
+  );
+  const submittedStudentUserId = normalizeUserId(student?.userId);
+  const normalizedStudentUserId = submittedStudentUserId || generatedStudentUserId;
 
   if (!normalizedStudentUserId) {
-    throw new Error("Student ID is required.");
+    throw new Error("Student ID requires first name and roll number.");
   }
 
   let studentUser = await User.findOne({
@@ -644,13 +775,16 @@ export async function addTeacherClassroomStudent({
       throw new Error("Password and confirm password must match.");
     }
 
-    const existingRollNumber = await User.findOne({
-      role: "student",
-      rollNumber: validatedStudent.rollNumber
-    }).lean();
+    const existingRollNumber = await findExistingStudentRollConflict({
+      rollNumber: validatedStudent.rollNumber,
+      department: validatedStudent.department,
+      semesterLabel: validatedStudent.semesterLabel
+    });
 
     if (existingRollNumber) {
-      throw new Error("A student with this roll number already exists.");
+      throw new Error(
+        "A student with this roll number already exists in the same branch and semester."
+      );
     }
 
     studentUser = await User.create({
@@ -665,7 +799,8 @@ export async function addTeacherClassroomStudent({
       emailVerifiedAt: null,
       emailVerificationRequired: true,
       department: validatedStudent.department,
-      batch: validatedStudent.batch
+      batch: validatedStudent.batch,
+      semesterLabel: validatedStudent.semesterLabel
     });
   }
 
@@ -741,26 +876,28 @@ export async function updateTeacherClassroomStudent({
     throw new Error("Student account not found.");
   }
 
-  const validatedStudent = validateStudentFields(updates, studentUser);
+  const requestedRollNumber = normalizeRollNumber(
+    updates.rollNumber ?? studentUser.rollNumber
+  );
 
-  if (validatedStudent.rollNumber !== studentUser.rollNumber) {
-    const existingRollNumber = await User.findOne({
-      role: "student",
-      rollNumber: validatedStudent.rollNumber,
-      userId: { $ne: normalizedStudentUserId }
-    }).lean();
-
-    if (existingRollNumber) {
-      throw new Error("A student with this roll number already exists.");
-    }
+  if (requestedRollNumber !== normalizeRollNumber(studentUser.rollNumber)) {
+    throw new Error("Roll number can only be changed by admin.");
   }
+
+  const validatedStudent = validateStudentFields(
+    {
+      ...updates,
+      rollNumber: studentUser.rollNumber
+    },
+    studentUser
+  );
 
   studentUser.firstName = validatedStudent.firstName;
   studentUser.lastName = validatedStudent.lastName;
-  studentUser.rollNumber = validatedStudent.rollNumber;
   studentUser.email = validatedStudent.email;
   studentUser.department = validatedStudent.department;
   studentUser.batch = validatedStudent.batch;
+  studentUser.semesterLabel = validatedStudent.semesterLabel;
 
   if (updates.password) {
     if (String(updates.confirmPassword ?? "") !== String(updates.password)) {
@@ -773,7 +910,7 @@ export async function updateTeacherClassroomStudent({
   await studentUser.save();
 
   membership.studentName = validatedStudent.fullName;
-  membership.rollNumber = validatedStudent.rollNumber;
+  membership.rollNumber = studentUser.rollNumber;
   await membership.save();
 
   return getTeacherClassroomDetails({ teacherUserId, classId });
@@ -853,6 +990,25 @@ export async function archiveTeacherClassroom({
   };
 }
 
+export async function deleteTeacherClassroom({
+  teacherUserId,
+  classId
+}) {
+  const classroom = await getOwnedClassroomDocument(teacherUserId, classId);
+  const classroomSnapshot = {
+    id: String(classroom._id),
+    subjectName: classroom.subjectName,
+    subjectCode: classroom.subjectCode,
+    teacherUserId: classroom.teacherUserId
+  };
+  const deleted = await deleteClassroomData(classroom);
+
+  return {
+    deleted,
+    classroom: classroomSnapshot
+  };
+}
+
 function getLocalDateKey(value = new Date()) {
   const date = new Date(value);
   const year = date.getFullYear();
@@ -879,6 +1035,10 @@ function getDailyAttendanceSessionId(classId, value = new Date()) {
   return `daily-${String(classId)}-${getLocalDateKey(value)}`;
 }
 
+function getExtraAttendanceSessionId(classId, value = new Date()) {
+  return `extra-${String(classId)}-${getLocalDateKey(value)}-${new Date(value).getTime()}`;
+}
+
 function getAttendanceRosterRecord({
   membership,
   user,
@@ -889,7 +1049,9 @@ function getAttendanceRosterRecord({
   notes,
   source,
   verificationMethod = "manual",
-  confidence = null
+  confidence = null,
+  attendanceUnit = 1,
+  sessionType = "regular"
 }) {
   return {
     sessionId,
@@ -903,6 +1065,8 @@ function getAttendanceRosterRecord({
     verificationMethod,
     source,
     confidence,
+    attendanceUnit: normalizeAttendanceUnit(attendanceUnit),
+    sessionType: normalizeSessionType(sessionType),
     recordedAt,
     notes
   };
@@ -953,10 +1117,17 @@ async function mergeDailyAttendanceRecords({
   proposedRecords,
   recordedAt,
   notes,
-  forceStatus = ""
+  forceStatus = "",
+  attendanceUnit = 1,
+  sessionType = "regular"
 }) {
+  const normalizedAttendanceUnit = normalizeAttendanceUnit(attendanceUnit);
+  const normalizedSessionType = normalizeSessionType(sessionType);
   const { dayStart, dayEnd } = getAttendanceDayWindow(recordedAt);
-  const dailySessionId = getDailyAttendanceSessionId(classroom._id, recordedAt);
+  const dailySessionId =
+    normalizedSessionType === "extra"
+      ? getExtraAttendanceSessionId(classroom._id, recordedAt)
+      : getDailyAttendanceSessionId(classroom._id, recordedAt);
   const existingRecords = await AttendanceRecord.find({
     classId: String(classroom._id),
     recordedAt: {
@@ -964,12 +1135,18 @@ async function mergeDailyAttendanceRecords({
       $lt: dayEnd
     }
   }).lean();
+  const matchingExistingRecords =
+    normalizedSessionType === "regular"
+      ? existingRecords.filter(
+          (record) => normalizeSessionType(record.sessionType) === "regular"
+        )
+      : [];
   const existingByStudentId = new Map();
   const proposedByStudentId = new Map(
     proposedRecords.map((record) => [normalizeUserId(record.studentId), record])
   );
 
-  existingRecords
+  matchingExistingRecords
     .sort(
       (left, right) =>
         new Date(left.recordedAt ?? left.createdAt) -
@@ -992,7 +1169,9 @@ async function mergeDailyAttendanceRecords({
         sessionId: dailySessionId,
         recordedAt,
         notes,
-        source: "manual"
+        source: "manual",
+        attendanceUnit: normalizedAttendanceUnit,
+        sessionType: normalizedSessionType
       });
     const existingRecord = existingByStudentId.get(normalizedStudentUserId);
     const resolvedStatus = forceStatus
@@ -1018,6 +1197,8 @@ async function mergeDailyAttendanceRecords({
       verificationMethod: sourceRecord.verificationMethod ?? "manual",
       source: sourceRecord.source ?? "manual",
       confidence: sourceRecord.confidence ?? null,
+      attendanceUnit: normalizedAttendanceUnit,
+      sessionType: normalizedSessionType,
       recordedAt,
       notes: keepExistingStatus
         ? sourceRecord.notes ?? ""
@@ -1025,13 +1206,25 @@ async function mergeDailyAttendanceRecords({
     };
   });
 
-  await AttendanceRecord.deleteMany({
-    classId: String(classroom._id),
-    recordedAt: {
-      $gte: dayStart,
-      $lt: dayEnd
-    }
-  });
+  if (normalizedSessionType === "regular") {
+    await AttendanceRecord.deleteMany({
+      classId: String(classroom._id),
+      recordedAt: {
+        $gte: dayStart,
+        $lt: dayEnd
+      },
+      $or: [
+        { sessionType: "regular" },
+        { sessionType: { $exists: false } },
+        { sessionType: "" }
+      ]
+    });
+  } else {
+    await AttendanceRecord.deleteMany({
+      classId: String(classroom._id),
+      sessionId: dailySessionId
+    });
+  }
 
   if (mergedRecords.length) {
     await AttendanceRecord.insertMany(mergedRecords);
@@ -1140,18 +1333,26 @@ function applyDraftStatusUpdates(records = [], statuses = {}) {
 }
 
 async function sendDraftAbsenteeEmails({ classroom, rosterBundle, draft }) {
+  const recordedAt = draft.createdAt ?? new Date();
+  const sessionType = normalizeSessionType(draft.sessionType);
+  const sessionId =
+    sessionType === "extra"
+      ? getExtraAttendanceSessionId(classroom._id, recordedAt)
+      : getDailyAttendanceSessionId(classroom._id, recordedAt);
   const emailStatus = await runEmailWorkflow(() =>
     notifyAbsentStudents({
       classroom,
       rosterBundle,
       records: (draft.records ?? []).map((record) => ({
+        sessionId,
         studentId: normalizeUserId(record.studentId),
         studentName: record.studentName,
         rollNumber: record.rollNumber,
         classId: String(classroom._id),
         className: classroom.subjectName,
         status: record.status,
-        recordedAt: draft.createdAt ?? new Date(),
+        sessionType,
+        recordedAt,
         notes:
           "Preliminary attendance notice. Contact your teacher quickly if this looks incorrect."
       }))
@@ -1208,19 +1409,14 @@ async function createTodayAttendanceDraftFromAi({
       recognition
     }),
     notes: "Created from classroom photo verification.",
+    attendanceUnit: 1,
+    sessionType: "regular",
     status: "draft",
     expiresAt: new Date(createdAt.getTime() + ATTENDANCE_DRAFT_TTL_MS)
   });
-  const absenteeEmailStatus = await sendDraftAbsenteeEmails({
-    classroom,
-    rosterBundle,
-    draft
-  });
-  const updatedDraft = await AttendanceDraft.findById(draft._id).lean();
 
   return {
-    draft: updatedDraft,
-    absenteeEmailStatus
+    draft: draft.toObject()
   };
 }
 
@@ -1230,6 +1426,8 @@ async function finalizeAttendanceDraftRecord({
   draft,
   statuses = {},
   notes = "",
+  attendanceUnit = draft?.attendanceUnit ?? 1,
+  sessionType = draft?.sessionType ?? "regular",
   mode = "teacher"
 }) {
   if (!draft || draft.status !== "draft") {
@@ -1237,6 +1435,8 @@ async function finalizeAttendanceDraftRecord({
   }
 
   const recordedAt = new Date();
+  const normalizedAttendanceUnit = normalizeAttendanceUnit(attendanceUnit);
+  const normalizedSessionType = normalizeSessionType(sessionType);
   const updatedRecords = applyDraftStatusUpdates(draft.records ?? [], statuses);
   const recordsByStudentId = new Map(
     updatedRecords.map((record) => [normalizeUserId(record.studentId), record])
@@ -1260,7 +1460,9 @@ async function finalizeAttendanceDraftRecord({
         draftRecord?.source === "teacher-edited"
           ? "teacher-confirmed"
           : "face-recognition",
-      confidence: draftRecord?.confidence ?? null
+      confidence: draftRecord?.confidence ?? null,
+      attendanceUnit: normalizedAttendanceUnit,
+      sessionType: normalizedSessionType
     });
   });
   const dailyAttendance = await mergeDailyAttendanceRecords({
@@ -1268,7 +1470,9 @@ async function finalizeAttendanceDraftRecord({
     rosterBundle,
     proposedRecords,
     recordedAt,
-    notes: String(notes ?? draft.notes ?? "").trim()
+    notes: String(notes ?? draft.notes ?? "").trim(),
+    attendanceUnit: normalizedAttendanceUnit,
+    sessionType: normalizedSessionType
   });
 
   await AttendanceDraft.updateOne(
@@ -1280,6 +1484,8 @@ async function finalizeAttendanceDraftRecord({
       $set: {
         records: updatedRecords,
         notes: String(notes ?? draft.notes ?? "").trim(),
+        attendanceUnit: normalizedAttendanceUnit,
+        sessionType: normalizedSessionType,
         status: "finalized",
         finalizedAt: recordedAt,
         finalizedMode: mode
@@ -1293,23 +1499,15 @@ async function finalizeAttendanceDraftRecord({
   const totalLate = dailyAttendance.records.filter(
     (record) => record.status === "late"
   ).length;
-  const examWarnings = await runEmailWorkflow(() =>
-    notifyExamAttendanceWarnings({
-      classroom,
-      rosterBundle
-    })
-  );
-
   return {
     finalizedAttendance: {
       sessionId: dailyAttendance.sessionId,
       totalPresent: totalPresent + totalLate,
       totalAbsent: Math.max(0, dailyAttendance.records.length - totalPresent - totalLate),
+      attendanceUnit: normalizedAttendanceUnit,
+      sessionType: normalizedSessionType,
       finalizedAt: recordedAt.toISOString(),
       mode
-    },
-    emailStatus: {
-      examWarnings
     }
   };
 }
@@ -1401,7 +1599,9 @@ export async function submitTeacherManualAttendance({
   teacherUserId,
   classId,
   statuses,
-  notes
+  notes,
+  attendanceUnit = 1,
+  sessionType = "regular"
 }) {
   const classroom = await getOwnedClassroom(teacherUserId, classId);
   assertClassroomActive(classroom);
@@ -1413,6 +1613,8 @@ export async function submitTeacherManualAttendance({
 
   const normalizedStatuses = statuses && typeof statuses === "object" ? statuses : {};
   const recordedAt = new Date();
+  const normalizedAttendanceUnit = normalizeAttendanceUnit(attendanceUnit);
+  const normalizedSessionType = normalizeSessionType(sessionType);
   const sessionId = getDailyAttendanceSessionId(classroom._id, recordedAt);
   const attendanceRecords = rosterBundle.memberships.map((membership) => {
     const normalizedStudentUserId = normalizeUserId(membership.studentUserId);
@@ -1431,7 +1633,9 @@ export async function submitTeacherManualAttendance({
       sessionId,
       recordedAt,
       notes: String(notes ?? "").trim(),
-      source: "manual"
+      source: "manual",
+      attendanceUnit: normalizedAttendanceUnit,
+      sessionType: normalizedSessionType
     });
   });
   const dailyAttendance = await mergeDailyAttendanceRecords({
@@ -1439,7 +1643,9 @@ export async function submitTeacherManualAttendance({
     rosterBundle,
     proposedRecords: attendanceRecords,
     recordedAt,
-    notes: String(notes ?? "").trim()
+    notes: String(notes ?? "").trim(),
+    attendanceUnit: normalizedAttendanceUnit,
+    sessionType: normalizedSessionType
   });
   const totalPresent = dailyAttendance.records.filter(
     (record) => record.status === "present"
@@ -1448,33 +1654,16 @@ export async function submitTeacherManualAttendance({
     (record) => record.status === "late"
   ).length;
   const totalCountedPresent = totalPresent + totalLate;
-  const [absentNotifications, examWarnings] = await Promise.all([
-    runEmailWorkflow(() =>
-      notifyAbsentStudents({
-        classroom,
-        rosterBundle,
-        records: dailyAttendance.records
-      })
-    ),
-    runEmailWorkflow(() =>
-      notifyExamAttendanceWarnings({
-        classroom,
-        rosterBundle
-      })
-    )
-  ]);
 
   return {
     finalizedAttendance: {
       sessionId: dailyAttendance.sessionId,
       totalPresent: totalCountedPresent,
       totalAbsent: Math.max(0, dailyAttendance.records.length - totalCountedPresent),
+      attendanceUnit: normalizedAttendanceUnit,
+      sessionType: normalizedSessionType,
       finalizedAt: recordedAt.toISOString(),
       mode: "manual"
-    },
-    emailStatus: {
-      absentNotifications,
-      examWarnings
     },
     classroomDetails: await getTeacherClassroomDetails({ teacherUserId, classId })
   };
@@ -1760,9 +1949,6 @@ export async function processTeacherClassAttendance({
     session: recognition,
     captureImageCount: validImages.length,
     todayAttendanceDraft: sanitizeAttendanceDraft(attendanceDraft.draft),
-    emailStatus: {
-      absenteeNotifications: attendanceDraft.absenteeEmailStatus
-    },
     classroomDetails: await getTeacherClassroomDetails({
       teacherUserId: normalizedTeacherUserId,
       classId: String(classroom._id)
@@ -1775,7 +1961,9 @@ export async function updateTeacherTodayAttendanceDraft({
   classId,
   draftId,
   statuses,
-  notes
+  notes,
+  attendanceUnit,
+  sessionType
 }) {
   const normalizedTeacherUserId = normalizeUserId(teacherUserId);
   const classroom = await getOwnedClassroom(normalizedTeacherUserId, classId);
@@ -1793,10 +1981,109 @@ export async function updateTeacherTodayAttendanceDraft({
 
   draft.records = applyDraftStatusUpdates(draft.records ?? [], statuses);
   draft.notes = String(notes ?? draft.notes ?? "").trim();
+  if (attendanceUnit !== undefined) {
+    draft.attendanceUnit = normalizeAttendanceUnit(attendanceUnit);
+  }
+  if (sessionType !== undefined) {
+    draft.sessionType = normalizeSessionType(sessionType);
+  }
   await draft.save();
 
   return {
     todayAttendanceDraft: sanitizeAttendanceDraft(draft.toObject()),
+    classroomDetails: await getTeacherClassroomDetails({
+      teacherUserId: normalizedTeacherUserId,
+      classId: String(classroom._id)
+    })
+  };
+}
+
+export async function discardTeacherTodayAttendanceDraft({
+  teacherUserId,
+  classId,
+  draftId
+}) {
+  const normalizedTeacherUserId = normalizeUserId(teacherUserId);
+  const classroom = await getOwnedClassroom(normalizedTeacherUserId, classId);
+  assertClassroomActive(classroom);
+  const closedAt = new Date();
+  const result = await AttendanceDraft.updateOne(
+    {
+      _id: draftId,
+      classId: classroom._id,
+      teacherUserId: normalizedTeacherUserId,
+      status: "draft"
+    },
+    {
+      $set: {
+        status: "finalized",
+        finalizedAt: closedAt,
+        finalizedMode: "auto",
+        notes: "Discarded by teacher before retaking attendance verification."
+      }
+    }
+  );
+
+  if (!result.matchedCount) {
+    throw new Error("No open today attendance draft was found.");
+  }
+
+  return {
+    discardedDraftId: String(draftId),
+    discardedAt: closedAt.toISOString(),
+    classroomDetails: await getTeacherClassroomDetails({
+      teacherUserId: normalizedTeacherUserId,
+      classId: String(classroom._id)
+    })
+  };
+}
+
+export async function sendTeacherTodayDraftAbsenteeEmails({
+  teacherUserId,
+  classId,
+  draftId,
+  statuses,
+  notes,
+  attendanceUnit,
+  sessionType
+}) {
+  const normalizedTeacherUserId = normalizeUserId(teacherUserId);
+  const classroom = await getOwnedClassroom(normalizedTeacherUserId, classId);
+  assertClassroomActive(classroom);
+  const rosterBundle = await getClassroomRosterBundle(classroom._id);
+  const draft = await AttendanceDraft.findOne({
+    _id: draftId,
+    classId: classroom._id,
+    teacherUserId: normalizedTeacherUserId,
+    status: "draft"
+  });
+
+  if (!draft) {
+    throw new Error("No open today attendance draft was found.");
+  }
+
+  draft.records = applyDraftStatusUpdates(draft.records ?? [], statuses);
+  draft.notes = String(notes ?? draft.notes ?? "").trim();
+  if (attendanceUnit !== undefined) {
+    draft.attendanceUnit = normalizeAttendanceUnit(attendanceUnit);
+  }
+  if (sessionType !== undefined) {
+    draft.sessionType = normalizeSessionType(sessionType);
+  }
+  await draft.save();
+
+  const emailStatus = await sendDraftAbsenteeEmails({
+    classroom,
+    rosterBundle,
+    draft: draft.toObject()
+  });
+  const updatedDraft = await AttendanceDraft.findById(draft._id).lean();
+
+  return {
+    emailStatus: {
+      absenteeNotifications: emailStatus
+    },
+    todayAttendanceDraft: sanitizeAttendanceDraft(updatedDraft),
     classroomDetails: await getTeacherClassroomDetails({
       teacherUserId: normalizedTeacherUserId,
       classId: String(classroom._id)
@@ -1809,7 +2096,9 @@ export async function finalizeTeacherTodayAttendanceDraft({
   classId,
   draftId,
   statuses,
-  notes
+  notes,
+  attendanceUnit,
+  sessionType
 }) {
   const normalizedTeacherUserId = normalizeUserId(teacherUserId);
   const classroom = await getOwnedClassroom(normalizedTeacherUserId, classId);
@@ -1827,11 +2116,154 @@ export async function finalizeTeacherTodayAttendanceDraft({
     draft,
     statuses,
     notes,
+    attendanceUnit: attendanceUnit ?? draft?.attendanceUnit ?? 1,
+    sessionType: sessionType ?? draft?.sessionType ?? "regular",
     mode: "teacher"
   });
 
   return {
     ...result,
+    classroomDetails: await getTeacherClassroomDetails({
+      teacherUserId: normalizedTeacherUserId,
+      classId: String(classroom._id)
+    })
+  };
+}
+
+export async function sendTeacherAttendanceAbsenteeEmails({
+  teacherUserId,
+  classId,
+  sessionId = ""
+}) {
+  const normalizedTeacherUserId = normalizeUserId(teacherUserId);
+  const classroom = await getOwnedClassroom(normalizedTeacherUserId, classId);
+  assertClassroomActive(classroom);
+  const rosterBundle = await getClassroomRosterBundle(classroom._id);
+  const normalizedSessionId = String(sessionId ?? "").trim();
+  const recordQuery = {
+    classId: String(classroom._id)
+  };
+
+  if (normalizedSessionId) {
+    recordQuery.sessionId = normalizedSessionId;
+  } else {
+    const { dayStart, dayEnd } = getAttendanceDayWindow(new Date());
+    recordQuery.recordedAt = {
+      $gte: dayStart,
+      $lt: dayEnd
+    };
+  }
+
+  const attendanceRecords = await AttendanceRecord.find(recordQuery).lean();
+  const absentNotifications = await runEmailWorkflow(() =>
+    notifyAbsentStudents({
+      classroom,
+      rosterBundle,
+      records: attendanceRecords
+    })
+  );
+
+  return {
+    emailStatus: {
+      absentNotifications
+    },
+    classroomDetails: await getTeacherClassroomDetails({
+      teacherUserId: normalizedTeacherUserId,
+      classId: String(classroom._id)
+    })
+  };
+}
+
+export async function updateTeacherSessionAttendanceRecord({
+  teacherUserId,
+  classId,
+  sessionId,
+  studentUserId,
+  status
+}) {
+  const normalizedTeacherUserId = normalizeUserId(teacherUserId);
+  const classroom = await getOwnedClassroom(normalizedTeacherUserId, classId);
+  const normalizedSessionId = String(sessionId ?? "").trim();
+  const normalizedStudentUserId = normalizeUserId(studentUserId);
+  const normalizedStatus = normalizeEditableAttendanceStatus(status);
+
+  if (!normalizedSessionId) {
+    throw new Error("A session ID is required to update attendance.");
+  }
+
+  if (!normalizedStudentUserId) {
+    throw new Error("A student ID is required to update attendance.");
+  }
+
+  const membership = await ClassMembership.findOne({
+    classId: classroom._id,
+    studentUserId: normalizedStudentUserId
+  }).lean();
+
+  if (!membership) {
+    throw new Error("This student is not in the class roster.");
+  }
+
+  const updatedRecord = await AttendanceRecord.findOneAndUpdate(
+    {
+      classId: String(classroom._id),
+      sessionId: normalizedSessionId,
+      studentId: normalizedStudentUserId
+    },
+    {
+      $set: {
+        status: normalizedStatus,
+        studentName: membership.studentName,
+        source: "teacher-confirmed",
+        verificationMethod: "teacher-confirmed",
+        notes: "Attendance corrected by teacher from recent sessions."
+      }
+    },
+    {
+      new: true
+    }
+  ).lean();
+
+  if (!updatedRecord) {
+    throw new Error("Attendance record not found for this session.");
+  }
+
+  return {
+    attendanceRecord: {
+      sessionId: updatedRecord.sessionId,
+      studentUserId: normalizeUserId(updatedRecord.studentId),
+      studentName: updatedRecord.studentName,
+      rollNumber: updatedRecord.rollNumber ?? "",
+      status: updatedRecord.status,
+      statusLabel: formatAttendanceStatusLabel(updatedRecord.status),
+      recordedAt: updatedRecord.recordedAt ?? updatedRecord.createdAt
+    },
+    classroomDetails: await getTeacherClassroomDetails({
+      teacherUserId: normalizedTeacherUserId,
+      classId: String(classroom._id)
+    })
+  };
+}
+
+export async function sendTeacherExamAttendanceWarningEmails({
+  teacherUserId,
+  classId
+}) {
+  const normalizedTeacherUserId = normalizeUserId(teacherUserId);
+  const classroom = await getOwnedClassroom(normalizedTeacherUserId, classId);
+  assertClassroomActive(classroom);
+  const rosterBundle = await getClassroomRosterBundle(classroom._id);
+  const examWarnings = await runEmailWorkflow(() =>
+    notifyExamAttendanceWarnings({
+      classroom,
+      rosterBundle
+    })
+  );
+
+  return {
+    emailStatus: {
+      examWarnings
+    },
     classroomDetails: await getTeacherClassroomDetails({
       teacherUserId: normalizedTeacherUserId,
       classId: String(classroom._id)
@@ -1846,7 +2278,9 @@ export async function finalizeTeacherClassAttendance({
   confirmedPresentIds,
   manuallyAddedPresentIds,
   rejectedTrackIds,
-  notes
+  notes,
+  attendanceUnit = 1,
+  sessionType = "regular"
 }) {
   const normalizedTeacherUserId = normalizeUserId(teacherUserId);
   const classroom = await getOwnedClassroom(normalizedTeacherUserId, classId);
@@ -1869,6 +2303,8 @@ export async function finalizeTeacherClassAttendance({
   });
 
   const recordedAt = new Date(finalizedAttendance.finalizedAt ?? Date.now());
+  const normalizedAttendanceUnit = normalizeAttendanceUnit(attendanceUnit);
+  const normalizedSessionType = normalizeSessionType(sessionType);
   const proposedRecords = finalizedAttendance.records.map((record) => {
     const normalizedStudentId = normalizeUserId(record.personId);
     const membership = rosterById.get(normalizedStudentId);
@@ -1891,6 +2327,8 @@ export async function finalizeTeacherClassAttendance({
       verificationMethod: mapAttendanceSourceToVerificationMethod(record.source),
       source: record.source,
       confidence: record.confidence ?? null,
+      attendanceUnit: normalizedAttendanceUnit,
+      sessionType: normalizedSessionType,
       recordedAt,
       notes: String(notes ?? "").trim()
     };
@@ -1900,7 +2338,9 @@ export async function finalizeTeacherClassAttendance({
     rosterBundle,
     proposedRecords,
     recordedAt,
-    notes: String(notes ?? "").trim()
+    notes: String(notes ?? "").trim(),
+    attendanceUnit: normalizedAttendanceUnit,
+    sessionType: normalizedSessionType
   });
   const totalPresent = dailyAttendance.records.filter(
     (record) => record.status === "present"
@@ -1909,21 +2349,6 @@ export async function finalizeTeacherClassAttendance({
     (record) => record.status === "late"
   ).length;
   const totalCountedPresent = totalPresent + totalLate;
-  const [absentNotifications, examWarnings] = await Promise.all([
-    runEmailWorkflow(() =>
-      notifyAbsentStudents({
-        classroom,
-        rosterBundle,
-        records: dailyAttendance.records
-      })
-    ),
-    runEmailWorkflow(() =>
-      notifyExamAttendanceWarnings({
-        classroom,
-        rosterBundle
-      })
-    )
-  ]);
 
   return {
     finalizedAttendance: {
@@ -1931,11 +2356,9 @@ export async function finalizeTeacherClassAttendance({
       sessionId: dailyAttendance.sessionId,
       totalPresent: totalCountedPresent,
       totalAbsent: Math.max(0, dailyAttendance.records.length - totalCountedPresent),
+      attendanceUnit: normalizedAttendanceUnit,
+      sessionType: normalizedSessionType,
       finalizedAt: recordedAt.toISOString()
-    },
-    emailStatus: {
-      absentNotifications,
-      examWarnings
     },
     classroomDetails: await getTeacherClassroomDetails({
       teacherUserId: normalizedTeacherUserId,

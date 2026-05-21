@@ -103,7 +103,7 @@ function getInitialCalculatorDraft(classes) {
   };
 }
 
-function StudentAttendanceCalculator({ classes }) {
+export function StudentAttendanceCalculator({ classes = [] }) {
   const [draft, setDraft] = useState(() => getInitialCalculatorDraft(classes));
   const selectedClass = useMemo(
     () => classes.find((course) => course.id === draft.classId) ?? classes[0] ?? null,
@@ -290,7 +290,22 @@ function StudentAttendanceCalculator({ classes }) {
   );
 }
 
-export function StudentExamSection({ upcomingExams, classes }) {
+export function StudentExamCalendarPanel({ upcomingExams = [], classes = [] }) {
+  return (
+    <section className="student-calendar-page-grid" id="calendar">
+      <article className="glass-card dashboard-panel student-calendar-full-panel">
+        <DashboardPanelHeader
+          label="Calendar"
+          title="Exam dates and regular class schedule."
+        />
+
+        <ExamCalendar exams={upcomingExams} classes={classes} />
+      </article>
+    </section>
+  );
+}
+
+export function StudentUpcomingExamEligibilityPanel({ upcomingExams = [] }) {
   const priorityExam = upcomingExams.find(
     (exam) => exam.eligibility?.tone !== "positive"
   ) ?? upcomingExams[0] ?? null;
@@ -299,16 +314,7 @@ export function StudentExamSection({ upcomingExams, classes }) {
     <section className="dashboard-lower-grid" id="exams">
       <article className="glass-card dashboard-panel">
         <DashboardPanelHeader
-          label="Upcoming Exams"
-          title="Exam dates and attendance eligibility."
-        />
-
-        <ExamCalendar exams={upcomingExams} />
-      </article>
-
-      <article className="glass-card dashboard-panel">
-        <DashboardPanelHeader
-          label="Eligibility"
+          label="Upcoming Exams & Eligibility"
           title="Minimum classes to attend before each exam."
         />
 
@@ -370,8 +376,6 @@ export function StudentExamSection({ upcomingExams, classes }) {
           )}
         </div>
       </article>
-
-      <StudentAttendanceCalculator classes={classes ?? []} />
     </section>
   );
 }

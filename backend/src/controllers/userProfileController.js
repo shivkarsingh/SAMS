@@ -1,6 +1,7 @@
 import {
   requestProfileEmailVerification,
-  updateUserProfile
+  updateUserProfile,
+  verifyProfileEmailVerification
 } from "../services/userProfileService.js";
 
 export async function sendProfileEmailOtp(request, response) {
@@ -62,6 +63,39 @@ export async function patchUserProfile(request, response) {
     response.status(400).json({
       message:
         error instanceof Error ? error.message : "Unable to update profile."
+    });
+  }
+}
+
+export async function verifyProfileEmailOtp(request, response) {
+  const { role, userId } = request.params;
+  const { email, otp } = request.body ?? {};
+
+  if (!role || !userId || !email || !otp) {
+    response.status(400).json({
+      message: "role, userId, email, and otp are required."
+    });
+    return;
+  }
+
+  try {
+    const result = await verifyProfileEmailVerification({
+      role,
+      userId,
+      email,
+      otp
+    });
+
+    response.json({
+      message: "Email verified successfully.",
+      ...result
+    });
+  } catch (error) {
+    response.status(400).json({
+      message:
+        error instanceof Error
+          ? error.message
+          : "Unable to verify profile email OTP."
     });
   }
 }

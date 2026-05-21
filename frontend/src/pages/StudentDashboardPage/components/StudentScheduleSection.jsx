@@ -1,30 +1,50 @@
 import { DashboardPanelHeader } from "../../../components/common/DashboardPanelHeader";
 
+function getScheduleStatusTone(item) {
+  const status = String(item?.status ?? "").toLowerCase();
+
+  if (item?.attendanceTakenToday || status === "taken") {
+    return "taken";
+  }
+
+  if (status === "cancelled") {
+    return "cancelled";
+  }
+
+  return "pending";
+}
+
 export function StudentScheduleSection({ upcomingClasses, weeklySchedule }) {
   return (
     <section className="dashboard-lower-grid" id="schedule">
       <article className="glass-card dashboard-panel">
         <DashboardPanelHeader
-          label="Upcoming Classes"
-          title="What is coming next today."
+          label="Today's Schedule"
+          title="Today's classes and attendance status."
         />
 
         <div className="timeline-list">
           {upcomingClasses.length ? (
-            upcomingClasses.map((item) => (
-              <article key={item.id ?? `${item.title}-${item.time}`} className="timeline-card">
-                <div className="timeline-time">
-                  <strong>{item.time}</strong>
-                  <span>{item.status}</span>
-                </div>
-                <div className="timeline-content">
-                  <h3>{item.title}</h3>
-                  <p>
-                    {item.faculty} • {item.room}
-                  </p>
-                </div>
-              </article>
-            ))
+            upcomingClasses.map((item) => {
+              const statusLabel = item.attendanceTakenToday ? "Taken" : item.status;
+
+              return (
+                <article key={item.id ?? `${item.title}-${item.time}`} className="timeline-card">
+                  <div className="timeline-time">
+                    <strong>{item.time}</strong>
+                    <span className={`timeline-status-pill ${getScheduleStatusTone(item)}`}>
+                      {statusLabel}
+                    </span>
+                  </div>
+                  <div className="timeline-content">
+                    <h3>{item.title}</h3>
+                    <p>
+                      {item.faculty} • {item.room}
+                    </p>
+                  </div>
+                </article>
+              );
+            })
           ) : (
             <p className="panel-fallback">
               Your upcoming classes will appear here after you join a classroom.

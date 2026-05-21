@@ -1,4 +1,5 @@
 import { AppBrand } from "../../../components/common/AppBrand";
+import { goToRoute } from "../../../utils/router";
 
 export function TeacherDashboardHeader({
   onLogout,
@@ -6,6 +7,15 @@ export function TeacherDashboardHeader({
   navItems = [],
   utilityAction = null
 }) {
+  function handleNavigation(item) {
+    if (item.route) {
+      goToRoute(item.route);
+      return;
+    }
+
+    onNavigate?.(item.id);
+  }
+
   return (
     <header className="dashboard-topbar glass-card">
       <AppBrand href="#/" subtitle="Teacher Workspace" />
@@ -15,9 +25,9 @@ export function TeacherDashboardHeader({
           {navItems.map((item) => (
             <button
               key={item.id}
-              className="dashboard-nav-button"
+              className={`dashboard-nav-button ${item.active ? "active-teacher-nav" : ""}`}
               type="button"
-              onClick={() => onNavigate(item.id)}
+              onClick={() => handleNavigation(item)}
             >
               {item.label}
             </button>

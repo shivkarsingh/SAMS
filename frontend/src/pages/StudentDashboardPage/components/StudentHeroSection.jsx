@@ -1,17 +1,12 @@
 export function StudentHeroSection({
   profile,
   overview,
-  faceProfile,
-  onReviewPerformance,
-  onOpenSchedule,
-  onOpenClassrooms,
-  onOpenFaceEnrollment,
-  onOpenNotifications
+  faceProfile
 }) {
   const hasJoinedClasses = profile.joinedClassesCount > 0;
-  const recordedLabel = overview.totalRecordedSessions
-    ? `${overview.attendedSessions}/${overview.totalRecordedSessions} sessions attended`
-    : "No attendance recorded yet";
+  const safeRangeProgress = overview.joinedClasses
+    ? Math.round((overview.safeClasses / overview.joinedClasses) * 100)
+    : 0;
 
   return (
     <section className="dashboard-hero" id="overview">
@@ -31,7 +26,7 @@ export function StudentHeroSection({
         </h1>
         <p>
           {hasJoinedClasses
-            ? `${recordedLabel}. Check weak subjects first, open each class for history, and use the safe-range projections before the next session.`
+            ? "Your joined classes, safe-range status, schedule, and exam dates are ready on this dashboard."
             : "Join your classes, then open the dedicated face enrollment page to capture or upload your setup images before attendance begins."}
         </p>
 
@@ -45,8 +40,12 @@ export function StudentHeroSection({
             <strong>{profile.department || "TBD"}</strong>
           </div>
           <div>
-            <span>Batch</span>
-            <strong>{profile.batch || profile.yearOfPassing || "TBD"}</strong>
+            <span>Batch / Sem</span>
+            <strong>
+              {[profile.batch || profile.yearOfPassing, profile.semesterLabel]
+                .filter(Boolean)
+                .join(" / ") || "TBD"}
+            </strong>
           </div>
           <div>
             <span>Face Profile</span>
@@ -55,36 +54,20 @@ export function StudentHeroSection({
             </strong>
           </div>
         </div>
-
-        <div className="dashboard-actions">
-          <button className="primary-button large" type="button" onClick={onOpenFaceEnrollment}>
-            Open Face Enrollment
-          </button>
-          <button className="secondary-button large" type="button" onClick={onOpenClassrooms}>
-            Join a Classroom
-          </button>
-          <button className="primary-button large" type="button" onClick={onReviewPerformance}>
-            Review Class Performance
-          </button>
-          <button className="secondary-button large" type="button" onClick={onOpenSchedule}>
-            See Today's Schedule
-          </button>
-          <button className="secondary-button large" type="button" onClick={onOpenNotifications}>
-            Open Notifications
-          </button>
-        </div>
       </article>
 
       <article className="glass-card dashboard-spotlight">
         <div
           className="attendance-ring"
           style={{
-            "--attendance-progress": `${overview.overallAttendance}%`
+            "--attendance-progress": `${safeRangeProgress}%`
           }}
         >
           <div className="attendance-ring-core">
-            <span>Overall</span>
-            <strong>{overview.overallAttendance}%</strong>
+            <span>Safe Range</span>
+            <strong>
+              {overview.safeClasses}/{overview.joinedClasses || 0}
+            </strong>
           </div>
         </div>
 
@@ -94,16 +77,16 @@ export function StudentHeroSection({
             <strong>{overview.joinedClasses}</strong>
           </div>
           <div className="spotlight-metric">
-            <span>Present</span>
-            <strong>{overview.attendedSessions}</strong>
-          </div>
-          <div className="spotlight-metric">
-            <span>Absent</span>
-            <strong>{overview.missedSessions}</strong>
+            <span>Safe Range</span>
+            <strong>{overview.safeClasses}</strong>
           </div>
           <div className="spotlight-metric">
             <span>Below Range</span>
             <strong>{overview.belowRangeClasses}</strong>
+          </div>
+          <div className="spotlight-metric">
+            <span>Exam Dates</span>
+            <strong>{overview.upcomingExams ?? 0}</strong>
           </div>
         </div>
       </article>

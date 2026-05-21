@@ -1,7 +1,6 @@
 import mongoose from "mongoose";
 import { ClassExam } from "../models/ClassExam.js";
 import { Classroom } from "../models/Classroom.js";
-import { notifyExamAttendanceWarnings } from "./emailNotificationService.js";
 import {
   getScheduleDayMeta,
   sanitizeScheduleSlots,
@@ -270,6 +269,7 @@ export function sanitizeClassExam(exam, classroom = null) {
     subjectCode: classroom?.code ?? classroom?.subjectCode ?? "",
     subjectName: classroom?.title ?? classroom?.subjectName ?? "",
     section: classroom?.section ?? "",
+    semesterLabel: classroom?.semesterLabel ?? "",
     room: classroom?.room ?? "",
     createdAt: exam.createdAt,
     updatedAt: exam.updatedAt
@@ -390,12 +390,5 @@ export async function setTeacherClassExam({
       setDefaultsOnInsert: true
     }
   ).lean();
-  const emailStatus = await notifyExamAttendanceWarnings({
-    classroom
-  });
-
-  return {
-    ...sanitizeClassExam(exam, classroom),
-    emailStatus
-  };
+  return sanitizeClassExam(exam, classroom);
 }

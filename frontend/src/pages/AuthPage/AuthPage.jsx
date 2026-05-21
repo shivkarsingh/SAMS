@@ -5,8 +5,10 @@ import {
   loginUser,
   requestPasswordReset,
   requestSignupEmailOtp,
+  resendVerificationEmail,
   resetPassword,
   signupUser,
+  verifyEmail,
   verifySignupEmailOtp,
   verifyPasswordResetOtp
 } from "../../services/api";
@@ -35,6 +37,7 @@ const initialSignupState = {
   batch: "",
   yearOfPassing: "",
   department: "",
+  semesterLabel: "",
   email: "",
   phoneNumber: "",
   designation: "",
@@ -75,6 +78,13 @@ const roleHighlights = {
   }
 };
 
+function buildStudentUserId(firstName, rollNumber) {
+  const namePart = String(firstName ?? "").trim().replace(/\s+/g, "");
+  const rollPart = String(rollNumber ?? "").trim();
+
+  return namePart && rollPart ? `${namePart}#${rollPart}`.toUpperCase() : "";
+}
+
 export function AuthPage({ mode }) {
   const [signupForm, setSignupForm] = useState(initialSignupState);
   const [loginForm, setLoginForm] = useState(initialLoginState);
@@ -96,6 +106,8 @@ export function AuthPage({ mode }) {
   const [resetStep, setResetStep] = useState("request");
   const [resetSession, setResetSession] = useState(null);
   const [signupResendCooldown, setSignupResendCooldown] = useState(0);
+  const [loginResendCooldown, setLoginResendCooldown] = useState(0);
+  const [loginVerification, setLoginVerification] = useState(null);
   const [resetResendCooldown, setResetResendCooldown] = useState(0);
   const [authenticatedUser, setAuthenticatedUser] = useState(null);
 
@@ -136,6 +148,18 @@ export function AuthPage({ mode }) {
     return () => window.clearTimeout(timerId);
   }, [signupResendCooldown]);
 
+  useEffect(() => {
+    if (loginResendCooldown <= 0) {
+      return undefined;
+    }
+
+    const timerId = window.setTimeout(() => {
+      setLoginResendCooldown((current) => Math.max(current - 1, 0));
+    }, 1000);
+
+    return () => window.clearTimeout(timerId);
+  }, [loginResendCooldown]);
+
   function startSignupResendCooldown(seconds = 60) {
     const normalizedSeconds = Number(seconds);
     setSignupResendCooldown(
@@ -152,6 +176,52 @@ export function AuthPage({ mode }) {
         ? Math.ceil(normalizedSeconds)
         : 60
     );
+  }
+
+  function startLoginResendCooldown(seconds = 60) {
+    const normalizedSeconds = Number(seconds);
+    setLoginResendCooldown(
+      Number.isFinite(normalizedSeconds) && normalizedSeconds > 0
+        ? Math.ceil(normalizedSeconds)
+        : 60
+    );
+  }
+
+  function completeLogin(response) {
+    saveSession(response.user);
+    setAuthenticatedUser(response.user);
+    setLoginVerification(null);
+    setLoginResendCooldown(0);
+    setLoginStatus({
+      loading: false,
+      message: `${response.message} Welcome back, ${response.user.firstName}.`
+    });
+    setLoginForm((current) => ({
+      ...initialLoginState,
+      role: current.role
+    }));
+
+    if (response.user.role === "student") {
+      const pendingJoinCode = getPendingJoinCode();
+
+      if (pendingJoinCode) {
+        clearPendingJoinCode();
+        goToRoute(`/student-dashboard?joinCode=${encodeURIComponent(pendingJoinCode)}`);
+        return;
+      }
+
+      goToRoute("/student-dashboard");
+      return;
+    }
+
+    if (response.user.role === "teacher") {
+      goToRoute("/teacher-dashboard");
+      return;
+    }
+
+    if (response.user.role === "admin") {
+      goToRoute("/admin-dashboard");
+    }
   }
 
   function resetPasswordFlow(role = resetForm.role, options = {}) {
@@ -186,14 +256,14 @@ export function AuthPage({ mode }) {
     }
 
     if (
-      signupForm.role === "student" &&
-      (!signupVerification?.verified ||
-        signupVerification.email !== normalizedSignupEmail ||
-        !signupVerification.otp)
+      !signupVerification?.verified ||
+      signupVerification.role !== signupForm.role ||
+      signupVerification.email !== normalizedSignupEmail ||
+      !signupVerification.otp
     ) {
       setSignupStatus({
         loading: false,
-        message: "Verify student email with OTP before creating the account."
+        message: "Verify email with OTP before creating the account."
       });
       return;
     }
@@ -203,7 +273,7 @@ export function AuthPage({ mode }) {
     try {
       const response = await signupUser({
         ...signupForm,
-        emailOtp: signupForm.role === "student" ? signupVerification.otp : undefined
+        emailOtp: signupVerification.otp
       });
 
       setSignupStatus({
@@ -230,10 +300,6 @@ export function AuthPage({ mode }) {
   }
 
   async function handleRequestSignupEmailOtp() {
-    if (signupForm.role !== "student") {
-      return;
-    }
-
     if (signupResendCooldown > 0) {
       setSignupStatus({
         loading: false,
@@ -245,7 +311,7 @@ export function AuthPage({ mode }) {
     if (!signupForm.email.trim()) {
       setSignupStatus({
         loading: false,
-        message: "Enter your student email first."
+        message: "Enter your email first."
       });
       return;
     }
@@ -263,7 +329,7 @@ export function AuthPage({ mode }) {
       const normalizedEmail = signupForm.email.trim().toLowerCase();
 
       setSignupVerification({
-        role: "student",
+        role: signupForm.role,
         email: normalizedEmail,
         verified: false,
         otp: ""
@@ -292,7 +358,11 @@ export function AuthPage({ mode }) {
   async function handleVerifySignupEmail() {
     const normalizedSignupEmail = signupForm.email.trim().toLowerCase();
 
-    if (!signupVerification || signupVerification.email !== normalizedSignupEmail) {
+    if (
+      !signupVerification ||
+      signupVerification.role !== signupForm.role ||
+      signupVerification.email !== normalizedSignupEmail
+    ) {
       setSignupStatus({
         loading: false,
         message: "Send an OTP to this email first."
@@ -324,7 +394,7 @@ export function AuthPage({ mode }) {
       });
       setSignupVerification((current) => ({
         ...(current ?? {}),
-        role: "student",
+        role: signupVerification.role,
         email: normalizedSignupEmail,
         verified: true,
         verifiedAt: response.verifiedAt,
@@ -358,6 +428,11 @@ export function AuthPage({ mode }) {
     setSignupResendCooldown(0);
   }
 
+  function resetLoginEmailVerification() {
+    setLoginVerification(null);
+    setLoginResendCooldown(0);
+  }
+
   async function handleLoginSubmit(event) {
     event.preventDefault();
     setLoginStatus({ loading: true, message: "" });
@@ -365,46 +440,111 @@ export function AuthPage({ mode }) {
     try {
       const response = await loginUser(loginForm);
 
-      saveSession(response.user);
-      setAuthenticatedUser(response.user);
-      setLoginStatus({
-        loading: false,
-        message: `${response.message} Welcome back, ${response.user.firstName}.`
-      });
-      setLoginForm((current) => ({
-        ...initialLoginState,
-        role: current.role
-      }));
-
-      if (response.user.role === "student") {
-        const pendingJoinCode = getPendingJoinCode();
-
-        if (pendingJoinCode) {
-          clearPendingJoinCode();
-          goToRoute(`/join-class?code=${encodeURIComponent(pendingJoinCode)}`);
-          return;
-        }
-
-        goToRoute("/student-dashboard");
-        return;
-      }
-
-      if (response.user.role === "teacher") {
-        goToRoute("/teacher-dashboard");
-        return;
-      }
-
-      if (response.user.role === "admin") {
-        goToRoute("/admin-dashboard");
-      }
+      completeLogin(response);
     } catch (loginError) {
       setAuthenticatedUser(null);
+
+      if (
+        loginError?.verificationRequired ||
+        loginError?.code === "EMAIL_VERIFICATION_REQUIRED"
+      ) {
+        setLoginVerification({
+          required: true,
+          role: loginForm.role,
+          userId: loginForm.userId.trim(),
+          otp: ""
+        });
+      }
+
       setLoginStatus({
         loading: false,
         message:
           loginError instanceof Error
             ? loginError.message
             : "Unable to log in."
+      });
+    }
+  }
+
+  async function handleResendLoginVerification() {
+    if (loginResendCooldown > 0) {
+      setLoginStatus({
+        loading: false,
+        message: `You can request another OTP in ${loginResendCooldown} seconds.`
+      });
+      return;
+    }
+
+    const role = loginVerification?.role ?? loginForm.role;
+    const userId = loginVerification?.userId ?? loginForm.userId.trim();
+
+    if (!role || !userId) {
+      setLoginStatus({
+        loading: false,
+        message: "Choose role and enter your account ID first."
+      });
+      return;
+    }
+
+    setLoginStatus({ loading: true, message: "" });
+
+    try {
+      const response = await resendVerificationEmail({ role, userId });
+      setLoginVerification({
+        required: true,
+        role,
+        userId,
+        otp: ""
+      });
+      startLoginResendCooldown(response.retryAfterSeconds ?? 60);
+      setLoginStatus({
+        loading: false,
+        message: `${response.message}${response.verification?.devOtp ? ` Dev OTP: ${response.verification.devOtp}` : ""}`
+      });
+    } catch (resendError) {
+      if (resendError?.retryAfterSeconds) {
+        startLoginResendCooldown(resendError.retryAfterSeconds);
+      }
+
+      setLoginStatus({
+        loading: false,
+        message:
+          resendError instanceof Error
+            ? resendError.message
+            : "Unable to resend verification OTP."
+      });
+    }
+  }
+
+  async function handleVerifyLoginEmail() {
+    if (!loginVerification?.otp.trim()) {
+      setLoginStatus({
+        loading: false,
+        message: "Enter the 6 digit OTP sent to your email."
+      });
+      return;
+    }
+
+    setLoginStatus({ loading: true, message: "" });
+
+    try {
+      const response = await verifyEmail({
+        role: loginVerification.role,
+        userId: loginVerification.userId,
+        otp: loginVerification.otp
+      });
+
+      completeLogin({
+        ...response,
+        message: `${response.message} Login successful.`
+      });
+    } catch (verifyError) {
+      setLoginStatus({
+        loading: false,
+        message:
+          verifyError instanceof Error
+            ? verifyError.message
+            : "Unable to verify email."
       });
     }
   }
@@ -555,14 +695,40 @@ export function AuthPage({ mode }) {
       resetSignupEmailVerification();
     }
 
-    setSignupForm((current) => ({
-      ...current,
-      [name]: value
-    }));
+    setSignupForm((current) => {
+      const nextForm = {
+        ...current,
+        [name]: value
+      };
+
+      if (nextForm.role === "student" && name !== "userId") {
+        const currentGeneratedId = buildStudentUserId(
+          current.firstName,
+          current.rollNumber
+        );
+        nextForm.userId = buildStudentUserId(
+          nextForm.firstName,
+          nextForm.rollNumber
+        );
+
+        if (
+          current.userId &&
+          current.userId !== currentGeneratedId
+        ) {
+          nextForm.userId = current.userId;
+        }
+      }
+
+      return nextForm;
+    });
   }
 
   function handleLoginChange(event) {
     const { name, value } = event.target;
+    if (name === "role" || name === "userId") {
+      resetLoginEmailVerification();
+    }
+
     setLoginForm((current) => ({
       ...current,
       [name]: value
@@ -629,7 +795,17 @@ export function AuthPage({ mode }) {
               onResendVerification={handleResendSignupOtp}
               onRoleChange={(role) => {
                 resetSignupEmailVerification();
-                setSignupForm((current) => ({ ...current, role }));
+                setSignupForm((current) => {
+                  const nextForm = { ...current, role };
+
+                  if (role === "student") {
+                    nextForm.userId =
+                      current.userId ||
+                      buildStudentUserId(nextForm.firstName, nextForm.rollNumber);
+                  }
+
+                  return nextForm;
+                });
               }}
               onSubmit={handleSignupSubmit}
             />
@@ -650,11 +826,21 @@ export function AuthPage({ mode }) {
             <LoginForm
               form={loginForm}
               status={loginStatus}
+              verification={loginVerification}
+              resendCooldown={loginResendCooldown}
               onChange={handleLoginChange}
-              onRoleChange={(role) =>
-                setLoginForm((current) => ({ ...current, role }))
-              }
+              onRoleChange={(role) => {
+                resetLoginEmailVerification();
+                setLoginForm((current) => ({ ...current, role }));
+              }}
               onSubmit={handleLoginSubmit}
+              onVerificationOtpChange={(otp) =>
+                setLoginVerification((current) =>
+                  current ? { ...current, otp } : current
+                )
+              }
+              onResendVerification={handleResendLoginVerification}
+              onVerifyEmail={handleVerifyLoginEmail}
             />
           )}
         </section>

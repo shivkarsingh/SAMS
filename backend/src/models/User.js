@@ -56,6 +56,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true
     },
+    semesterLabel: {
+      type: String,
+      trim: true
+    },
     email: {
       type: String,
       trim: true,
@@ -77,6 +81,10 @@ const userSchema = new mongoose.Schema(
     phoneNumber: {
       type: String,
       trim: true
+    },
+    avatarDataUrl: {
+      type: String,
+      default: ""
     },
     designation: {
       type: String,

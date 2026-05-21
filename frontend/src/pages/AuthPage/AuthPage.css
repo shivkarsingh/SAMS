@@ -153,6 +153,11 @@
   color: #f8fafc;
 }
 
+.auth-panel-copy {
+  margin: 0;
+  color: #9caecc;
+}
+
 .auth-email-verify-panel {
   display: grid;
   gap: 12px;

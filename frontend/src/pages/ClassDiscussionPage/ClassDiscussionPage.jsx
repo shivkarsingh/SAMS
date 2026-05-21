@@ -69,6 +69,36 @@ function formatUserName(user) {
   return `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.userId;
 }
 
+function getUserPhotoUrl(user) {
+  return (
+    user?.displayAvatarUrl ||
+    user?.profilePhotoUrl ||
+    user?.avatarDataUrl ||
+    user?.faceProfilePhotoUrl ||
+    ""
+  );
+}
+
+function getAuthorPhotoUrl(author) {
+  return (
+    author?.authorPhotoUrl ||
+    author?.profilePhotoUrl ||
+    author?.authorAvatarDataUrl ||
+    author?.avatarDataUrl ||
+    author?.authorFaceProfilePhotoUrl ||
+    author?.faceProfilePhotoUrl ||
+    ""
+  );
+}
+
+function CommentAvatar({ name, photoUrl, className = "" }) {
+  return (
+    <div className={`comment-avatar ${className}`} aria-hidden="true">
+      {photoUrl ? <img src={photoUrl} alt="" /> : getInitials(name)}
+    </div>
+  );
+}
+
 function normalizeDiscussionMessage(message) {
   return {
     ...message,
@@ -247,6 +277,7 @@ export function ClassDiscussionPage() {
         authorUserId: user.userId,
         authorName: formatUserName(user),
         authorRole: user.role,
+        authorPhotoUrl: getUserPhotoUrl(user),
         message: draftMessage.trim(),
         replies: [],
         likes: [],
@@ -348,6 +379,7 @@ export function ClassDiscussionPage() {
         authorUserId: user.userId,
         authorName: formatUserName(user),
         authorRole: user.role,
+        authorPhotoUrl: getUserPhotoUrl(user),
         message: replyText,
         createdAt: new Date().toISOString()
       };
@@ -527,9 +559,11 @@ export function ClassDiscussionPage() {
           </div>
 
           <form className="class-discussion-form" onSubmit={handlePostMessage}>
-            <div className="comment-avatar own-avatar">
-              {getInitials(formatUserName(user))}
-            </div>
+            <CommentAvatar
+              name={formatUserName(user)}
+              photoUrl={getUserPhotoUrl(user)}
+              className="own-avatar"
+            />
             <label className="field">
               <textarea
                 rows="2"
@@ -575,9 +609,10 @@ export function ClassDiscussionPage() {
                     message.authorUserId === user.userId ? "own-message" : ""
                   }`}
                 >
-                  <div className="comment-avatar">
-                    {getInitials(message.authorName)}
-                  </div>
+                  <CommentAvatar
+                    name={message.authorName}
+                    photoUrl={getAuthorPhotoUrl(message)}
+                  />
                   <div className="class-discussion-message-head">
                     <div>
                       <strong>{message.authorName}</strong>
@@ -632,9 +667,11 @@ export function ClassDiscussionPage() {
                       className="comment-reply-form"
                       onSubmit={(event) => handleReplySubmit(event, message.id)}
                     >
-                      <div className="comment-avatar comment-reply-avatar">
-                        {getInitials(formatUserName(user))}
-                      </div>
+                      <CommentAvatar
+                        name={formatUserName(user)}
+                        photoUrl={getUserPhotoUrl(user)}
+                        className="comment-reply-avatar"
+                      />
                       <label className="field">
                         <textarea
                           rows="1"
@@ -682,9 +719,11 @@ export function ClassDiscussionPage() {
                       </span>
                       {message.replies.map((reply) => (
                         <article key={reply.id} className="comment-reply">
-                          <div className="comment-avatar comment-reply-avatar">
-                            {getInitials(reply.authorName)}
-                          </div>
+                          <CommentAvatar
+                            name={reply.authorName}
+                            photoUrl={getAuthorPhotoUrl(reply)}
+                            className="comment-reply-avatar"
+                          />
                           <div className="comment-reply-body">
                             <div className="class-discussion-message-head">
                               <div>

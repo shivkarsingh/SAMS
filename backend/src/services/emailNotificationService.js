@@ -155,6 +155,7 @@ export function sendEmailVerificationOtp({ user, otp, expiresAt }) {
   return sendTemplatedEmail({
     to: user.email,
     templateName: "email-verification",
+    notificationKey: `email-verification:${user.role}:${user.userId}:${otp}`,
     template: buildEmailVerificationTemplate({ user, otp, expiresAt }),
     metadata: {
       userId: user.userId,
@@ -180,6 +181,7 @@ export function sendPasswordResetOtp({ user, otp, expiresAt }) {
   return sendTemplatedEmail({
     to: user.email,
     templateName: "password-reset",
+    notificationKey: `password-reset:${user.role}:${user.userId}:${otp}`,
     template: buildPasswordResetTemplate({ user, otp, expiresAt }),
     metadata: {
       userId: user.userId,
@@ -192,6 +194,7 @@ export function sendProfileEmailOtp({ user, email, otp, expiresAt }) {
   return sendTemplatedEmail({
     to: email,
     templateName: "profile-email-verification",
+    notificationKey: `profile-email-verification:${user.role}:${user.userId}:${email}:${otp}`,
     template: buildProfileEmailOtpTemplate({ user, email, otp, expiresAt }),
     metadata: {
       userId: user.userId,
@@ -255,7 +258,7 @@ export async function notifyAbsentStudents({ classroom, rosterBundle, records })
       const result = await sendTemplatedEmail({
         to: recipients,
         templateName: "absent-notification",
-        notificationKey: `absent:${classroom._id}:${record.studentId}:${getDateKey(record.recordedAt)}`,
+        notificationKey: `absent:${classroom._id}:${record.studentId}:${record.sessionId || getDateKey(record.recordedAt)}`,
         template: buildAbsentNotificationTemplate({
           student,
           classroom,
@@ -264,7 +267,9 @@ export async function notifyAbsentStudents({ classroom, rosterBundle, records })
         metadata: {
           classId: String(classroom._id),
           studentUserId: record.studentId,
-          date: getDateKey(record.recordedAt)
+          date: getDateKey(record.recordedAt),
+          sessionId: record.sessionId ?? "",
+          sessionType: record.sessionType ?? "regular"
         }
       });
 

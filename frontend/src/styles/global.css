@@ -571,6 +571,20 @@ button {
   font-size: 1.45rem;
 }
 
+.summary-card-action {
+  display: grid;
+  width: 100%;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.summary-card-action:focus-visible {
+  outline: 2px solid rgba(103, 232, 249, 0.8);
+  outline-offset: 3px;
+}
+
 .dashboard-panel-copy {
   margin: 10px 0 0;
 }
@@ -745,6 +759,38 @@ button {
   min-width: 170px;
 }
 
+.timeline-status-pill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin-top: 5px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #dce8fb;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.timeline-status-pill.taken {
+  border-color: rgba(34, 197, 94, 0.22);
+  background: rgba(34, 197, 94, 0.1);
+  color: #86efac;
+}
+
+.timeline-status-pill.cancelled {
+  border-color: rgba(248, 113, 113, 0.22);
+  background: rgba(248, 113, 113, 0.1);
+  color: #fca5a5;
+}
+
+.timeline-status-pill.pending {
+  border-color: rgba(245, 158, 11, 0.2);
+  background: rgba(245, 158, 11, 0.08);
+  color: #fcd34d;
+}
+
 .schedule-grid {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
@@ -804,6 +850,8 @@ button {
 .exam-calendar {
   display: grid;
   gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 2px;
 }
 
 .exam-calendar-header {
@@ -811,6 +859,11 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
+}
+
+.exam-calendar-title {
+  display: grid;
+  gap: 4px;
 }
 
 .exam-calendar-header strong {
@@ -825,10 +878,51 @@ button {
   font-size: 0.78rem;
 }
 
+.exam-calendar-controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.exam-calendar-controls button {
+  display: inline-grid;
+  min-width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgba(103, 232, 249, 0.18);
+  border-radius: 999px;
+  background: rgba(103, 232, 249, 0.06);
+  color: #dff7ff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 900;
+  line-height: 1;
+  transition:
+    border-color 180ms ease,
+    background 180ms ease,
+    transform 180ms ease;
+}
+
+.exam-calendar-controls button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(103, 232, 249, 0.36);
+  background: rgba(103, 232, 249, 0.12);
+}
+
+.exam-calendar-controls .exam-calendar-today-button {
+  width: auto;
+  padding: 0 12px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
 .exam-calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
+  min-width: 720px;
 }
 
 .exam-calendar-weekday {
@@ -842,8 +936,8 @@ button {
 .exam-calendar-day {
   display: grid;
   align-content: start;
-  gap: 5px;
-  min-height: 72px;
+  gap: 7px;
+  min-height: 126px;
   padding: 10px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
@@ -866,8 +960,112 @@ button {
 }
 
 .exam-calendar-day.has-exam {
-  border-color: rgba(52, 211, 153, 0.28);
-  background: rgba(52, 211, 153, 0.1);
+  border-color: rgba(167, 139, 250, 0.42);
+  background: rgba(167, 139, 250, 0.1);
+}
+
+.exam-calendar-day.has-class:not(.has-exam) {
+  border-color: rgba(103, 232, 249, 0.2);
+}
+
+.exam-calendar-day.has-class-upcoming:not(.has-exam) {
+  border-color: rgba(56, 189, 248, 0.32);
+  background: rgba(56, 189, 248, 0.06);
+}
+
+.exam-calendar-day.has-class-taken:not(.has-exam) {
+  border-color: rgba(34, 197, 94, 0.34);
+  background: rgba(34, 197, 94, 0.07);
+}
+
+.exam-calendar-day.has-class-missed:not(.has-exam) {
+  border-color: rgba(239, 68, 68, 0.36);
+  background: rgba(239, 68, 68, 0.07);
+}
+
+.exam-calendar-event {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  padding: 7px;
+  text-align: left;
+}
+
+.exam-calendar-event p,
+.exam-calendar-event small {
+  overflow-wrap: anywhere;
+}
+
+.exam-calendar-event p {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.exam-calendar-event small {
+  display: block;
+  margin-top: 2px;
+  color: #cbd5e1;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.exam-calendar-class-event {
+  border-color: var(--event-border);
+  background: var(--event-bg);
+  box-shadow: inset 3px 0 0 var(--event-accent);
+}
+
+.exam-calendar-class-event small {
+  color: #dbeafe;
+}
+
+.exam-calendar-event-status {
+  color: var(--event-accent);
+  text-transform: uppercase;
+}
+
+.exam-calendar-exam-event {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 6px;
+  align-items: start;
+  border-color: rgba(167, 139, 250, 0.48);
+  background: rgba(167, 139, 250, 0.18);
+  color: #ede9fe;
+}
+
+button.exam-calendar-exam-event {
+  cursor: pointer;
+  font: inherit;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+button.exam-calendar-exam-event:hover {
+  transform: translateY(-1px);
+  border-color: rgba(196, 181, 253, 0.76);
+  background: rgba(167, 139, 250, 0.24);
+}
+
+.exam-calendar-exam-event b {
+  color: #ddd6fe;
+  font-size: 0.78rem;
+  line-height: 1;
+}
+
+.exam-calendar-exam-event small {
+  color: #ddd6fe;
+}
+
+.exam-calendar-exam-event p {
+  color: #f5f3ff;
 }
 
 .exam-calendar-day.empty {
@@ -1015,6 +1213,7 @@ button {
   }
 
   .dashboard-kicker-row,
+  .exam-calendar-header,
   .timeline-card,
   .course-footer,
   .comparison-copy,
@@ -1026,6 +1225,11 @@ button {
 
   .timeline-time {
     min-width: 0;
+  }
+
+  .exam-calendar-controls {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .section-block {

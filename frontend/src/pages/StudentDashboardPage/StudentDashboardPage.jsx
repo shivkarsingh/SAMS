@@ -5,18 +5,19 @@ import {
   fetchStudentDashboard,
   joinStudentClass
 } from "../../services/api";
-import { clearSession, getSession } from "../../services/session";
-import { goToRoute } from "../../utils/router";
-import { StudentAttentionSection } from "./components/StudentAttentionSection";
+import {
+  clearPendingJoinCode,
+  clearSession,
+  getPendingJoinCode,
+  getSession
+} from "../../services/session";
+import { getHashSearchParam, goToRoute } from "../../utils/router";
 import { StudentClassroomSection } from "./components/StudentClassroomSection";
-import { StudentClassesPanel } from "./components/StudentClassesPanel";
 import { StudentDashboardHeader } from "./components/StudentDashboardHeader";
-import { StudentExamSection } from "./components/StudentExamSection";
-import { StudentFaceEnrollmentPreviewCard } from "./components/StudentFaceEnrollmentPreviewCard";
 import { StudentHeroSection } from "./components/StudentHeroSection";
-import { StudentInsightsSidebar } from "./components/StudentInsightsSidebar";
 import { StudentScheduleSection } from "./components/StudentScheduleSection";
 import { StudentSummaryGrid } from "./components/StudentSummaryGrid";
+import { StudentToolsSection } from "./components/StudentToolsSection";
 import { getStudentNotificationCount } from "./studentNotifications";
 import { readStoredStudentProfile } from "./studentProfileStore";
 import "./StudentDashboardPage.css";
@@ -30,6 +31,14 @@ export function StudentDashboardPage() {
 
   const session = useMemo(() => getSession(), []);
   const user = session?.user ?? null;
+  const initialJoinInput = useMemo(
+    () =>
+      getHashSearchParam("joinCode") ??
+      getHashSearchParam("code") ??
+      getPendingJoinCode() ??
+      "",
+    []
+  );
 
   async function loadDashboard(activeUser = user) {
     if (!activeUser || activeUser.role !== "student") {
@@ -43,7 +52,11 @@ export function StudentDashboardPage() {
         profile: {
           ...activeUser,
           ...response.profile,
-          ...(readStoredStudentProfile(activeUser.userId) ?? {})
+          ...(readStoredStudentProfile(activeUser.userId) ?? {}),
+          faceProfilePhotoUrl:
+            response.faceProfile?.profilePhotoUrl ??
+            response.profile?.faceProfilePhotoUrl ??
+            ""
         }
       });
       setStatus({
@@ -80,6 +93,7 @@ export function StudentDashboardPage() {
       joinInput
     });
 
+    clearPendingJoinCode();
     await loadDashboard();
     return result;
   }
@@ -121,9 +135,6 @@ export function StudentDashboardPage() {
     );
   }
 
-  const performanceLeader = dashboard.classPerformance
-    .filter((course) => course.total > 0)
-    .sort((left, right) => right.studentPercentage - left.studentPercentage)[0];
   const performanceByClassId = new Map(
     dashboard.classPerformance.map((course) => [course.id, course])
   );
@@ -139,8 +150,9 @@ export function StudentDashboardPage() {
 
       <StudentDashboardHeader
         onLogout={handleLogout}
-        onOpenFaceEnrollment={() => goToRoute("/student-face-enrollment")}
         notificationCount={notificationCount}
+        showNotificationBell={false}
+        navItems={[]}
       />
 
       <main className="dashboard-shell">
@@ -148,53 +160,35 @@ export function StudentDashboardPage() {
           profile={dashboard.profile}
           overview={dashboard.overview}
           faceProfile={dashboard.faceProfile}
-          onOpenClassrooms={() => goToRoute("/student-classes")}
-          onReviewPerformance={() => goToRoute("/student-performance")}
-          onOpenSchedule={() => goToRoute("/student-schedule")}
+        />
+
+        <StudentSummaryGrid dashboard={dashboard} />
+
+        <StudentToolsSection
           onOpenFaceEnrollment={() => goToRoute("/student-face-enrollment")}
+          onOpenAttendanceCalculator={() => goToRoute("/student-calculator")}
+          onOpenCalendar={() => goToRoute("/student-calendar")}
+          onOpenExamEligibility={() => goToRoute("/student-exams")}
           onOpenNotifications={() => goToRoute("/student-notifications")}
+          onReviewPerformance={() => goToRoute("/student-performance")}
+          onOpenClassrooms={() => goToRoute("/student-classes")}
+          onOpenTodos={() => goToRoute("/student-todos")}
+          notificationCount={notificationCount}
         />
 
-        <StudentSummaryGrid
-          dashboard={dashboard}
-          performanceLeader={performanceLeader}
+        <StudentClassroomSection
+          joinedClasses={joinedClassCards}
+          onJoinClass={handleJoinClass}
+          initialJoinInput={initialJoinInput}
+          showJoinedClasses={false}
+          label="Join Classroom"
+          title="Join a classroom from the dashboard."
+          description="Paste the join code shared by your teacher. Open joined classes from the Classes Joined button."
         />
-
-        <section className="dashboard-lower-grid">
-          <StudentClassroomSection
-            joinedClasses={joinedClassCards}
-            onJoinClass={handleJoinClass}
-          />
-          <StudentFaceEnrollmentPreviewCard
-            faceProfile={dashboard.faceProfile}
-            onOpenFaceEnrollment={() => goToRoute("/student-face-enrollment")}
-          />
-        </section>
-
-        <section className="dashboard-main-grid">
-          <StudentClassesPanel classes={dashboard.classPerformance} />
-          <StudentInsightsSidebar
-            attendanceTrend={dashboard.attendanceTrend}
-            peerComparison={dashboard.peerComparison}
-          />
-        </section>
 
         <StudentScheduleSection
           upcomingClasses={dashboard.upcomingClasses}
           weeklySchedule={dashboard.weeklySchedule}
-        />
-
-        <StudentExamSection
-          upcomingExams={dashboard.upcomingExams ?? []}
-          classes={dashboard.classPerformance}
-        />
-
-        <StudentAttentionSection
-          alerts={dashboard.alerts}
-          goals={dashboard.goals}
-          achievements={dashboard.achievements}
-          aiCoach={dashboard.aiCoach}
-          recoveryPlan={dashboard.recoveryPlan}
         />
       </main>
     </div>

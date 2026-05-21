@@ -7,6 +7,7 @@ import {
   deleteAdminUser,
   fetchAdminDashboard,
   updateAdminClassroomStatus,
+  updateAdminStudentRollNumber,
   updateAdminUserEmailVerification
 } from "../../services/api";
 import { clearSession, getSession } from "../../services/session";
@@ -35,6 +36,68 @@ function MetricCard({ label, value, helper }) {
 
 function EmptyState({ text }) {
   return <p className="admin-empty-state">{text}</p>;
+}
+
+function getInitials(name) {
+  const parts = String(name ?? "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (!parts.length) {
+    return "?";
+  }
+
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+}
+
+function getUserPhotoUrl(user) {
+  return (
+    user?.profilePhotoUrl ||
+    user?.avatarDataUrl ||
+    user?.faceProfilePhotoUrl ||
+    user?.faceProfile?.profilePhotoUrl ||
+    ""
+  );
+}
+
+function UserAvatar({ user }) {
+  const photoUrl = getUserPhotoUrl(user);
+  const displayName = user?.name || user?.userId || "User";
+
+  return (
+    <span className="admin-user-avatar" aria-hidden="true">
+      {photoUrl ? <img src={photoUrl} alt="" /> : getInitials(displayName)}
+    </span>
+  );
+}
+
+function getFaceProfileLabel(faceProfile) {
+  if (faceProfile?.status === "enrolled") {
+    return "Face enrolled";
+  }
+
+  if (faceProfile?.status === "needs-refresh") {
+    return "Face refresh needed";
+  }
+
+  return "Face not enrolled";
+}
+
+function getFaceProfileTone(faceProfile) {
+  if (faceProfile?.status === "enrolled") {
+    return "active";
+  }
+
+  if (faceProfile?.status === "needs-refresh") {
+    return "warning";
+  }
+
+  return "archived";
 }
 
 export function AdminDashboardPage() {
@@ -133,6 +196,23 @@ export function AdminDashboardPage() {
         targetUser.userId,
         { emailVerified: !targetUser.emailVerified }
       )
+    );
+  }
+
+  function handleChangeStudentRollNumber(targetUser) {
+    const nextRollNumber = window.prompt(
+      `Enter roll number for ${targetUser.name || targetUser.userId}`,
+      targetUser.rollNumber || ""
+    );
+
+    if (nextRollNumber === null) {
+      return;
+    }
+
+    void runAdminAction(`roll-user-${targetUser.userId}`, () =>
+      updateAdminStudentRollNumber(user.userId, targetUser.userId, {
+        rollNumber: nextRollNumber
+      })
     );
   }
 
@@ -301,6 +381,7 @@ export function AdminDashboardPage() {
               pendingId={actionStatus.pendingId}
               onDelete={handleDeleteUser}
               onToggleVerification={handleToggleUserVerification}
+              onChangeRollNumber={handleChangeStudentRollNumber}
             />
             <UserList
               title="Teachers"
@@ -308,6 +389,7 @@ export function AdminDashboardPage() {
               pendingId={actionStatus.pendingId}
               onDelete={handleDeleteUser}
               onToggleVerification={handleToggleUserVerification}
+              onChangeRollNumber={null}
             />
           </div>
         </section>
@@ -378,7 +460,8 @@ function UserList({
   users,
   pendingId,
   onDelete,
-  onToggleVerification
+  onToggleVerification,
+  onChangeRollNumber
 }) {
   return (
     <div className="admin-user-group">
@@ -387,27 +470,51 @@ function UserList({
         {users.length ? (
           users.map((user) => (
             <article className="admin-user-row" key={`${user.role}-${user.userId}`}>
-              <div>
-                <div className="admin-row-title">
-                  <strong>{user.name || user.userId}</strong>
-                  <span
-                    className={`admin-status-pill ${
-                      user.emailVerified ? "active" : "archived"
-                    }`}
-                  >
-                    {user.emailVerified ? "verified" : "unverified"}
-                  </span>
-                </div>
-                <p>
-                  {user.userId} · {user.email || "No email"}
-                </p>
-                <div className="admin-row-stats">
-                  <span>{user.classesCount} classes</span>
-                  <span>{user.attendanceRecordsCount} attendance</span>
-                  {user.rollNumber ? <span>Roll {user.rollNumber}</span> : null}
+              <div className="admin-user-main">
+                <UserAvatar user={user} />
+                <div>
+                  <div className="admin-row-title">
+                    <strong>{user.name || user.userId}</strong>
+                    <span
+                      className={`admin-status-pill ${
+                        user.emailVerified ? "active" : "archived"
+                      }`}
+                    >
+                      {user.emailVerified ? "verified" : "unverified"}
+                    </span>
+                  </div>
+                  <p>
+                    {user.userId} · {user.email || "No email"}
+                  </p>
+                  <div className="admin-row-stats">
+                    <span>{user.classesCount} classes</span>
+                    <span>{user.attendanceRecordsCount} attendance</span>
+                    {user.rollNumber ? <span>Roll {user.rollNumber}</span> : null}
+                    {user.department ? <span>{user.department}</span> : null}
+                    {user.semesterLabel ? <span>{user.semesterLabel}</span> : null}
+                    {user.role === "student" ? (
+                      <span
+                        className={`admin-face-pill ${getFaceProfileTone(
+                          user.faceProfile
+                        )}`}
+                      >
+                        {getFaceProfileLabel(user.faceProfile)}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
               </div>
               <div className="admin-row-actions">
+                {onChangeRollNumber ? (
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={pendingId === `roll-user-${user.userId}`}
+                    onClick={() => onChangeRollNumber(user)}
+                  >
+                    Change Roll
+                  </button>
+                ) : null}
                 <button
                   className="secondary-button"
                   type="button"

@@ -10,7 +10,6 @@ import {
 import { clearSession, getSession } from "../../services/session";
 import { getHashSearchParam, goToRoute } from "../../utils/router";
 import { StudentDashboardHeader } from "../StudentDashboardPage/components/StudentDashboardHeader";
-import { getStudentNotificationCount } from "../StudentDashboardPage/studentNotifications";
 import { readStoredStudentProfile } from "../StudentDashboardPage/studentProfileStore";
 import "../StudentDashboardPage/StudentDashboardPage.css";
 import "../StudentDashboardPage/components/StudentClassroomSection.css";
@@ -219,7 +218,7 @@ function getClassAction(course) {
     return {
       tone: "warning",
       title: `${course.code} needs attendance first`,
-      message: `Attend the next ${course.classesNeededForSafeRange || 1} class${(course.classesNeededForSafeRange || 1) === 1 ? "" : "es"} to reach the safe range.`
+      message: `Attend the next ${course.classesNeededForSafeRange || 1} unit${(course.classesNeededForSafeRange || 1) === 1 ? "" : "s"} to reach the safe range.`
     };
   }
 
@@ -423,7 +422,6 @@ export function StudentClassDetailPage() {
   const scheduleSlots = course.scheduleSlots ?? joinedClass.scheduleSlots ?? [];
   const recentAttendance = course.recentAttendance ?? [];
   const leaveRequests = course.leaveRequests ?? [];
-  const notificationCount = getStudentNotificationCount(dashboard);
 
   return (
     <div className="page-shell">
@@ -432,8 +430,7 @@ export function StudentClassDetailPage() {
       <StudentDashboardHeader
         onLogout={handleLogout}
         onNavigate={scrollToSection}
-        onOpenFaceEnrollment={() => goToRoute("/student-face-enrollment")}
-        notificationCount={notificationCount}
+        showNotificationBell={false}
         navItems={classDetailNavItems}
         utilityAction={{
           label: "Dashboard",
@@ -514,17 +511,17 @@ export function StudentClassDetailPage() {
           <article className="glass-card summary-card">
             <span className="metric-eyebrow">Present</span>
             <strong>{course.attended}</strong>
-            <p>Counted attended sessions in this class.</p>
+            <p>Counted attended units in this class.</p>
           </article>
           <article className="glass-card summary-card">
             <span className="metric-eyebrow">Absent</span>
             <strong>{absent}</strong>
-            <p>Missed sessions from recorded attendance.</p>
+            <p>Missed units from recorded attendance.</p>
           </article>
           <article className="glass-card summary-card">
-            <span className="metric-eyebrow">Total Classes</span>
+            <span className="metric-eyebrow">Total Units</span>
             <strong>{course.total}</strong>
-            <p>Total recorded sessions for you.</p>
+            <p>Total recorded attendance units for you.</p>
           </article>
           <article className="glass-card summary-card">
             <span className="metric-eyebrow">Class Average</span>
@@ -552,7 +549,7 @@ export function StudentClassDetailPage() {
                 <span>Recovery Needed</span>
                 <strong>
                   {course.classesNeededForSafeRange
-                    ? `${course.classesNeededForSafeRange} classes`
+                    ? `${course.classesNeededForSafeRange} units`
                     : "None"}
                 </strong>
               </div>
@@ -580,8 +577,8 @@ export function StudentClassDetailPage() {
                 <strong>{course.room}</strong>
               </div>
               <div>
-                <span>Join Code</span>
-                <strong>{course.joinCode}</strong>
+                <span>Semester</span>
+                <strong>{course.semesterLabel || joinedClass.semesterLabel || "Not set"}</strong>
               </div>
               <div>
                 <span>Students Joined</span>
@@ -709,6 +706,11 @@ export function StudentClassDetailPage() {
                       <span>{record.recordedLabel}</span>
                     </div>
                     <div>
+                      <span>
+                        {record.sessionType === "extra" ? "Extra Class" : "Scheduled Class"}{" "}
+                        •{" "}
+                        Unit {record.attendanceUnit ?? 1}
+                      </span>
                       <span>{formatMethod(record.verificationMethod)}</span>
                       {formatConfidence(record.confidence) ? (
                         <small>{formatConfidence(record.confidence)}</small>

@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import QRCode from "qrcode";
 import { AppBrand } from "../../components/common/AppBrand";
 import { LoadingCard } from "../../components/common/LoadingCard";
 import { PageBackground } from "../../components/common/PageBackground";
 import {
+  archiveTeacherClass,
   cancelTodayClass,
-  createQrAttendanceSession,
+  deleteTeacherClass,
+  discardTodayAttendanceDraft,
   fetchTeacherClassroom,
   finalizeTodayAttendanceDraft,
   finalizeTeacherAttendance,
   processTeacherAttendance,
+  sendAttendanceAbsenteeEmails,
+  sendTodayDraftAbsenteeEmails,
   submitManualAttendance,
   updateTodayAttendanceDraft
 } from "../../services/api";
@@ -79,7 +82,7 @@ function getConfidenceTone(confidence) {
     return "high";
   }
 
-  if (numericConfidence >= 0.7) {
+  if (numericConfidence >= 0.6) {
     return "medium";
   }
 
@@ -120,6 +123,41 @@ function getInitials(name) {
     .slice(0, 2)
     .map((word) => word.charAt(0).toUpperCase())
     .join("");
+}
+
+function resolveStudentPhotoUrl(student, rosterStudent = null) {
+  return (
+    student?.profilePhotoUrl ||
+    student?.avatarDataUrl ||
+    student?.faceProfilePhotoUrl ||
+    student?.avatarUrl ||
+    student?.photoUrl ||
+    rosterStudent?.profilePhotoUrl ||
+    rosterStudent?.avatarDataUrl ||
+    rosterStudent?.faceProfilePhotoUrl ||
+    rosterStudent?.avatarUrl ||
+    rosterStudent?.photoUrl ||
+    ""
+  );
+}
+
+function StudentReviewAvatar({ student, rosterStudent = null, name }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const profilePhotoUrl = resolveStudentPhotoUrl(student, rosterStudent);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [profilePhotoUrl]);
+
+  return (
+    <div className="teacher-review-avatar" aria-hidden="true">
+      {profilePhotoUrl && !imageFailed ? (
+        <img src={profilePhotoUrl} alt="" onError={() => setImageFailed(true)} />
+      ) : (
+        <span>{getInitials(name)}</span>
+      )}
+    </div>
+  );
 }
 
 function normalizePersonId(personId) {
@@ -210,7 +248,7 @@ function summarizeAbsenteeNotifications(notifications) {
   const failedCount = notifications.filter((item) => item.status === "failed").length;
   const skippedCount = notifications.filter((item) => item.status === "skipped").length;
   const duplicateCount = notifications.filter(
-    (item) => item.reason === "duplicate"
+    (item) => item.reason === "duplicate" || item.reason === "duplicate-in-flight"
   ).length;
   const smtpSkippedCount = notifications.filter((item) =>
     ["smtp-not-configured", "email-disabled"].includes(item.reason)
@@ -256,24 +294,14 @@ function StudentReviewSummary({
     student?.fullName || student?.studentName || rosterStudent?.studentName || "Unknown student";
   const resolvedMetaValue =
     metaValue || rosterStudent?.rollNumber || student?.rollNumber || student?.personId;
-  const profilePhotoUrl =
-    student?.profilePhotoUrl ||
-    student?.avatarUrl ||
-    student?.photoUrl ||
-    rosterStudent?.profilePhotoUrl ||
-    rosterStudent?.avatarUrl ||
-    rosterStudent?.photoUrl ||
-    "";
 
   return (
     <div className="teacher-review-student">
-      <div className="teacher-review-avatar" aria-hidden="true">
-        {profilePhotoUrl ? (
-          <img src={profilePhotoUrl} alt="" />
-        ) : (
-          <span>{getInitials(displayName)}</span>
-        )}
-      </div>
+      <StudentReviewAvatar
+        student={student}
+        rosterStudent={rosterStudent}
+        name={displayName}
+      />
 
       <div className="teacher-review-student-main">
         <div className="teacher-review-student-header">
@@ -309,10 +337,14 @@ const initialAttendanceDraft = {
   acceptedSuggestedTrackIds: [],
   confirmedReviewPersonIds: [],
   manuallyAddedPresentIds: [],
+  attendanceUnit: "1",
+  sessionType: "regular",
   notes: ""
 };
 const initialManualAttendance = {
   statuses: {},
+  attendanceUnit: "1",
+  sessionType: "regular",
   notes: "",
   pending: false,
   tone: "",
@@ -320,7 +352,16 @@ const initialManualAttendance = {
 };
 const initialTodayDraftUi = {
   statuses: {},
+  attendanceUnit: "1",
+  sessionType: "regular",
   notes: "",
+  pending: false,
+  retakePending: false,
+  emailPending: false,
+  tone: "",
+  message: ""
+};
+const initialAttendanceEmailStatus = {
   pending: false,
   tone: "",
   message: ""
@@ -329,13 +370,6 @@ const initialAttendanceExport = {
   fromDate: "",
   toDate: "",
   message: ""
-};
-const initialQrAttendance = {
-  pending: false,
-  message: "",
-  session: null,
-  imageDataUrl: "",
-  scanUrl: ""
 };
 const MAX_CLASSROOM_CAPTURE_IMAGES = 4;
 const CAPTURE_IMAGE_MAX_DIMENSION = 1600;
@@ -350,7 +384,7 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
     loading: true,
     message: ""
   });
-  const [captureFiles, setCaptureFiles] = useState([]);
+  const [uploadedCaptureImages, setUploadedCaptureImages] = useState([]);
   const [capturedImages, setCapturedImages] = useState([]);
   const [camera, setCamera] = useState({
     open: false,
@@ -365,12 +399,25 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
   const [attendanceDraft, setAttendanceDraft] = useState(initialAttendanceDraft);
   const [todayDraftUi, setTodayDraftUi] = useState(initialTodayDraftUi);
   const [manualAttendance, setManualAttendance] = useState(initialManualAttendance);
+  const [manualAttendanceOpen, setManualAttendanceOpen] = useState(false);
   const [attendanceExport, setAttendanceExport] = useState(initialAttendanceExport);
-  const [qrAttendance, setQrAttendance] = useState(initialQrAttendance);
   const [finalizedAttendance, setFinalizedAttendance] = useState(null);
+  const [attendanceEmailStatus, setAttendanceEmailStatus] = useState(
+    initialAttendanceEmailStatus
+  );
+  const [classArchiveStatus, setClassArchiveStatus] = useState({
+    pending: false,
+    message: ""
+  });
+  const [classDeleteStatus, setClassDeleteStatus] = useState({
+    pending: false,
+    message: ""
+  });
   const inputRef = useRef(null);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+  const todayDraftEmailRequestRef = useRef(false);
+  const attendanceEmailRequestRef = useRef(false);
 
   useEffect(() => {
     if (!camera.open || !streamRef.current || !videoRef.current) {
@@ -436,8 +483,12 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
     setTodayDraftUi((currentDraftUi) => ({
       ...currentDraftUi,
       statuses: buildTodayDraftStatuses(draft),
+      attendanceUnit: String(draft.attendanceUnit ?? 1),
+      sessionType: draft.sessionType === "extra" ? "extra" : "regular",
       notes: draft.notes ?? "",
       pending: false,
+      retakePending: false,
+      emailPending: false,
       tone: "",
       message: currentDraftUi.message
     }));
@@ -466,12 +517,14 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
         .map((student) => student.trackId),
       confirmedReviewPersonIds: [],
       manuallyAddedPresentIds: [],
+      attendanceUnit: "1",
+      sessionType: "regular",
       notes: ""
     });
   }
 
   function resetCaptureSelection() {
-    setCaptureFiles([]);
+    setUploadedCaptureImages([]);
     setCapturedImages([]);
     setAttendanceSession(null);
 
@@ -626,7 +679,7 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
     });
   }
 
-  function handleFileChange(event) {
+  async function handleFileChange(event) {
     const selectedFiles = Array.from(event.target.files ?? []);
     const validImageFiles = selectedFiles.filter((file) =>
       file.type.startsWith("image/")
@@ -637,7 +690,6 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
     );
     const nextFiles = validImageFiles.slice(0, remainingSlots);
 
-    setCaptureFiles(nextFiles);
     setAttendanceSession(null);
     setFinalizedAttendance(null);
 
@@ -659,6 +711,19 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
       return;
     }
 
+    try {
+      const nextImages = await convertFilesToImagesPayload(nextFiles);
+      setUploadedCaptureImages(nextImages);
+    } catch (error) {
+      setCaptureStatus({
+        pending: false,
+        tone: "warning",
+        message:
+          error instanceof Error ? error.message : "Unable to prepare selected images."
+      });
+      return;
+    }
+
     setCaptureStatus({
       pending: false,
       tone: "",
@@ -667,7 +732,7 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
   }
 
   function handleCapturePhoto() {
-    if (captureFiles.length + capturedImages.length >= MAX_CLASSROOM_CAPTURE_IMAGES) {
+    if (uploadedCaptureImages.length + capturedImages.length >= MAX_CLASSROOM_CAPTURE_IMAGES) {
       setCaptureStatus({
         pending: false,
         tone: "warning",
@@ -707,19 +772,18 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
 
     context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
 
-    setCapturedImages((currentImages) => [
-      ...currentImages,
-      {
-        fileName: `classroom-capture-${currentImages.length + 1}.jpg`,
-        dataUrl: canvas.toDataURL("image/jpeg", CAPTURE_IMAGE_JPEG_QUALITY)
-      }
-    ]);
+    const nextImage = {
+      fileName: `classroom-capture-${capturedImages.length + 1}.jpg`,
+      dataUrl: canvas.toDataURL("image/jpeg", CAPTURE_IMAGE_JPEG_QUALITY)
+    };
+
+    setCapturedImages((currentImages) => [...currentImages, nextImage]);
     setAttendanceSession(null);
     setFinalizedAttendance(null);
     setCaptureStatus({
       pending: false,
       tone: "success",
-      message: `Camera capture added. ${captureFiles.length + capturedImages.length + 1} image(s) ready for attendance verification.`
+      message: `Camera capture added. ${totalCaptureImages + 1} image(s) ready for attendance verification.`
     });
   }
 
@@ -736,7 +800,7 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
       return;
     }
 
-    if (!captureFiles.length && !capturedImages.length) {
+    if (!uploadedCaptureImages.length && !capturedImages.length) {
       setCaptureStatus({
         pending: false,
         tone: "warning",
@@ -745,7 +809,10 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
       return;
     }
 
-    if (captureFiles.length + capturedImages.length > MAX_CLASSROOM_CAPTURE_IMAGES) {
+    if (
+      uploadedCaptureImages.length + capturedImages.length >
+      MAX_CLASSROOM_CAPTURE_IMAGES
+    ) {
       setCaptureStatus({
         pending: false,
         tone: "warning",
@@ -761,8 +828,7 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
     });
 
     try {
-      const uploadedImages = await convertFilesToImagesPayload(captureFiles);
-      const images = [...uploadedImages, ...capturedImages];
+      const images = [...uploadedCaptureImages, ...capturedImages];
       const response = await processTeacherAttendance(user.userId, classId, {
         images
       });
@@ -776,7 +842,7 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
       setCaptureStatus({
         pending: false,
         tone: "success",
-        message: `${response.message} ${response.captureImageCount} capture image(s) were analyzed. Today Attendance Data is ready. ${summarizeAbsenteeNotifications(response.emailStatus?.absenteeNotifications)}`
+        message: `${response.message} ${response.captureImageCount} capture image(s) were analyzed. Today Attendance Data is ready. Use Send Email after review if absentees should be notified.`
       });
     } catch (error) {
       setCaptureStatus({
@@ -816,11 +882,14 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
         confirmedPresentIds: attendanceDraft.confirmedReviewPersonIds.filter(Boolean),
         manuallyAddedPresentIds: attendanceDraft.manuallyAddedPresentIds.filter(Boolean),
         rejectedTrackIds,
+        attendanceUnit: attendanceDraft.attendanceUnit,
+        sessionType: attendanceDraft.sessionType,
         notes: attendanceDraft.notes
       });
 
       setClassroomData(response.classroomDetails);
       setFinalizedAttendance(response.finalizedAttendance);
+      setAttendanceEmailStatus(initialAttendanceEmailStatus);
       setAttendanceSession(null);
       setAttendanceDraft(initialAttendanceDraft);
       resetCaptureSelection();
@@ -869,6 +938,22 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
     }));
   }
 
+  function updateManualAttendanceUnit(attendanceUnit) {
+    setManualAttendance((currentAttendance) => ({
+      ...currentAttendance,
+      attendanceUnit,
+      message: ""
+    }));
+  }
+
+  function updateManualSessionType(isExtraClass) {
+    setManualAttendance((currentAttendance) => ({
+      ...currentAttendance,
+      sessionType: isExtraClass ? "extra" : "regular",
+      message: ""
+    }));
+  }
+
   function updateAttendanceExport(field, value) {
     setAttendanceExport((currentExport) => ({
       ...currentExport,
@@ -899,11 +984,14 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
     try {
       const response = await submitManualAttendance(user.userId, classId, {
         statuses: manualAttendance.statuses,
+        attendanceUnit: manualAttendance.attendanceUnit,
+        sessionType: manualAttendance.sessionType,
         notes: manualAttendance.notes
       });
 
       setClassroomData(response.classroomDetails);
       setFinalizedAttendance(response.finalizedAttendance);
+      setAttendanceEmailStatus(initialAttendanceEmailStatus);
       setManualAttendance({
         ...initialManualAttendance,
         statuses: buildManualStatuses(response.classroomDetails?.roster ?? []),
@@ -942,6 +1030,22 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
     }));
   }
 
+  function updateTodayDraftAttendanceUnit(attendanceUnit) {
+    setTodayDraftUi((currentDraftUi) => ({
+      ...currentDraftUi,
+      attendanceUnit,
+      message: ""
+    }));
+  }
+
+  function updateTodayDraftSessionType(isExtraClass) {
+    setTodayDraftUi((currentDraftUi) => ({
+      ...currentDraftUi,
+      sessionType: isExtraClass ? "extra" : "regular",
+      message: ""
+    }));
+  }
+
   async function handleSaveTodayDraft() {
     const draft = classroomData?.todayAttendanceDraft;
 
@@ -963,6 +1067,8 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
         draft.id,
         {
           statuses: todayDraftUi.statuses,
+          attendanceUnit: todayDraftUi.attendanceUnit,
+          sessionType: todayDraftUi.sessionType,
           notes: todayDraftUi.notes
         }
       );
@@ -983,6 +1089,108 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
           error instanceof Error
             ? error.message
             : "Unable to save today attendance data."
+      }));
+    }
+  }
+
+  async function handleSendTodayDraftAbsenteeEmail() {
+    const draft = classroomData?.todayAttendanceDraft;
+
+    if (!draft || todayDraftEmailRequestRef.current) {
+      return;
+    }
+
+    todayDraftEmailRequestRef.current = true;
+    setTodayDraftUi((currentDraftUi) => ({
+      ...currentDraftUi,
+      emailPending: true,
+      tone: "",
+      message: "Sending absentee emails..."
+    }));
+
+    try {
+      const response = await sendTodayDraftAbsenteeEmails(
+        user.userId,
+        classId,
+        draft.id,
+        {
+          statuses: todayDraftUi.statuses,
+          attendanceUnit: todayDraftUi.attendanceUnit,
+          sessionType: todayDraftUi.sessionType,
+          notes: todayDraftUi.notes
+        }
+      );
+
+      setClassroomData(response.classroomDetails);
+      setTodayDraftUi((currentDraftUi) => ({
+        ...currentDraftUi,
+        emailPending: false,
+        tone: "success",
+        message: summarizeAbsenteeNotifications(
+          response.emailStatus?.absenteeNotifications
+        )
+      }));
+    } catch (error) {
+      setTodayDraftUi((currentDraftUi) => ({
+        ...currentDraftUi,
+        emailPending: false,
+        tone: "warning",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to send absentee emails."
+      }));
+    } finally {
+      todayDraftEmailRequestRef.current = false;
+    }
+  }
+
+  async function handleTakeAgainTodayDraft() {
+    const draft = classroomData?.todayAttendanceDraft;
+
+    if (!draft) {
+      return;
+    }
+
+    setTodayDraftUi((currentDraftUi) => ({
+      ...currentDraftUi,
+      retakePending: true,
+      tone: "",
+      message: "Removing previous attendance verification..."
+    }));
+
+    try {
+      const response = await discardTodayAttendanceDraft(
+        user.userId,
+        classId,
+        draft.id
+      );
+
+      setClassroomData(response.classroomDetails);
+      setAttendanceSession(null);
+      setAttendanceDraft(initialAttendanceDraft);
+      setFinalizedAttendance(null);
+      setAttendanceEmailStatus(initialAttendanceEmailStatus);
+      resetCaptureSelection();
+      setTodayDraftUi({
+        ...initialTodayDraftUi,
+        tone: "success",
+        message: response.message
+      });
+      setCaptureStatus({
+        pending: false,
+        tone: "success",
+        message: "Previous verification removed. Add a new classroom capture to take attendance again."
+      });
+    } catch (error) {
+      setTodayDraftUi((currentDraftUi) => ({
+        ...currentDraftUi,
+        retakePending: false,
+        tone: "warning",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to remove previous attendance verification."
       }));
     }
   }
@@ -1008,12 +1216,15 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
         draft.id,
         {
           statuses: todayDraftUi.statuses,
+          attendanceUnit: todayDraftUi.attendanceUnit,
+          sessionType: todayDraftUi.sessionType,
           notes: todayDraftUi.notes
         }
       );
 
       setClassroomData(response.classroomDetails);
       setFinalizedAttendance(response.finalizedAttendance);
+      setAttendanceEmailStatus(initialAttendanceEmailStatus);
       setAttendanceSession(null);
       setAttendanceDraft(initialAttendanceDraft);
       resetCaptureSelection();
@@ -1038,6 +1249,47 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
             ? error.message
             : "Unable to finalize today attendance."
       }));
+    }
+  }
+
+  async function handleSendFinalizedAbsenteeEmail() {
+    if (!finalizedAttendance || attendanceEmailRequestRef.current) {
+      return;
+    }
+
+    attendanceEmailRequestRef.current = true;
+    setAttendanceEmailStatus({
+      pending: true,
+      tone: "",
+      message: "Sending absentee emails..."
+    });
+
+    try {
+      const response = await sendAttendanceAbsenteeEmails(user.userId, classId, {
+        sessionId: finalizedAttendance.sessionId
+      });
+
+      if (response.classroomDetails) {
+        setClassroomData(response.classroomDetails);
+      }
+      setAttendanceEmailStatus({
+        pending: false,
+        tone: "success",
+        message: summarizeAbsenteeNotifications(
+          response.emailStatus?.absentNotifications
+        )
+      });
+    } catch (error) {
+      setAttendanceEmailStatus({
+        pending: false,
+        tone: "warning",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to send absentee emails."
+      });
+    } finally {
+      attendanceEmailRequestRef.current = false;
     }
   }
 
@@ -1093,43 +1345,80 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
     }
   }
 
-  async function handleGenerateQrAttendance() {
-    if (!classroomData?.roster?.length) {
-      setQrAttendance({
-        ...initialQrAttendance,
-        message: "Add students before generating a QR attendance code."
-      });
+  async function handleArchiveClassroom() {
+    const currentClassroom = classroomData?.classroom;
+
+    if (
+      !currentClassroom ||
+      currentClassroom.status === "archived" ||
+      classDeleteStatus.pending
+    ) {
       return;
     }
 
-    setQrAttendance((currentQrAttendance) => ({
-      ...currentQrAttendance,
+    const confirmed = window.confirm(
+      `End ${currentClassroom.subjectCode} - ${currentClassroom.subjectName}? The class will become inactive, but attendance and student data will stay saved.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setClassArchiveStatus({
       pending: true,
       message: ""
-    }));
+    });
 
     try {
-      const response = await createQrAttendanceSession(user.userId, classId);
-      const scanUrl = `${window.location.origin}${window.location.pathname}#/qr-attendance?token=${encodeURIComponent(response.qrSession.token)}`;
-      const imageDataUrl = await QRCode.toDataURL(scanUrl, {
-        margin: 1,
-        width: 240
-      });
+      const response = await archiveTeacherClass(user.userId, classId);
 
-      setQrAttendance({
+      if (response.classroomDetails) {
+        setClassroomData(response.classroomDetails);
+      }
+
+      setClassArchiveStatus({
         pending: false,
-        message: response.message,
-        session: response.qrSession,
-        imageDataUrl,
-        scanUrl
+        message: response.message ?? "Class ended and saved."
       });
     } catch (error) {
-      setQrAttendance({
-        ...initialQrAttendance,
+      setClassArchiveStatus({
+        pending: false,
         message:
-          error instanceof Error
-            ? error.message
-            : "Unable to generate QR attendance code."
+          error instanceof Error ? error.message : "Unable to end this class."
+      });
+    }
+  }
+
+  async function handleDeleteClassroom() {
+    const currentClassroom = classroomData?.classroom;
+
+    if (!currentClassroom || classArchiveStatus.pending || classDeleteStatus.pending) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete ${currentClassroom.subjectCode} - ${currentClassroom.subjectName}? This permanently removes the class, roster, attendance, exams, assignments, discussions, and QR sessions. This cannot be undone.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setClassDeleteStatus({
+      pending: true,
+      message: ""
+    });
+
+    try {
+      const response = await deleteTeacherClass(user.userId, classId);
+
+      window.alert(response.message ?? "Class deleted.");
+      goToRoute("/teacher-dashboard");
+    } catch (error) {
+      setClassDeleteStatus({
+        pending: false,
+        message:
+          error instanceof Error ? error.message : "Unable to delete this class."
       });
     }
   }
@@ -1215,6 +1504,28 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
   const todayDraftLateCount = todayDraftRecords.filter(
     (record) => record.status === "late"
   ).length;
+  const todayDraftBusy =
+    todayDraftUi.pending || todayDraftUi.retakePending || todayDraftUi.emailPending;
+  const todayDraftRecordGroups = [
+    {
+      id: "present",
+      title: "Present Students",
+      emptyMessage: "No present students in this draft.",
+      records: todayDraftRecords.filter((record) => record.status === "present")
+    },
+    {
+      id: "absent",
+      title: "Absent Students",
+      emptyMessage: "No absent students in this draft.",
+      records: todayDraftRecords.filter((record) => record.status === "absent")
+    },
+    {
+      id: "late",
+      title: "Partially Accepted",
+      emptyMessage: "No partially accepted students in this draft.",
+      records: todayDraftRecords.filter((record) => record.status === "late")
+    }
+  ];
   const rosterByPersonId = new Map(
     roster.map((student) => [normalizePersonId(student.studentUserId), student])
   );
@@ -1223,7 +1534,7 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
       manualAttendance.statuses[normalizePersonId(student.studentUserId)] === "present"
   ).length;
   const manualAbsentCount = Math.max(0, roster.length - manualPresentCount);
-  const totalCaptureImages = captureFiles.length + capturedImages.length;
+  const totalCaptureImages = uploadedCaptureImages.length + capturedImages.length;
   const hasReadyFaceProfiles = overview.readyFaceProfiles > 0;
   const pendingFaceProfiles = Math.max(
     0,
@@ -1232,15 +1543,19 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
   const canRunAttendance =
     !captureStatus.pending && totalCaptureImages > 0 && hasReadyFaceProfiles;
   const selectedCaptureItems = [
-    ...captureFiles.map((file) => ({
-      key: `${file.name}-${file.size}`,
-      label: file.name,
-      source: "Upload"
+    ...uploadedCaptureImages.map((image, index) => ({
+      key: `upload-${image.fileName}-${index}`,
+      label: image.fileName,
+      source: "Upload",
+      sourceType: "upload",
+      index
     })),
     ...capturedImages.map((image, index) => ({
-      key: `${image.fileName}-${index}`,
+      key: `camera-${image.fileName}-${index}`,
       label: image.fileName,
-      source: "Camera"
+      source: "Camera",
+      sourceType: "camera",
+      index
     }))
   ];
   const suggestedStudents = attendanceSession?.recognizedStudents.filter(
@@ -1449,13 +1764,9 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
           <article className="glass-card teacher-classroom-intro">
             <div className="dashboard-kicker-row">
               <span className="pill">Class Workspace</span>
-              <span
-                className={`teacher-status-pill ${
-                  classroom.attendanceSubmitted ? "submitted" : "pending"
-                }`}
-              >
-                {classroom.attendanceSubmitted ? "Attendance Active" : "No Attendance Yet"}
-              </span>
+              {!classroom.attendanceSubmitted ? (
+                <span className="teacher-status-pill pending">No Attendance Yet</span>
+              ) : null}
             </div>
 
             <h1>{classroom.subjectName}</h1>
@@ -1588,7 +1899,61 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
                 >
                   Recent Sessions
                 </button>
+                <button
+                  className="classroom-tool-button classroom-tool-button-assignments"
+                  type="button"
+                  onClick={() =>
+                    goToRoute(
+                      `/teacher-class-exam?classId=${encodeURIComponent(classId)}`
+                    )
+                  }
+                >
+                  Exam Setup
+                </button>
+                <button
+                  className="classroom-tool-button classroom-tool-button-download"
+                  type="button"
+                  disabled={classroom.status === "archived"}
+                  onClick={() =>
+                    goToRoute(
+                      `/teacher-class-qr?classId=${encodeURIComponent(classId)}`
+                    )
+                  }
+                >
+                  QR Code
+                </button>
+                <button
+                  className="classroom-tool-button classroom-tool-button-danger"
+                  type="button"
+                  disabled={
+                    classroom.status === "archived" ||
+                    classArchiveStatus.pending ||
+                    classDeleteStatus.pending
+                  }
+                  onClick={handleArchiveClassroom}
+                >
+                  {classroom.status === "archived"
+                    ? "Class Ended"
+                    : classArchiveStatus.pending
+                      ? "Ending..."
+                    : "End Class"}
+                </button>
+                <button
+                  className="classroom-tool-button classroom-tool-button-danger"
+                  type="button"
+                  disabled={classArchiveStatus.pending || classDeleteStatus.pending}
+                  onClick={handleDeleteClassroom}
+                >
+                  {classDeleteStatus.pending ? "Deleting..." : "Delete Class"}
+                </button>
               </div>
+
+              {classArchiveStatus.message ? (
+                <span className="panel-meta">{classArchiveStatus.message}</span>
+              ) : null}
+              {classDeleteStatus.message ? (
+                <span className="panel-meta">{classDeleteStatus.message}</span>
+              ) : null}
 
               <section className="attendance-download-panel">
                 <div>
@@ -1646,52 +2011,6 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
               ) : null}
               </section>
 
-              <section className="qr-attendance-panel">
-                <div>
-                  <span className="pill">QR Code Attendance</span>
-                  <h3>Students scan to mark present</h3>
-                  <p>
-                    Generate a fresh QR code for this class. The code expires in 10 minutes.
-                  </p>
-                </div>
-
-                <button
-                  className="primary-button"
-                  type="button"
-                  disabled={qrAttendance.pending}
-                  onClick={handleGenerateQrAttendance}
-                >
-                  {qrAttendance.pending ? "Generating..." : "Generate QR Code"}
-                </button>
-
-                {qrAttendance.imageDataUrl ? (
-                  <div className="qr-attendance-card">
-                    <img src={qrAttendance.imageDataUrl} alt="QR attendance code" />
-                    <div>
-                      <strong>{qrAttendance.session?.subjectCode}</strong>
-                      <span>
-                        Expires {formatDateTime(qrAttendance.session?.expiresAt)}
-                      </span>
-                      <button
-                        className="secondary-button"
-                        type="button"
-                        onClick={() =>
-                          copyValue(
-                            qrAttendance.scanUrl,
-                            "QR attendance link copied to clipboard."
-                          )
-                        }
-                      >
-                        Copy Link
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-
-                {qrAttendance.message ? (
-                  <span className="panel-meta">{qrAttendance.message}</span>
-                ) : null}
-              </section>
             </div>
           </article>
         </section>
@@ -1700,13 +2019,9 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
             <article className="glass-card teacher-classroom-intro">
               <div className="dashboard-kicker-row">
                 <span className="pill">Take Attendance</span>
-                <span
-                  className={`teacher-status-pill ${
-                    classroom.attendanceSubmitted ? "submitted" : "pending"
-                  }`}
-                >
-                  {classroom.attendanceSubmitted ? "Attendance Active" : "No Attendance Yet"}
-                </span>
+                {!classroom.attendanceSubmitted ? (
+                  <span className="teacher-status-pill pending">No Attendance Yet</span>
+                ) : null}
               </div>
 
               <h1>{classroom.subjectName}</h1>
@@ -1721,10 +2036,6 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
             <div className="dashboard-panel-header">
               <div>
                 <span className="pill">Take Attendance</span>
-                <h2>Verify the class, review low scores, and submit once.</h2>
-                <p className="dashboard-panel-copy">
-                  Upload one or more classroom capture images. Suggested matches start as present, low-confidence matches stay in review, and absentees remain open for manual correction before final submission.
-                </p>
               </div>
             </div>
 
@@ -1736,23 +2047,33 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
               <strong>
                 {overview.readyFaceProfiles}/{overview.studentsCount} current face profiles ready
               </strong>
-              <span>
-                {hasReadyFaceProfiles
-                  ? pendingFaceProfiles
+              {hasReadyFaceProfiles && !pendingFaceProfiles ? null : (
+                <span>
+                  {hasReadyFaceProfiles
                     ? `${pendingFaceProfiles} student(s) still need fresh enrollment and may require manual correction.`
-                    : "Every joined student has a current face profile for AI attendance."
-                  : "Students must complete current face enrollment before AI attendance can run."}
-              </span>
+                    : "Students must complete current face enrollment before AI attendance can run."}
+                </span>
+              )}
             </div>
 
+            <div className="teacher-class-actions manual-attendance-toggle">
+              <button
+                className={manualAttendanceOpen ? "secondary-button" : "primary-button"}
+                type="button"
+                disabled={manualAttendance.pending}
+                onClick={() =>
+                  setManualAttendanceOpen((currentValue) => !currentValue)
+                }
+              >
+                {manualAttendanceOpen ? "Hide Manual Attendance" : "Manual Attendance"}
+              </button>
+            </div>
+
+            {manualAttendanceOpen ? (
             <form className="manual-attendance-panel" onSubmit={handleSubmitManualAttendance}>
               <div className="manual-attendance-head">
                 <div>
                   <span className="pill">Manual Attendance</span>
-                  <h3>Mark today&apos;s class without camera capture.</h3>
-                  <p>
-                    Use one-click controls for every student, then adjust individual rows before submitting.
-                  </p>
                 </div>
                 <div className="manual-attendance-summary">
                   <strong>{manualPresentCount}</strong>
@@ -1789,6 +2110,34 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
                 </button>
               </div>
 
+              <div className="attendance-session-options">
+                <label className="field attendance-unit-field">
+                  <span>Attendance Unit</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    step="1"
+                    value={manualAttendance.attendanceUnit}
+                    onChange={(event) =>
+                      updateManualAttendanceUnit(event.target.value)
+                    }
+                    disabled={manualAttendance.pending}
+                  />
+                </label>
+                <label className="attendance-extra-class-option">
+                  <input
+                    type="checkbox"
+                    checked={manualAttendance.sessionType === "extra"}
+                    onChange={(event) =>
+                      updateManualSessionType(event.target.checked)
+                    }
+                    disabled={manualAttendance.pending}
+                  />
+                  <span>Extra Class</span>
+                </label>
+              </div>
+
               <div className="manual-attendance-list">
                 {sortedRoster.length ? (
                   sortedRoster.map((student) => {
@@ -1798,13 +2147,10 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
                     return (
                       <article key={student.studentUserId} className="manual-attendance-row">
                         <div className="teacher-review-student">
-                          <div className="teacher-review-avatar" aria-hidden="true">
-                            {student.profilePhotoUrl ? (
-                              <img src={student.profilePhotoUrl} alt="" />
-                            ) : (
-                              <span>{getInitials(student.studentName)}</span>
-                            )}
-                          </div>
+                          <StudentReviewAvatar
+                            student={student}
+                            name={student.studentName}
+                          />
                           <div className="teacher-review-student-main">
                             <div className="teacher-review-student-name">
                               <strong>{student.studentName}</strong>
@@ -1864,6 +2210,7 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
                 ) : null}
               </div>
             </form>
+            ) : null}
 
             <form className="face-enrollment-form" onSubmit={handleRunAttendance}>
               <label className="field">
@@ -1906,27 +2253,26 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
                 >
                   Clear Captures
                 </button>
-                <span className="panel-meta">
-                  Capture up to {MAX_CLASSROOM_CAPTURE_IMAGES} clear room image(s). Use a wide front angle and a second side angle when faces are far from the camera.
-                </span>
               </div>
 
               {captureStatus.message ? (
                 <p className={`teacher-status-copy ${captureStatus.tone}`}>
                   {captureStatus.message}
                 </p>
-                ) : null}
+              ) : null}
             </form>
 
             {camera.open ? (
               <div className="teacher-camera-card">
-                <video
-                  ref={videoRef}
-                  className="teacher-camera-preview"
-                  autoPlay
-                  muted
-                  playsInline
-                />
+                <div className="teacher-camera-frame">
+                  <video
+                    ref={videoRef}
+                    className="teacher-camera-preview"
+                    autoPlay
+                    muted
+                    playsInline
+                  />
+                </div>
                 <div className="teacher-class-actions">
                   <button
                     className="primary-button"
@@ -1960,9 +2306,9 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
                     <span className="pill">Today Attendance Data</span>
                     <h3>Review the preliminary attendance before final submission.</h3>
                     <p>
-                      Absentees were notified when this draft was created. Use this
-                      list to add or remove students from today&apos;s present list
-                      before the 12-hour auto-finalize window closes.
+                      Use this list to add or remove students from today&apos;s
+                      present list before the 12-hour auto-finalize window closes.
+                      Click Send Email only when you want absentee notices sent.
                     </p>
                   </div>
 
@@ -1977,7 +2323,7 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
                     </article>
                     <article>
                       <strong>{todayDraftLateCount}</strong>
-                      <span>late</span>
+                      <span>partial</span>
                     </article>
                   </div>
                 </div>
@@ -1991,7 +2337,7 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
                     <strong>Absentee email</strong>
                     {todayAttendanceDraft.absenteeEmailSentAt
                       ? `Processed ${formatDateTime(todayAttendanceDraft.absenteeEmailSentAt)}`
-                      : "Pending or skipped by email settings"}
+                      : "Not sent yet"}
                   </span>
                   <span>
                     <strong>Source</strong>
@@ -2001,99 +2347,136 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
                   </span>
                 </div>
 
-                <div className="today-draft-list">
+                <div className="today-draft-groups">
                   {todayDraftRecords.length ? (
-                    todayDraftRecords.map((record) => {
-                      const studentId = normalizePersonId(record.studentId);
-                      const rosterStudent = getRosterStudent(studentId);
-                      const statusLabel =
-                        record.status === "late"
-                          ? "Late"
-                          : record.status === "present"
-                            ? "Present"
-                            : "Absent";
+                    todayDraftRecordGroups.map((group) => (
+                      <section
+                        key={group.id}
+                        className={`today-draft-group ${group.id}`}
+                      >
+                        <div className="today-draft-group-head">
+                          <h4>{group.title}</h4>
+                          <span>{group.records.length}</span>
+                        </div>
 
-                      return (
-                        <article key={studentId} className="today-draft-row">
-                          <StudentReviewSummary
-                            student={{
-                              studentName: record.studentName,
-                              personId: studentId,
-                              rollNumber: record.rollNumber
-                            }}
-                            rosterStudent={rosterStudent}
-                            statusLabel={statusLabel}
-                            statusTone={record.status === "absent" ? "absent" : "present"}
-                            confidence={record.confidence}
-                          >
-                            {record.notes ? <span>{record.notes}</span> : null}
-                            {record.aiStatus ? (
-                              <span>
-                                {record.aiStatus === "present-suggested"
-                                  ? "AI suggested present"
-                                  : record.aiStatus === "needs-review"
-                                    ? "AI needs teacher review"
-                                    : "Not detected by AI"}
-                              </span>
-                            ) : null}
-                          </StudentReviewSummary>
-
-                          <div
-                            className="manual-status-toggle today-draft-toggle"
-                            aria-label={`${record.studentName} today attendance status`}
-                          >
-                            <button
-                              className={
-                                record.status === "present"
-                                  ? "manual-status-button present active"
-                                  : "manual-status-button present"
-                              }
-                              type="button"
-                              disabled={todayDraftUi.pending}
-                              onClick={() =>
-                                updateTodayDraftStudentStatus(studentId, "present")
-                              }
-                            >
-                              Present
-                            </button>
-                            <button
-                              className={
-                                record.status === "absent"
-                                  ? "manual-status-button absent active"
-                                  : "manual-status-button absent"
-                              }
-                              type="button"
-                              disabled={todayDraftUi.pending}
-                              onClick={() =>
-                                updateTodayDraftStudentStatus(studentId, "absent")
-                              }
-                            >
-                              Absent
-                            </button>
-                            <button
-                              className={
+                        <div className="today-draft-list">
+                          {group.records.length ? (
+                            group.records.map((record) => {
+                              const studentId = normalizePersonId(record.studentId);
+                              const rosterStudent = getRosterStudent(studentId);
+                              const statusLabel =
                                 record.status === "late"
-                                  ? "manual-status-button late active"
-                                  : "manual-status-button late"
-                              }
-                              type="button"
-                              disabled={todayDraftUi.pending}
-                              onClick={() =>
-                                updateTodayDraftStudentStatus(studentId, "late")
-                              }
-                            >
-                              Late
-                            </button>
-                          </div>
-                        </article>
-                      );
-                    })
+                                  ? "Partially Accepted"
+                                  : record.status === "present"
+                                    ? "Present"
+                                    : "Absent";
+
+                              return (
+                                <article key={studentId} className="today-draft-row">
+                                  <StudentReviewSummary
+                                    student={{
+                                      studentName: record.studentName,
+                                      personId: studentId,
+                                      rollNumber: record.rollNumber
+                                    }}
+                                    rosterStudent={rosterStudent}
+                                    statusLabel={statusLabel}
+                                    statusTone={
+                                      record.status === "absent" ? "absent" : "present"
+                                    }
+                                    confidence={record.confidence}
+                                  />
+
+                                  <div
+                                    className="manual-status-toggle today-draft-toggle"
+                                    aria-label={`${record.studentName} today attendance status`}
+                                  >
+                                    <button
+                                      className={
+                                        record.status === "present"
+                                          ? "manual-status-button present active"
+                                          : "manual-status-button present"
+                                      }
+                                      type="button"
+                                      disabled={todayDraftBusy}
+                                      onClick={() =>
+                                        updateTodayDraftStudentStatus(studentId, "present")
+                                      }
+                                    >
+                                      Present
+                                    </button>
+                                    <button
+                                      className={
+                                        record.status === "absent"
+                                          ? "manual-status-button absent active"
+                                          : "manual-status-button absent"
+                                      }
+                                      type="button"
+                                      disabled={todayDraftBusy}
+                                      onClick={() =>
+                                        updateTodayDraftStudentStatus(studentId, "absent")
+                                      }
+                                    >
+                                      Absent
+                                    </button>
+                                    <button
+                                      className={
+                                        record.status === "late"
+                                          ? "manual-status-button late active"
+                                          : "manual-status-button late"
+                                      }
+                                      type="button"
+                                      disabled={todayDraftBusy}
+                                      onClick={() =>
+                                        updateTodayDraftStudentStatus(studentId, "late")
+                                      }
+                                    >
+                                      Partial
+                                    </button>
+                                  </div>
+                                </article>
+                              );
+                            })
+                          ) : (
+                            <p className="panel-fallback">{group.emptyMessage}</p>
+                          )}
+                        </div>
+                      </section>
+                    ))
                   ) : (
                     <p className="panel-fallback">
                       No draft records are available for today yet. Run attendance
                       verification to create the review list.
                     </p>
                   )}
+                </div>
+
+                <div className="attendance-session-options">
+                  <label className="field attendance-unit-field">
+                    <span>Attendance Unit</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="100"
+                      step="1"
+                      value={todayDraftUi.attendanceUnit}
+                      onChange={(event) =>
+                        updateTodayDraftAttendanceUnit(event.target.value)
+                      }
+                      disabled={todayDraftBusy}
+                    />
+                  </label>
+                  <label className="attendance-extra-class-option">
+                    <input
+                      type="checkbox"
+                      checked={todayDraftUi.sessionType === "extra"}
+                      onChange={(event) =>
+                        updateTodayDraftSessionType(event.target.checked)
+                      }
+                      disabled={todayDraftBusy}
+                    />
+                    <span>Extra Class</span>
+                  </label>
                 </div>
 
                 <label className="field">
@@ -2103,6 +2486,7 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
                     onChange={(event) => updateTodayDraftNotes(event.target.value)}
                     rows="3"
                     placeholder="Add correction context before final submission."
+                    disabled={todayDraftBusy}
                   />
                 </label>
 
@@ -2110,22 +2494,39 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
                   <button
                     className="secondary-button"
                     type="button"
-                    disabled={todayDraftUi.pending || !todayDraftRecords.length}
+                    disabled={todayDraftBusy}
+                    onClick={handleTakeAgainTodayDraft}
+                  >
+                    {todayDraftUi.retakePending ? "Removing..." : "Take Again"}
+                  </button>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={todayDraftBusy || !todayDraftRecords.length}
                     onClick={handleSaveTodayDraft}
                   >
                     {todayDraftUi.pending ? "Saving..." : "Save Changes"}
                   </button>
                   <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={todayDraftBusy || todayDraftAbsentCount === 0}
+                    onClick={handleSendTodayDraftAbsenteeEmail}
+                  >
+                    {todayDraftUi.emailPending ? "Sending..." : "Send Email"}
+                  </button>
+                  <button
                     className="primary-button"
                     type="button"
-                    disabled={todayDraftUi.pending || !todayDraftRecords.length}
+                    disabled={todayDraftBusy || !todayDraftRecords.length}
                     onClick={handleFinalizeTodayDraft}
                   >
                     {todayDraftUi.pending ? "Finalizing..." : "Final Submission"}
                   </button>
                   <span className="panel-meta">
                     Final submission writes {todayDraftPresentCount} present and{" "}
-                    {todayDraftAbsentCount} absent records to dashboards.
+                    {todayDraftAbsentCount} absent records as {todayDraftUi.attendanceUnit || 1} unit(s)
+                    {todayDraftUi.sessionType === "extra" ? " for an extra class." : "."}
                   </span>
                 </div>
 
@@ -2331,6 +2732,40 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
                   )}
                 </div>
 
+                <div className="attendance-session-options">
+                  <label className="field attendance-unit-field">
+                    <span>Attendance Unit</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="100"
+                      step="1"
+                      value={attendanceDraft.attendanceUnit}
+                      onChange={(event) =>
+                        setAttendanceDraft((currentDraft) => ({
+                          ...currentDraft,
+                          attendanceUnit: event.target.value
+                        }))
+                      }
+                      disabled={captureStatus.pending}
+                    />
+                  </label>
+                  <label className="attendance-extra-class-option">
+                    <input
+                      type="checkbox"
+                      checked={attendanceDraft.sessionType === "extra"}
+                      onChange={(event) =>
+                        setAttendanceDraft((currentDraft) => ({
+                          ...currentDraft,
+                          sessionType: event.target.checked ? "extra" : "regular"
+                        }))
+                      }
+                      disabled={captureStatus.pending}
+                    />
+                    <span>Extra Class</span>
+                  </label>
+                </div>
+
                 <label className="field">
                   <span>Attendance note</span>
                   <textarea
@@ -2356,7 +2791,8 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
                   </button>
                   <span className="panel-meta">
                     Current submission will mark {currentPresentIds.size} present and{" "}
-                    {currentAbsentCount} absent. Finalization writes the session to the backend so both teacher and student dashboards stay in sync.
+                    {currentAbsentCount} absent as {attendanceDraft.attendanceUnit || 1} unit(s)
+                    {attendanceDraft.sessionType === "extra" ? " for an extra class." : "."}
                   </span>
                 </div>
               </form>
@@ -2367,9 +2803,29 @@ export function TeacherClassroomPage({ attendanceOnly = false }) {
                 <h3>Attendance Submitted</h3>
                 <p>
                   {finalizedAttendance.totalPresent} present •{" "}
-                  {finalizedAttendance.totalAbsent} absent • Finalized{" "}
+                  {finalizedAttendance.totalAbsent} absent • Unit{" "}
+                  {finalizedAttendance.attendanceUnit ?? 1} •{" "}
+                  {finalizedAttendance.sessionType === "extra" ? "Extra Class" : "Scheduled Class"} • Finalized{" "}
                   {formatDateTime(finalizedAttendance.finalizedAt)}
                 </p>
+                <div className="teacher-class-actions finalized-email-actions">
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={
+                      attendanceEmailStatus.pending ||
+                      finalizedAttendance.totalAbsent === 0
+                    }
+                    onClick={handleSendFinalizedAbsenteeEmail}
+                  >
+                    {attendanceEmailStatus.pending ? "Sending..." : "Send Email"}
+                  </button>
+                  {attendanceEmailStatus.message ? (
+                    <span className={`teacher-status-copy ${attendanceEmailStatus.tone}`}>
+                      {attendanceEmailStatus.message}
+                    </span>
+                  ) : null}
+                </div>
               </article>
             ) : null}
           </article>

@@ -256,23 +256,40 @@ export function HomePage() {
   const pageRef = useRef(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadPreviewData() {
-      const healthResult = await Promise.allSettled([fetchPlatformHealth()]);
+      try {
+        const platformHealth = await fetchPlatformHealth();
 
-      const [platformHealth] = healthResult;
+        if (cancelled) {
+          return;
+        }
 
-      if (platformHealth.status === "fulfilled") {
-        setHealth(platformHealth.value);
-      } else {
+        setHealth(platformHealth);
+        setHealthError("");
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setHealth(null);
         setHealthError(
-          platformHealth.reason instanceof Error
-            ? platformHealth.reason.message
+          error instanceof Error
+            ? error.message
             : "Unable to load platform health."
         );
       }
     }
 
     void loadPreviewData();
+
+    const intervalId = window.setInterval(loadPreviewData, 10000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
   }, []);
 
   useEffect(() => {

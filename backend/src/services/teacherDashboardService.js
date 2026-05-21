@@ -1,5 +1,6 @@
 import { ClassMembership } from "../models/ClassMembership.js";
 import { ClassExam } from "../models/ClassExam.js";
+import { FaceProfile } from "../models/FaceProfile.js";
 import { User } from "../models/User.js";
 import {
   getAttendanceSummariesByClass,
@@ -14,19 +15,69 @@ import {
   getCurrentScheduleDayId,
   scheduleDays
 } from "../utils/schedule.js";
+import { resolveStudentDisplayPhotoUrl } from "../utils/studentDisplayPhoto.js";
 
 function clampPercentage(value) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
 function normalizeUserId(userId) {
-  return String(userId).trim().toUpperCase();
+  return String(userId ?? "").trim().toUpperCase();
 }
 
 function createNumericSeed(value) {
   return String(value)
     .split("")
     .reduce((total, character) => total + character.charCodeAt(0), 0);
+}
+
+function getLocalDateKey(value) {
+  const date = new Date(value);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+async function getStudentPhotosById(studentIds = []) {
+  const normalizedStudentIds = Array.from(
+    new Set(studentIds.map((studentId) => normalizeUserId(studentId)).filter(Boolean))
+  );
+
+  if (!normalizedStudentIds.length) {
+    return new Map();
+  }
+
+  const [users, faceProfiles] = await Promise.all([
+    User.find({
+      userId: { $in: normalizedStudentIds },
+      role: "student"
+    }).lean(),
+    FaceProfile.find({
+      studentUserId: { $in: normalizedStudentIds }
+    }).lean()
+  ]);
+  const usersById = new Map(users.map((user) => [normalizeUserId(user.userId), user]));
+  const faceProfilesById = new Map(
+    faceProfiles.map((profile) => [normalizeUserId(profile.studentUserId), profile])
+  );
+
+  return new Map(
+    normalizedStudentIds.map((studentId) => {
+      const user = usersById.get(studentId);
+      const faceProfile = faceProfilesById.get(studentId);
+
+      return [
+        studentId,
+        {
+          avatarDataUrl: user?.avatarDataUrl ?? "",
+          faceProfilePhotoUrl: faceProfile?.profilePhotoUrl ?? "",
+          profilePhotoUrl: resolveStudentDisplayPhotoUrl(user, faceProfile)
+        }
+      ];
+    })
+  );
 }
 
 function buildTeacherAttendanceTrend(basePercentage) {
@@ -84,6 +135,9 @@ async function buildClassesManaged(managedClasses) {
       batch: classroom.batch,
       totalSessions: attendanceSummary.totalSessions,
       lastAttendanceAt: attendanceSummary.latestSession?.recordedAt ?? null,
+      attendanceDateKeys: attendanceSummary.classTakenDateKeys ?? [],
+      attendanceSessionDateKeys: attendanceSummary.attendanceSessionDateKeys ?? [],
+      cancelledDateKeys: attendanceSummary.cancelledDateKeys ?? [],
       momentumScore:
         attendanceSummary.totalSessions > 0
           ? attendanceSummary.averageAttendance
@@ -92,25 +146,32 @@ async function buildClassesManaged(managedClasses) {
   });
 }
 
-function buildStudentWatchlist(classesManaged, memberships, summariesByClass) {
+async function buildStudentWatchlist(classesManaged, memberships, summariesByClass) {
   const classById = new Map(classesManaged.map((course) => [String(course.id), course]));
+  const studentPhotosById = await getStudentPhotosById(
+    memberships.map((membership) => membership.studentUserId)
+  );
   const watchlist = memberships
     .map((membership) => {
       const classId = String(membership.classId);
+      const normalizedStudentId = normalizeUserId(membership.studentUserId);
       const attendanceSummary =
         summariesByClass.get(classId) ??
         summarizeAttendanceRecords([], [membership.studentUserId]);
       const studentStats =
-        attendanceSummary.studentStatsById.get(
-          String(membership.studentUserId).trim().toUpperCase()
-        ) ?? {
+        attendanceSummary.studentStatsById.get(normalizedStudentId) ?? {
           attendancePercentage: 0,
           totalCount: 0
         };
       const course = classById.get(classId);
+      const studentPhoto = studentPhotosById.get(normalizedStudentId) ?? {};
 
       return {
+        studentUserId: normalizedStudentId,
         name: membership.studentName,
+        avatarDataUrl: studentPhoto.avatarDataUrl ?? "",
+        faceProfilePhotoUrl: studentPhoto.faceProfilePhotoUrl ?? "",
+        profilePhotoUrl: studentPhoto.profilePhotoUrl ?? "",
         section: course?.section ?? "Section TBD",
         code: course?.code ?? "Class",
         attendance: studentStats.attendancePercentage,
@@ -151,27 +212,47 @@ function buildFlaggedStudentSet(memberships, summariesByClass) {
 
 function buildTeacherSchedule(classesManaged) {
   const todayId = getCurrentScheduleDayId();
+  const todayDateKey = getLocalDateKey(new Date());
 
   return classesManaged
     .filter((course) => course.status !== "archived")
     .flatMap((course) =>
       (course.scheduleSlots ?? [])
         .filter((slot) => slot.day === todayId)
-        .map((slot) => ({
-          id: `${course.id}-${slot.day}-${slot.startTime}`,
-          title: course.title,
-          code: course.code,
-          section: course.section || "Section TBD",
-          time: slot.timeLabel,
-          startTime: slot.startTime,
-          room: course.room,
-          attendanceStatus: course.attendanceSubmitted
-            ? "History Active"
-            : "First Session Due",
-          focus: course.attendanceSubmitted
-            ? `Open the class workspace and verify the next attendance session for ${course.code}.`
-            : `Share join code ${course.joinCode} before this class starts.`
-        }))
+        .map((slot) => {
+          const attendanceTakenToday = (course.attendanceDateKeys ?? []).includes(
+            todayDateKey
+          );
+          const cancelledToday = (course.cancelledDateKeys ?? []).includes(
+            todayDateKey
+          );
+
+          return {
+            id: `${course.id}-${slot.day}-${slot.startTime}`,
+            title: course.title,
+            code: course.code,
+            section: course.section || "Section TBD",
+            time: slot.timeLabel,
+            startTime: slot.startTime,
+            room: course.room,
+            attendanceTakenToday,
+            cancelledToday,
+            attendanceStatus: cancelledToday
+              ? "Cancelled"
+              : attendanceTakenToday
+                ? "Taken"
+                : course.attendanceSubmitted
+                  ? "Attendance Due"
+                  : "First Attendance Due",
+            focus: cancelledToday
+              ? `${course.code} has already been marked cancelled today.`
+              : attendanceTakenToday
+                ? `Attendance has already been taken for ${course.code} today.`
+                : course.attendanceSubmitted
+                  ? `${course.code} attendance is due today.`
+                  : `${course.code} first attendance is due today. Share join code ${course.joinCode} if students still need to join.`
+          };
+        })
     )
     .sort((left, right) => left.startTime.localeCompare(right.startTime));
 }
@@ -306,6 +387,9 @@ export async function getTeacherDashboard(userId) {
   );
   const todaysSchedule = buildTeacherSchedule(classesManaged);
   const weeklySchedule = buildTeacherWeeklySchedule(classesManaged);
+  const studentWatchlist = classesManaged.length
+    ? await buildStudentWatchlist(classesManaged, memberships, summariesByClass)
+    : [];
   const scheduledSlotCount = classesManaged.reduce(
     (total, currentClass) =>
       currentClass.status === "archived"
@@ -324,6 +408,7 @@ export async function getTeacherDashboard(userId) {
       specialization: teacher.specialization,
       experienceYears: teacher.experienceYears,
       joiningYear: teacher.joiningYear,
+      avatarDataUrl: teacher.avatarDataUrl ?? "",
       email: teacher.email
     },
     overview: {
@@ -370,9 +455,7 @@ export async function getTeacherDashboard(userId) {
     ],
     todaysSchedule,
     weeklySchedule,
-    studentWatchlist: classesManaged.length
-      ? buildStudentWatchlist(classesManaged, memberships, summariesByClass)
-      : [],
+    studentWatchlist,
     quickInsights: classesManaged.length
       ? [
           {

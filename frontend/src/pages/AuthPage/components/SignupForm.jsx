@@ -23,13 +23,13 @@ export function SignupForm({
   const hasPasswordMismatch =
     form.password && form.confirmPassword && form.password !== form.confirmPassword;
   const normalizedEmail = form.email.trim().toLowerCase();
-  const isStudentSignup = form.role === "student";
-  const isCurrentVerificationEmail = verification?.email === normalizedEmail;
+  const isCurrentVerificationEmail =
+    verification?.role === form.role && verification?.email === normalizedEmail;
   const isEmailVerified =
-    isStudentSignup && isCurrentVerificationEmail && verification?.verified;
+    isCurrentVerificationEmail && verification?.verified;
   const isEmailOtpPending =
-    isStudentSignup && isCurrentVerificationEmail && verification && !verification.verified;
-  const canShowEmailVerification = isStudentSignup && form.email.trim();
+    isCurrentVerificationEmail && verification && !verification.verified;
+  const canShowEmailVerification = form.email.trim();
 
   return (
     <form className="glass-card auth-card auth-card-large" onSubmit={onSubmit}>
@@ -94,7 +94,11 @@ export function SignupForm({
             name="userId"
             value={form.userId}
             onChange={onChange}
-            placeholder={form.role === "student" ? "name#01" : undefined}
+            placeholder={
+              form.role === "student"
+                ? "name#rollno or your student ID"
+                : undefined
+            }
             autoComplete="username"
             required
           />
@@ -162,8 +166,9 @@ export function SignupForm({
                 name="rollNumber"
                 value={form.rollNumber}
                 onChange={onChange}
-                pattern="[A-Za-z0-9._/-]{2,}"
-                title="Use letters, numbers, dots, slashes, underscores, or hyphens."
+                inputMode="numeric"
+                pattern="[0-9]+"
+                title="Use numbers only."
                 autoComplete="off"
                 required
               />
@@ -186,6 +191,15 @@ export function SignupForm({
                 max="2100"
                 value={form.yearOfPassing}
                 onChange={onChange}
+              />
+            </label>
+            <label className="field">
+              <span>Semester</span>
+              <input
+                name="semesterLabel"
+                value={form.semesterLabel}
+                onChange={onChange}
+                placeholder="Sem 3"
               />
             </label>
           </>

@@ -36,6 +36,7 @@ const emptyStudentForm = {
   email: "",
   department: "",
   batch: "",
+  semesterLabel: "",
   password: "",
   confirmPassword: ""
 };
@@ -73,6 +74,28 @@ function getInitials(name) {
     .map((part) => part[0])
     .join("")
     .toUpperCase();
+}
+
+function StudentAvatar({ student }) {
+  const profilePhotoUrl =
+    student?.profilePhotoUrl ||
+    student?.avatarDataUrl ||
+    student?.faceProfilePhotoUrl ||
+    "";
+  const studentName = student?.studentName ?? "";
+
+  return (
+    <div className="teacher-student-avatar" aria-hidden="true">
+      {profilePhotoUrl ? <img src={profilePhotoUrl} alt="" /> : getInitials(studentName)}
+    </div>
+  );
+}
+
+function buildStudentUserId(firstName, rollNumber) {
+  const namePart = String(firstName ?? "").trim().replace(/\s+/g, "");
+  const rollPart = String(rollNumber ?? "").trim();
+
+  return namePart && rollPart ? `${namePart}#${rollPart}`.toUpperCase() : "";
 }
 
 function clampSafeRange(value) {
@@ -295,10 +318,32 @@ export function TeacherClassroomStudentsPage() {
   }
 
   function updateStudentForm(field, value) {
-    setStudentForm((currentForm) => ({
-      ...currentForm,
-      [field]: value
-    }));
+    setStudentForm((currentForm) => {
+      const nextForm = {
+        ...currentForm,
+        [field]: value
+      };
+
+      if (!editingStudentId && field !== "userId") {
+        const currentGeneratedId = buildStudentUserId(
+          currentForm.firstName,
+          currentForm.rollNumber
+        );
+        nextForm.userId = buildStudentUserId(
+          nextForm.firstName,
+          nextForm.rollNumber
+        );
+
+        if (
+          currentForm.userId &&
+          currentForm.userId !== currentGeneratedId
+        ) {
+          nextForm.userId = currentForm.userId;
+        }
+      }
+
+      return nextForm;
+    });
   }
 
   function resetStudentForm() {
@@ -321,6 +366,7 @@ export function TeacherClassroomStudentsPage() {
       email: student.email ?? "",
       department: student.department ?? "",
       batch: student.batch ?? "",
+      semesterLabel: student.semesterLabel ?? "",
       password: "",
       confirmPassword: ""
     });
@@ -689,7 +735,7 @@ export function TeacherClassroomStudentsPage() {
                   type="text"
                   value={studentForm.userId}
                   onChange={(event) => updateStudentForm("userId", event.target.value)}
-                  placeholder="STU-1001"
+                  placeholder="NAME#ROLLNO or custom ID"
                   disabled={Boolean(editingStudentId)}
                   required
                 />
@@ -718,6 +764,10 @@ export function TeacherClassroomStudentsPage() {
                   type="text"
                   value={studentForm.rollNumber}
                   onChange={(event) => updateStudentForm("rollNumber", event.target.value)}
+                  inputMode="numeric"
+                  pattern="[0-9]+"
+                  title="Use numbers only."
+                  disabled={Boolean(editingStudentId)}
                   required
                 />
               </label>
@@ -743,6 +793,15 @@ export function TeacherClassroomStudentsPage() {
                   type="text"
                   value={studentForm.batch}
                   onChange={(event) => updateStudentForm("batch", event.target.value)}
+                />
+              </label>
+              <label className="field">
+                <span>Semester</span>
+                <input
+                  type="text"
+                  value={studentForm.semesterLabel}
+                  onChange={(event) => updateStudentForm("semesterLabel", event.target.value)}
+                  placeholder="Sem 3"
                 />
               </label>
               <label className="field">
@@ -888,13 +947,18 @@ export function TeacherClassroomStudentsPage() {
           {selectedStudent ? (
             <section className="teacher-student-calendar-panel">
               <div className="teacher-student-calendar-header">
-                <div>
-                  <span className="pill">Student Calendar</span>
-                  <h3>{selectedStudent.studentName}</h3>
-                  <p>
-                    Roll No {selectedStudent.rollNumber || selectedStudent.studentUserId} •{" "}
-                    {selectedStudent.attendancePercentage}% attendance
-                  </p>
+                <div className="teacher-student-calendar-identity">
+                  <StudentAvatar student={selectedStudent} />
+                  <div>
+                    <span className="pill">Student Calendar</span>
+                    <h3>{selectedStudent.studentName}</h3>
+                    <p>
+                      Roll No {selectedStudent.rollNumber || selectedStudent.studentUserId} •{" "}
+                      {selectedStudent.department ? `${selectedStudent.department} • ` : ""}
+                      {selectedStudent.semesterLabel ? `${selectedStudent.semesterLabel} • ` : ""}
+                      {selectedStudent.attendancePercentage}% attendance
+                    </p>
+                  </div>
                 </div>
                 <button
                   className="secondary-button"
@@ -919,7 +983,7 @@ export function TeacherClassroomStudentsPage() {
                   <strong>{selectedStatusCounts.cancelled}</strong>
                 </div>
                 <div>
-                  <span>Sessions Counted</span>
+                  <span>Units Counted</span>
                   <strong>{selectedStudent.sessionsHeld || 0}</strong>
                 </div>
               </div>
@@ -1081,12 +1145,14 @@ export function TeacherClassroomStudentsPage() {
               filteredStudents.map((student) => (
                 <div key={student.studentUserId} className="teacher-student-row">
                   <div className="teacher-student-profile">
-                    <div className="teacher-student-avatar">
-                      {getInitials(student.studentName)}
-                    </div>
+                    <StudentAvatar student={student} />
                     <div className="teacher-student-identity">
                       <strong>{student.studentName}</strong>
-                      <span>Roll No {student.rollNumber || student.studentUserId}</span>
+                      <span>
+                        Roll No {student.rollNumber || student.studentUserId}
+                        {student.department ? ` • ${student.department}` : ""}
+                        {student.semesterLabel ? ` • ${student.semesterLabel}` : ""}
+                      </span>
                     </div>
                   </div>
 
@@ -1103,7 +1169,7 @@ export function TeacherClassroomStudentsPage() {
 
                   <div className="teacher-student-classes-count">
                     <strong>{student.sessionsAttended}/{student.sessionsHeld || 0}</strong>
-                    <span>classes</span>
+                    <span>units</span>
                   </div>
 
                   <span

@@ -64,6 +64,43 @@ function formatFileSize(size) {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function getInitials(name) {
+  const parts = String(name ?? "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (!parts.length) {
+    return "?";
+  }
+
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+}
+
+function getStudentPhotoUrl(student) {
+  return (
+    student?.profilePhotoUrl ||
+    student?.avatarDataUrl ||
+    student?.faceProfilePhotoUrl ||
+    ""
+  );
+}
+
+function AssignmentStudentAvatar({ student }) {
+  const displayName = student?.studentName || student?.studentUserId || "Student";
+  const photoUrl = getStudentPhotoUrl(student);
+
+  return (
+    <span className="assignment-student-avatar" aria-hidden="true">
+      {photoUrl ? <img src={photoUrl} alt="" /> : getInitials(displayName)}
+    </span>
+  );
+}
+
 function escapeCsvValue(value) {
   const stringValue = String(value ?? "");
   const escapedValue = stringValue.replace(/"/g, '""');
@@ -1031,13 +1068,16 @@ export function ClassAssignmentsPage() {
                           <div className="assignment-submission-list">
                             {assignment.submissions.map((submission) => (
                               <article key={submission.id} className="assignment-submission-row">
-                                <div>
-                                  <strong>{submission.studentName}</strong>
-                                  <span>
-                                    Roll {submission.rollNumber || submission.studentUserId} •{" "}
-                                    {submission.status} •{" "}
-                                    {formatDateTime(submission.submittedAt)}
-                                  </span>
+                                <div className="assignment-student-summary">
+                                  <AssignmentStudentAvatar student={submission} />
+                                  <div>
+                                    <strong>{submission.studentName}</strong>
+                                    <span>
+                                      Roll {submission.rollNumber || submission.studentUserId} •{" "}
+                                      {submission.status} •{" "}
+                                      {formatDateTime(submission.submittedAt)}
+                                    </span>
+                                  </div>
                                 </div>
                                 <div className="assignment-submission-files">
                                   {(submission.attachments ?? []).map((attachment) => (
@@ -1067,10 +1107,16 @@ export function ClassAssignmentsPage() {
                           </div>
                           <div className="assignment-missing-list">
                             {assignment.missingSubmissions.slice(0, 8).map((student) => (
-                              <span key={`${assignment.id}-${student.studentUserId}`}>
-                                {student.rollNumber || student.studentUserId} •{" "}
-                                {student.studentName}
-                              </span>
+                              <div
+                                key={`${assignment.id}-${student.studentUserId}`}
+                                className="assignment-missing-student"
+                              >
+                                <AssignmentStudentAvatar student={student} />
+                                <span>
+                                  {student.rollNumber || student.studentUserId} •{" "}
+                                  {student.studentName}
+                                </span>
+                              </div>
                             ))}
                             {assignment.missingSubmissions.length > 8 ? (
                               <strong>

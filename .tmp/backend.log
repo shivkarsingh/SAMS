@@ -1,0 +1,131 @@
+
+> smart-attendance-management-system@0.1.0 dev:backend
+> npm --workspace backend run dev
+
+
+> backend@0.1.0 dev
+> node src/server.js
+
+MongoDB connected.
+Backend listening on http://localhost:4000
+Email service status: error.
+
+> smart-attendance-management-system@0.1.0 dev:backend
+> npm --workspace backend run dev
+
+
+> backend@0.1.0 dev
+> node src/server.js
+
+MongoDB connected.
+node:events:496
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: listen EADDRINUSE: address already in use :::4000
+    at Server.setupListenHandle [as _listen2] (node:net:1897:16)
+    at listenInCluster (node:net:1945:12)
+    at Server.listen (node:net:2037:7)
+    at Function.listen (/Users/shivkarsingh/Desktop/SAMS/node_modules/express/lib/application.js:635:24)
+    at file:///Users/shivkarsingh/Desktop/SAMS/backend/src/server.js:18:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+Emitted 'error' event on Server instance at:
+    at emitErrorNT (node:net:1924:8)
+    at process.processTicksAndRejections (node:internal/process/task_queues:82:21) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 4000
+}
+
+Node.js v20.12.0
+npm ERR! Lifecycle script `dev` failed with error: 
+npm ERR! Error: command failed 
+npm ERR!   in workspace: backend@0.1.0 
+npm ERR!   at location: /Users/shivkarsingh/Desktop/SAMS/backend 
+
+> smart-attendance-management-system@0.1.0 dev:backend
+> npm --workspace backend run dev
+
+
+> backend@0.1.0 dev
+> node src/server.js
+
+MongoDB connected.
+Backend listening on http://localhost:4000
+Email service status: online.
+
+> smart-attendance-management-system@0.1.0 dev:backend
+> npm --workspace backend run dev
+
+
+> backend@0.1.0 dev
+> node src/server.js
+
+MongoDB connected.
+node:events:496
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: listen EADDRINUSE: address already in use :::4000
+    at Server.setupListenHandle [as _listen2] (node:net:1897:16)
+    at listenInCluster (node:net:1945:12)
+    at Server.listen (node:net:2037:7)
+    at Function.listen (/Users/shivkarsingh/Desktop/SAMS/node_modules/express/lib/application.js:635:24)
+    at file:///Users/shivkarsingh/Desktop/SAMS/backend/src/server.js:18:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+Emitted 'error' event on Server instance at:
+    at emitErrorNT (node:net:1924:8)
+    at process.processTicksAndRejections (node:internal/process/task_queues:82:21) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 4000
+}
+
+Node.js v20.12.0
+npm ERR! Lifecycle script `dev` failed with error: 
+npm ERR! Error: command failed 
+npm ERR!   in workspace: backend@0.1.0 
+npm ERR!   at location: /Users/shivkarsingh/Desktop/SAMS/backend 
+
+> smart-attendance-management-system@0.1.0 dev:backend
+> npm --workspace backend run dev
+
+
+> backend@0.1.0 dev
+> node src/server.js
+
+MongoDB connected.
+Backend listening on http://localhost:4000
+Email service status: online.
+
+> smart-attendance-management-system@0.1.0 dev:backend
+> npm --workspace backend run dev
+
+
+> backend@0.1.0 dev
+> node src/server.js
+
+MongoDB connected.
+Backend listening on http://localhost:4000
+Email service status: online.
+
+> smart-attendance-management-system@0.1.0 dev:backend
+> npm --workspace backend run dev
+
+
+> backend@0.1.0 dev
+> node src/server.js
+
+MongoDB connected.
+Backend listening on http://localhost:4000
+Email service status: online.
+[attendance-drafts:sweep-failed] connection <monitor> to 159.41.197.17:27017 timed out
+[attendance-drafts:sweep-failed] connection <monitor> to 159.41.197.17:27017 timed out
+[attendance-drafts:sweep-failed] getaddrinfo ENOTFOUND cluster0-shard-00-00.34ply.mongodb.net
+[attendance-drafts:sweep-failed] Socket 'secureConnect' timed out after 1070872ms (connectTimeoutMS: 30000)
+[attendance-drafts:sweep-failed] connection <monitor> to 159.41.197.17:27017 timed out
+[attendance-drafts:sweep-failed] Socket 'secureConnect' timed out after 391113ms (connectTimeoutMS: 30000)

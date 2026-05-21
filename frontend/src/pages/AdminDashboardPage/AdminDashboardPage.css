@@ -150,6 +150,39 @@
   flex-wrap: wrap;
 }
 
+.admin-user-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.admin-user-main > div {
+  min-width: 0;
+}
+
+.admin-user-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  overflow: hidden;
+  border: 1px solid rgba(125, 211, 252, 0.22);
+  border-radius: 999px;
+  background: rgba(14, 165, 233, 0.13);
+  color: #e0f2fe;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.admin-user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .admin-row-title strong {
   color: #ffffff;
 }
@@ -164,6 +197,28 @@
   border-radius: 999px;
   color: #cbd5e1;
   font-size: 0.82rem;
+}
+
+.admin-row-stats .admin-face-pill {
+  font-weight: 800;
+}
+
+.admin-face-pill.active {
+  border-color: rgba(74, 222, 128, 0.3);
+  background: rgba(22, 163, 74, 0.16);
+  color: #bbf7d0;
+}
+
+.admin-face-pill.warning {
+  border-color: rgba(251, 191, 36, 0.32);
+  background: rgba(180, 83, 9, 0.16);
+  color: #fde68a;
+}
+
+.admin-face-pill.archived {
+  border-color: rgba(248, 113, 113, 0.3);
+  background: rgba(127, 29, 29, 0.24);
+  color: #fecaca;
 }
 
 .admin-row-actions {
